@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { CATEGORIES, CATEGORY_ICONS } from '../context/AppContext'
+import { CATEGORIES, CatIcon } from '../context/AppContext'
 import Modal from './Modal'
 
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -37,7 +37,7 @@ function BudgetModal({ initial, onSave, onClose }) {
         <label className="form-label">Categoria</label>
         <select className="form-select" value={form.category} onChange={e => set('category', e.target.value)}>
           {CATEGORIES.filter(c => !['Salário', 'Freelance', 'Investimentos', 'Outros Rendimentos'].includes(c))
-            .map(c => <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>)}
+            .map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
       <div className="form-group">
@@ -170,12 +170,12 @@ export default function Budget() {
                 <div className="budget-item-header">
                   <div className="budget-category">
                     <div className="budget-category-icon" style={{ background: `${b.color}20` }}>
-                      {CATEGORY_ICONS[b.category] || '📦'}
+                      <CatIcon category={b.category} />
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{b.category}</div>
-                      {over && <div style={{ fontSize: 11, color: 'var(--accent-red)', marginTop: 2 }}>⚠ Limite ultrapassado</div>}
-                      {warn && !over && <div style={{ fontSize: 11, color: 'var(--accent-yellow)', marginTop: 2 }}>⚡ Próximo do limite</div>}
+                      {over && <div style={{ fontSize: 11, color: 'var(--accent-red)', marginTop: 2 }}><i className="fi fi-rr-exclamation" /> Limite ultrapassado</div>}
+                      {warn && !over && <div style={{ fontSize: 11, color: 'var(--accent-yellow)', marginTop: 2 }}><i className="fi fi-rr-bolt" /> Próximo do limite</div>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { CATEGORIES, CATEGORY_ICONS } from '../context/AppContext'
+import { CATEGORIES, CatIcon } from '../context/AppContext'
 import Modal from './Modal'
 
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -11,7 +11,7 @@ const EMPTY_FORM = {
   walletId: '', status: 'completed', notes: '',
 }
 
-const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente', failed: '✕ Falhou' }
+const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente' }
 
 // ─── Form Modal ───────────────────────────────────────────────────────────────
 
@@ -52,7 +52,6 @@ function TxModal({ initial, onSave, onClose, wallets }) {
           <select className="form-select" value={form.status} onChange={e => set('status', e.target.value)}>
             <option value="completed">Concluído</option>
             <option value="pending">Pendente</option>
-            <option value="failed">Falhou</option>
           </select>
         </div>
       </div>
@@ -94,10 +93,10 @@ function TxModal({ initial, onSave, onClose, wallets }) {
 
 // ─── Delete Confirm ───────────────────────────────────────────────────────────
 
-function ConfirmModal({ name, onConfirm, onClose }) {
+function ConfirmModal({ name, count, onConfirm, onClose }) {
   return (
     <Modal
-      title="Excluir Transação"
+      title={count ? 'Excluir Transações' : 'Excluir Transação'}
       onClose={onClose}
       footer={
         <>
@@ -107,37 +106,89 @@ function ConfirmModal({ name, onConfirm, onClose }) {
       }
     >
       <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-        Deseja excluir <strong style={{ color: 'var(--text-primary)' }}>{name}</strong>? Esta ação não pode ser desfeita.
+        {count
+          ? <>Deseja excluir <strong style={{ color: 'var(--text-primary)' }}>{count} transações</strong> selecionadas? Esta ação não pode ser desfeita.</>
+          : <>Deseja excluir <strong style={{ color: 'var(--text-primary)' }}>{name}</strong>? Esta ação não pode ser desfeita.</>
+        }
       </p>
     </Modal>
+  )
+}
+
+// ─── Checkbox ─────────────────────────────────────────────────────────────────
+
+function Checkbox({ checked, indeterminate, onChange }) {
+  return (
+    <label className="tx-checkbox">
+      <input
+        type="checkbox"
+        checked={checked}
+        ref={el => { if (el) el.indeterminate = !!indeterminate }}
+        onChange={onChange}
+      />
+      <span className="tx-checkbox-box" />
+    </label>
   )
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, addTransaction, updateTransaction, deleteTransaction, monthlyIncome, monthlyExpenses } = useApp()
+  const { transactions, wallets, addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses } = useApp()
 
-  const [search, setSearch]       = useState('')
-  const [filterType, setType]     = useState('all')
-  const [filterCat, setCat]       = useState('all')
+  const [search, setSearch] = useState('')
+  const [filterType, setType] = useState('all')
+  const [filterCat, setCat] = useState('all')
   const [filterStatus, setStatus] = useState('all')
-  const [addModal, setAddModal]   = useState(false)
-  const [editItem, setEditItem]   = useState(null)
-  const [delItem, setDelItem]     = useState(null)
+  const [addModal, setAddModal] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [delItem, setDelItem] = useState(null)
+  const [bulkConfirm, setBulkConfirm] = useState(false)
+  const [selected, setSelected] = useState(new Set())
 
   const filtered = transactions.filter(t => {
     if (filterType !== 'all' && t.type !== filterType) return false
     if (filterCat !== 'all' && t.category !== filterCat) return false
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
     if (search && !t.name.toLowerCase().includes(search.toLowerCase()) &&
-        !t.category.toLowerCase().includes(search.toLowerCase())) return false
+      !t.category.toLowerCase().includes(search.toLowerCase())) return false
     return true
   }).sort((a, b) => new Date(b.date) - new Date(a.date))
 
   const net = monthlyIncome - monthlyExpenses
-
   const usedCategories = [...new Set(transactions.map(t => t.category))].sort()
+
+  const filteredIds = filtered.map(t => t.id)
+  const allSelected = filteredIds.length > 0 && filteredIds.every(id => selected.has(id))
+  const someSelected = filteredIds.some(id => selected.has(id)) && !allSelected
+  const selectedCount = filteredIds.filter(id => selected.has(id)).length
+
+  const toggleOne = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(prev => {
+        const next = new Set(prev)
+        filteredIds.forEach(id => next.delete(id))
+        return next
+      })
+    } else {
+      setSelected(prev => new Set([...prev, ...filteredIds]))
+    }
+  }
+
+  const clearSelection = () => setSelected(new Set())
+
+  const handleBulkDelete = () => {
+    bulkDeleteTransactions([...selected].filter(id => filteredIds.includes(id)))
+    clearSelection()
+  }
 
   return (
     <div className="screen">
@@ -160,7 +211,7 @@ export default function Transactions() {
       {/* Filter bar + Add */}
       <div className="filter-bar">
         <div className="search-box">
-          <span className="search-icon">🔍</span>
+          <i className="fi fi-rr-search search-icon" />
           <input
             className="search-input"
             placeholder="Buscar transações..."
@@ -181,18 +232,32 @@ export default function Transactions() {
           <option value="all">Todos os status</option>
           <option value="completed">Concluído</option>
           <option value="pending">Pendente</option>
-          <option value="failed">Falhou</option>
         </select>
         <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setAddModal(true)}>
-          + Nova Transação
+          <i className="fi fi-rr-plus" /> Nova Transação
         </button>
       </div>
 
       {/* Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>{filtered.length} transação{filtered.length !== 1 ? 'ões' : ''}</span>
+        <div className="tx-table-header">
+          <span style={{ fontSize: 14, fontWeight: 600 }}>
+            {filtered.length} transaç{filtered.length > 1 ? 'ões' : 'ão'}
+          </span>
+
+          {selectedCount > 0 && (
+            <div className="tx-bulk-bar">
+              <span className="tx-bulk-count">{selectedCount} selecionada{selectedCount > 1 ? 's' : ''}</span>
+              <button className="btn btn-danger btn-sm" onClick={() => setBulkConfirm(true)}>
+                <i className="fi fi-rr-trash" /> Excluir selecionadas
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={clearSelection}>
+                Cancelar
+              </button>
+            </div>
+          )}
         </div>
+
         {filtered.length === 0 ? (
           <div className="empty-state">
             <span style={{ fontSize: 32 }}>🔍</span>
@@ -203,41 +268,52 @@ export default function Transactions() {
           <table className="transactions-table" style={{ margin: 0 }}>
             <thead>
               <tr>
-                <th style={{ padding: '12px 20px 12px' }}>Descrição</th>
-                <th>Categoria</th>
-                <th>Carteira</th>
-                <th>Data</th>
+                <th style={{ width: 44 }}>
+                  <Checkbox
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onChange={toggleAll}
+                  />
+                </th>
+                <th>Descrição</th>
+                <th style={{ textAlign: 'center' }}>Categoria</th>
+                <th style={{ textAlign: 'center' }}>Carteira</th>
+                <th style={{ textAlign: 'center' }}>Data</th>
                 <th style={{ textAlign: 'right' }}>Valor</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
-                <th style={{ textAlign: 'right', paddingRight: 20 }}>Ações</th>
+                <th style={{ textAlign: 'center' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(tx => {
                 const wallet = wallets.find(w => w.id === tx.walletId)
+                const isSelected = selected.has(tx.id)
                 return (
-                  <tr key={tx.id}>
+                  <tr key={tx.id} className={isSelected ? 'tx-row-selected' : ''}>
                     <td style={{ paddingLeft: 20 }}>
+                      <Checkbox checked={isSelected} onChange={() => toggleOne(tx.id)} />
+                    </td>
+                    <td>
                       <div className="tx-info">
                         <div className="tx-icon" style={{ background: 'var(--bg-hover)' }}>
-                          {CATEGORY_ICONS[tx.category] || '💳'}
+                          <CatIcon category={tx.category} />
                         </div>
                         <div className="tx-name">{tx.name}</div>
                       </div>
                     </td>
-                    <td><span className="category-tag">{tx.category}</span></td>
-                    <td className="tx-date">{wallet ? `${wallet.icon} ${wallet.name}` : '—'}</td>
-                    <td className="tx-date">{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td style={{ textAlign: 'center' }}><span className="category-tag">{tx.category}</span></td>
+                    <td className="tx-date" style={{ textAlign: 'center' }}>{wallet ? `${wallet.icon} ${wallet.name}` : '—'}</td>
+                    <td className="tx-date" style={{ textAlign: 'center' }}>{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className={`tx-amount ${tx.type === 'income' ? 'positive' : 'negative'}`}>
                       {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                     </td>
                     <td className="tx-status">
                       <span className={`status-badge ${tx.status}`}>{STATUS_LABEL[tx.status]}</span>
                     </td>
-                    <td style={{ paddingRight: 20 }}>
-                      <div className="table-actions">
-                        <button className="btn-icon" title="Editar" onClick={() => setEditItem(tx)}>✏️</button>
-                        <button className="btn-icon danger" title="Excluir" onClick={() => setDelItem(tx)}>🗑️</button>
+                    <td>
+                      <div className="table-actions" style={{ justifyContent: 'center' }}>
+                        <button className="btn-icon" title="Editar" onClick={() => setEditItem(tx)}><i className="fi fi-rr-pencil" /></button>
+                        <button className="btn-icon danger" title="Excluir" onClick={() => setDelItem(tx)}><i className="fi fi-rr-trash" /></button>
                       </div>
                     </td>
                   </tr>
@@ -263,6 +339,13 @@ export default function Transactions() {
           name={delItem.name}
           onConfirm={() => deleteTransaction(delItem.id)}
           onClose={() => setDelItem(null)}
+        />
+      )}
+      {bulkConfirm && (
+        <ConfirmModal
+          count={selectedCount}
+          onConfirm={handleBulkDelete}
+          onClose={() => setBulkConfirm(false)}
         />
       )}
     </div>

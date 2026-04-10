@@ -64,19 +64,19 @@ export default function Overview() {
 
   const metrics = [
     {
-      label: 'Saldo Total', value: fmt(totalBalance), icon: '◈', color: 'purple',
+      label: 'Saldo Total', value: fmt(totalBalance), icon: 'fi-rr-wallet', color: 'purple',
       change: pctChange(totalBalance, totalBalance * 0.92), dir: 'up', period: 'estimativa'
     },
     {
-      label: 'Receitas', value: fmt(monthlyIncome), icon: '↑', color: 'green',
+      label: 'Receitas', value: fmt(monthlyIncome), icon: 'fi-rr-chart-line-up', color: 'green',
       change: pctChange(monthlyIncome, lastIncome), dir: monthlyIncome >= lastIncome ? 'up' : 'down', period: 'vs mês anterior'
     },
     {
-      label: 'Despesas', value: fmt(monthlyExpenses), icon: '↓', color: 'red',
+      label: 'Despesas', value: fmt(monthlyExpenses), icon: 'fi-rr-money-bill-wave', color: 'red',
       change: pctChange(monthlyExpenses, lastExpenses), dir: monthlyExpenses <= lastExpenses ? 'up' : 'down', period: 'vs mês anterior'
     },
     {
-      label: 'Economias', value: fmt(Math.max(monthlySavings, 0)), icon: '★', color: 'yellow',
+      label: 'Economias', value: fmt(Math.max(monthlySavings, 0)), icon: 'fi-rr-piggy-bank', color: 'yellow',
       change: pctChange(monthlySavings, lastSavings), dir: monthlySavings >= lastSavings ? 'up' : 'down', period: 'vs mês anterior'
     },
   ]
@@ -89,7 +89,7 @@ export default function Overview() {
     name, pct: val, color: COLORS[i % COLORS.length],
   }))
 
-  const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente', failed: '✕ Falhou' }
+  const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente' }
 
   return (
     <div className="screen">
@@ -99,12 +99,13 @@ export default function Overview() {
           <div key={i} className="metric-card">
             <div className="metric-header">
               <span className="metric-label">{m.label}</span>
-              <div className={`metric-icon ${m.color}`}>{m.icon}</div>
+              <div className={`metric-icon ${m.color}`}><i className={`fi ${m.icon}`} /></div>
             </div>
             <div className="metric-value">{m.value}</div>
             <div className="metric-footer">
               <span className={`metric-change ${m.dir}`}>
-                {m.dir === 'up' ? '↑' : '↓'} {Math.abs(m.change)}%
+                <i className={`fi ${m.dir === 'up' ? 'fi-rr-arrow-alt-up' : 'fi-rr-arrow-alt-down'}`} />
+                {Math.abs(m.change)}%
               </span>
               <span className="metric-period">{m.period}</span>
             </div>

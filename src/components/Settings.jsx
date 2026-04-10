@@ -62,7 +62,7 @@ export default function Settings() {
       <div className="settings-grid">
 
         {/* Profile */}
-        <Section icon="👤" title="Perfil">
+        <Section icon={<i className="fi fi-rr-user" />} title="Perfil">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
               <div style={{
@@ -91,13 +91,13 @@ export default function Settings() {
               <input className="form-input" maxLength={2} value={profile.initials} onChange={e => set('initials', e.target.value.toUpperCase())} style={{ width: 80 }} />
             </div>
             <button className="btn btn-primary" onClick={saveProfile} style={{ alignSelf: 'flex-start' }}>
-              {saved ? '✓ Salvo!' : 'Salvar perfil'}
+              {saved ? <><i className="fi fi-rr-check" /> Salvo!</> : 'Salvar perfil'}
             </button>
           </div>
         </Section>
 
         {/* Preferences */}
-        <Section icon="⚙️" title="Preferências">
+        <Section icon={<i className="fi fi-rr-settings-sliders" />} title="Preferências">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="form-group">
               <label className="form-label">Moeda</label>
@@ -138,7 +138,10 @@ export default function Settings() {
               ))}
               <div className="toggle-row">
                 <div className="toggle-info">
-                  <div className="toggle-label">{settings.theme === 'dark' ? '🌙 Tema Escuro' : '☀️ Tema Claro'}</div>
+                  <div className="toggle-label">
+                    <i className={`fi ${settings.theme === 'dark' ? 'fi-rr-moon' : 'fi-rr-sun'}`} style={{ marginRight: 6 }} />
+                    {settings.theme === 'dark' ? 'Tema Escuro' : 'Tema Claro'}
+                  </div>
                   <div className="toggle-desc">Alternar entre modo claro e escuro</div>
                 </div>
                 <Toggle on={settings.theme === 'dark'} onChange={toggleTheme} />
@@ -148,7 +151,7 @@ export default function Settings() {
         </Section>
 
         {/* Categories info */}
-        <Section icon="🏷️" title="Categorias Disponíveis">
+        <Section icon={<i className="fi fi-rr-tags" />} title="Categorias Disponíveis">
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
             Categorias usadas nas transações e orçamentos.
           </p>
@@ -160,7 +163,7 @@ export default function Settings() {
         </Section>
 
         {/* Data */}
-        <Section icon="💾" title="Dados">
+        <Section icon={<i className="fi fi-rr-database" />} title="Dados">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               Os dados são armazenados localmente no navegador. Exporte para fazer backup ou importe para restaurar.
@@ -178,21 +181,21 @@ export default function Settings() {
                 style={{ width: '100%' }}
                 onClick={() => alert('Funcionalidade de exportação será implementada em breve.')}
               >
-                📤 Exportar dados (JSON)
+                <i className="fi fi-rr-upload" /> Exportar dados (JSON)
               </button>
               <button
                 className="btn btn-secondary"
                 style={{ width: '100%' }}
                 onClick={() => alert('Funcionalidade de importação será implementada em breve.')}
               >
-                📥 Importar dados
+                <i className="fi fi-rr-download" /> Importar dados
               </button>
             </div>
           </div>
         </Section>
 
         {/* About */}
-        <Section icon="ℹ️" title="Sobre">
+        <Section icon={<i className="fi fi-rr-info" />} title="Sobre">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
             {[
               { label: 'Aplicação',  value: 'EazyFinance' },

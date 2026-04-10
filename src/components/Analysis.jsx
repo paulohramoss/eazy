@@ -1,5 +1,5 @@
 import { useApp } from '../context/AppContext'
-import { CATEGORY_ICONS } from '../context/AppContext'
+import { CatIcon } from '../context/AppContext'
 
 const fmt  = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtK = (n) => n >= 1000 ? `R$${(n / 1000).toFixed(1)}k` : `R$${n.toFixed(0)}`
@@ -173,7 +173,7 @@ export default function Analysis() {
                 <div key={cat}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 13 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                      <span>{CATEGORY_ICONS[cat] || '📦'}</span>{cat}
+                      <CatIcon category={cat} />{cat}
                     </span>
                     <span style={{ fontWeight: 600 }}>{fmt(val)}</span>
                   </div>
@@ -218,7 +218,7 @@ export default function Analysis() {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ width: 10, height: 10, borderRadius: 2, background: COLORS[i % COLORS.length] }} />
-                          <span>{CATEGORY_ICONS[cat] || '📦'}</span>
+                          <CatIcon category={cat} />
                           <span style={{ fontWeight: 500 }}>{cat}</span>
                         </div>
                       </td>

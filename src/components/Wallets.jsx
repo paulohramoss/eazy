@@ -5,11 +5,11 @@ import Modal from './Modal'
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 const WALLET_TYPES = [
-  { value: 'checking',   label: 'Conta Corrente' },
-  { value: 'savings',    label: 'Poupança' },
-  { value: 'credit',     label: 'Cartão de Crédito' },
+  { value: 'checking', label: 'Conta Corrente' },
+  { value: 'savings', label: 'Poupança' },
+  { value: 'credit', label: 'Cartão de Crédito' },
   { value: 'investment', label: 'Investimentos' },
-  { value: 'cash',       label: 'Dinheiro Físico' },
+  { value: 'cash', label: 'Dinheiro Físico' },
 ]
 const TYPE_LABELS = Object.fromEntries(WALLET_TYPES.map(t => [t.value, t.label]))
 
@@ -124,7 +124,7 @@ export default function Wallets() {
   const { wallets, transactions, addWallet, updateWallet, deleteWallet, totalBalance } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
-  const [delItem, setDelItem]   = useState(null)
+  const [delItem, setDelItem] = useState(null)
   const [activeWallet, setActiveWallet] = useState(null)
 
   const walletTx = activeWallet
@@ -145,7 +145,7 @@ export default function Wallets() {
       {/* Wallet Cards */}
       <div className="wallets-grid">
         {wallets.map(w => {
-          const income   = transactions.filter(t => t.walletId === w.id && t.type === 'income'  && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
+          const income = transactions.filter(t => t.walletId === w.id && t.type === 'income' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
           const expenses = transactions.filter(t => t.walletId === w.id && t.type === 'expense' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
           const isActive = activeWallet === w.id
 
@@ -225,7 +225,7 @@ export default function Wallets() {
                       </td>
                       <td className="tx-status">
                         <span className={`status-badge ${tx.status}`}>
-                          {{ completed: '● Concluído', pending: '◌ Pendente', failed: '✕ Falhou' }[tx.status]}
+                          {{ completed: '● Concluído', pending: '◌ Pendente' }[tx.status]}
                         </span>
                       </td>
                     </tr>
