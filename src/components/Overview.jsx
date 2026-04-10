@@ -33,7 +33,7 @@ function DonutChart({ data }) {
           ))}
         </svg>
         <div className="donut-center">
-          <span className="donut-center-value">{Math.round((data.reduce((s,d)=>s+d.pct,0)/total)*100)||100}%</span>
+          <span className="donut-center-value">{Math.round((data.reduce((s, d) => s + d.pct, 0) / total) * 100) || 100}%</span>
           <span className="donut-center-label">Distribuição</span>
         </div>
       </div>
@@ -56,36 +56,38 @@ function DonutChart({ data }) {
 
 const COLORS = ['#6c63ff', '#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#64748b']
 
-export default function Overview({ onNavigate }) {
+export default function Overview() {
   const {
     totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
-    lastIncome, lastExpenses, lastSavings,
-    transactions, goals, spendingByCategory, monthlyChartData, pctChange,
+    lastIncome, lastExpenses, lastSavings, spendingByCategory, monthlyChartData, pctChange,
   } = useApp()
 
   const metrics = [
-    { label: 'Saldo Total',   value: fmt(totalBalance),    icon: '◈', color: 'purple',
-      change: pctChange(totalBalance, totalBalance * 0.92), dir: 'up', period: 'estimativa' },
-    { label: 'Receitas',      value: fmt(monthlyIncome),   icon: '↑', color: 'green',
-      change: pctChange(monthlyIncome, lastIncome),   dir: monthlyIncome >= lastIncome ? 'up' : 'down', period: 'vs mês anterior' },
-    { label: 'Despesas',      value: fmt(monthlyExpenses), icon: '↓', color: 'red',
-      change: pctChange(monthlyExpenses, lastExpenses), dir: monthlyExpenses <= lastExpenses ? 'up' : 'down', period: 'vs mês anterior' },
-    { label: 'Economias',     value: fmt(Math.max(monthlySavings, 0)), icon: '★', color: 'yellow',
-      change: pctChange(monthlySavings, lastSavings), dir: monthlySavings >= lastSavings ? 'up' : 'down', period: 'vs mês anterior' },
+    {
+      label: 'Saldo Total', value: fmt(totalBalance), icon: '◈', color: 'purple',
+      change: pctChange(totalBalance, totalBalance * 0.92), dir: 'up', period: 'estimativa'
+    },
+    {
+      label: 'Receitas', value: fmt(monthlyIncome), icon: '↑', color: 'green',
+      change: pctChange(monthlyIncome, lastIncome), dir: monthlyIncome >= lastIncome ? 'up' : 'down', period: 'vs mês anterior'
+    },
+    {
+      label: 'Despesas', value: fmt(monthlyExpenses), icon: '↓', color: 'red',
+      change: pctChange(monthlyExpenses, lastExpenses), dir: monthlyExpenses <= lastExpenses ? 'up' : 'down', period: 'vs mês anterior'
+    },
+    {
+      label: 'Economias', value: fmt(Math.max(monthlySavings, 0)), icon: '★', color: 'yellow',
+      change: pctChange(monthlySavings, lastSavings), dir: monthlySavings >= lastSavings ? 'up' : 'down', period: 'vs mês anterior'
+    },
   ]
 
   const maxBar = Math.max(...monthlyChartData.map(d => Math.max(d.income, d.expenses)), 1)
 
   const categoryEntries = Object.entries(spendingByCategory)
     .sort((a, b) => b[1] - a[1]).slice(0, 5)
-  const totalSpend = categoryEntries.reduce((s, [, v]) => s + v, 0) || 1
   const donutData = categoryEntries.map(([name, val], i) => ({
     name, pct: val, color: COLORS[i % COLORS.length],
   }))
-
-  const recentTx = [...transactions]
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 6)
 
   const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente', failed: '✕ Falhou' }
 
@@ -147,84 +149,6 @@ export default function Overview({ onNavigate }) {
             ? <DonutChart data={donutData} />
             : <div className="empty-state"><p>Sem gastos este mês</p></div>
           }
-        </div>
-      </div>
-
-      {/* Bottom Row */}
-      <div className="bottom-row">
-        {/* Recent Transactions */}
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Transações Recentes</div>
-              <div className="card-subtitle">Últimas movimentações</div>
-            </div>
-            <button className="card-action" onClick={() => onNavigate('transactions')}>Ver todas</button>
-          </div>
-          <table className="transactions-table">
-            <thead>
-              <tr>
-                <th>Descrição</th>
-                <th>Data</th>
-                <th style={{ textAlign: 'right' }}>Valor</th>
-                <th style={{ textAlign: 'center' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTx.map(tx => (
-                <tr key={tx.id}>
-                  <td>
-                    <div className="tx-info">
-                      <div className="tx-icon" style={{ background: 'var(--bg-hover)' }}>
-                        {CATEGORY_ICONS[tx.category] || '💳'}
-                      </div>
-                      <div>
-                        <div className="tx-name">{tx.name}</div>
-                        <div className="tx-category">{tx.category}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="tx-date">{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
-                  <td className={`tx-amount ${tx.type === 'income' ? 'positive' : 'negative'}`}>
-                    {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
-                  </td>
-                  <td className="tx-status">
-                    <span className={`status-badge ${tx.status}`}>{STATUS_LABEL[tx.status]}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Goals */}
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Metas Financeiras</div>
-              <div className="card-subtitle">Progresso atual</div>
-            </div>
-            <button className="card-action" onClick={() => onNavigate('goals')}>Gerenciar</button>
-          </div>
-          <div className="goals-list">
-            {goals.map(goal => {
-              const pct = Math.round((goal.current / goal.target) * 100)
-              return (
-                <div key={goal.id} className="goal-item">
-                  <div className="goal-header">
-                    <div className="goal-name"><span>{goal.emoji}</span>{goal.name}</div>
-                    <div className="goal-amounts">
-                      <strong>{fmt(goal.current)}</strong> / {fmt(goal.target)}
-                    </div>
-                  </div>
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${pct}%`, background: goal.color }} />
-                  </div>
-                  <div className="goal-pct">{pct}% concluído</div>
-                </div>
-              )
-            })}
-          </div>
         </div>
       </div>
     </div>
