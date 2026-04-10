@@ -32,7 +32,7 @@ function Section({ icon, title, children }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const { settings, updateSettings } = useApp()
+  const { settings, updateSettings, toggleTheme } = useApp()
   const [profile, setProfile] = useState({ name: settings.name, email: settings.email, initials: settings.initials })
   const [saved, setSaved] = useState(false)
 
@@ -136,6 +136,13 @@ export default function Settings() {
                   />
                 </div>
               ))}
+              <div className="toggle-row">
+                <div className="toggle-info">
+                  <div className="toggle-label">{settings.theme === 'dark' ? '🌙 Tema Escuro' : '☀️ Tema Claro'}</div>
+                  <div className="toggle-desc">Alternar entre modo claro e escuro</div>
+                </div>
+                <Toggle on={settings.theme === 'dark'} onChange={toggleTheme} />
+              </div>
             </div>
           </div>
         </Section>

@@ -84,6 +84,7 @@ const INITIAL_SETTINGS = {
   notifications: true,
   weeklyReport: true,
   language: 'pt-BR',
+  theme: 'dark',
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -205,6 +206,9 @@ export function AppProvider({ children }) {
   const updateSettings = (data) =>
     setSettings(prev => ({ ...prev, ...data }))
 
+  const toggleTheme = () =>
+    setSettings(prev => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }))
+
   // ── Value ──────────────────────────────────────────────────────────────────
 
   return (
@@ -219,7 +223,7 @@ export function AppProvider({ children }) {
       addBudget, updateBudget, deleteBudget,
       addGoal, updateGoal, deleteGoal, contributeGoal,
       addInvestment, updateInvestment, deleteInvestment,
-      updateSettings,
+      updateSettings, toggleTheme,
     }}>
       {children}
     </AppContext.Provider>

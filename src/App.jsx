@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { useApp } from './context/AppContext'
 import Overview     from './components/Overview'
@@ -51,7 +51,11 @@ const SCREENS = {
 
 export default function App() {
   const [screen, setScreen] = useState('overview')
-  const { settings, pendingCount } = useApp()
+  const { settings, pendingCount, toggleTheme } = useApp()
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', settings.theme)
+  }, [settings.theme])
 
   const now = new Date()
   const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -109,6 +113,13 @@ export default function App() {
             <p style={{ textTransform: 'capitalize' }}>{sub} · {dateStr}</p>
           </div>
           <div className="header-right">
+            <button
+              className="header-btn theme-toggle"
+              title={settings.theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+              onClick={toggleTheme}
+            >
+              {settings.theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <button
               className="header-btn"
               title="Notificações"
