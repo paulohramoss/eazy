@@ -4,41 +4,67 @@
   padding: 0;
 }
 
+/* ─── Dark theme (default) ── verde escuro ───────────────── */
 :root {
-  --bg-primary: #0f1117;
-  --bg-secondary: #1a1d27;
-  --bg-card: #1e2130;
-  --bg-hover: #252840;
-  --accent: #6c63ff;
-  --accent-light: #8b85ff;
-  --accent-green: #22c55e;
-  --accent-red: #ef4444;
-  --accent-yellow: #f59e0b;
-  --accent-blue: #3b82f6;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --border: #2a2d3e;
-  --border-light: #343756;
-  --sidebar-width: 240px;
-  --header-height: 64px;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --bg-primary:    #09180F;
+  --bg-secondary:  #0D2218;
+  --bg-card:       #102B1E;
+  --bg-hover:      #1A3D2C;
+
+  --accent:        #B9E66A;
+  --accent-light:  #D0EE8C;
+  --accent-rgb:    185, 230, 106;
+  --btn-text:      #0F4D3F;
+
+  --accent-green:  #B9E66A;
+  --accent-red:    #FF9F6E;
+  --accent-yellow: #F5C842;
+  --accent-blue:   #60A5FA;
+  --green-rgb: 185, 230, 106;
+  --red-rgb:   255, 159, 110;
+
+  --text-primary:   #EEF5EB;
+  --text-secondary: #8DBF9F;
+  --text-muted:     #4D7A5C;
+
+  --border:       #1A3D2C;
+  --border-light: #265540;
+
+  --sidebar-width:  240px;
+  --header-height:  64px;
+  --radius:    12px;
+  --radius-sm:  8px;
+  --shadow:  0 4px 24px rgba(0, 0, 0, 0.45);
   --transition: 0.2s ease;
 }
 
+/* ─── Light theme ── lifestyle / bege + verde ─────────────── */
 [data-theme="light"] {
-  --bg-primary: #f1f5f9;
-  --bg-secondary: #ffffff;
-  --bg-card: #ffffff;
-  --bg-hover: #f8fafc;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --border: #e2e8f0;
-  --border-light: #cbd5e1;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --bg-primary:    #F3F6EF;
+  --bg-secondary:  #FFFFFF;
+  --bg-card:       #FFFFFF;
+  --bg-hover:      #ECF1E8;
+
+  --accent:        #0F4D3F;
+  --accent-light:  #186B53;
+  --accent-rgb:    15, 77, 63;
+  --btn-text:      #FFFFFF;
+
+  --accent-green:  #2D9E6E;
+  --accent-red:    #E05A2B;
+  --accent-yellow: #D18700;
+  --accent-blue:   #2563EB;
+  --green-rgb: 45, 158, 110;
+  --red-rgb:   224, 90, 43;
+
+  --text-primary:   #0D2B22;
+  --text-secondary: #3D6655;
+  --text-muted:     #7A9B8A;
+
+  --border:       #D5E8CE;
+  --border-light: #BAD4B2;
+
+  --shadow: 0 4px 24px rgba(15, 77, 63, 0.10);
 }
 
 body {

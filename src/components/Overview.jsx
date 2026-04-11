@@ -1,5 +1,5 @@
+import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { CATEGORY_ICONS } from '../context/AppContext'
 
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -21,7 +21,7 @@ function DonutChart({ data }) {
     <div className="donut-wrap">
       <div className="donut-chart">
         <svg className="donut-svg" width="150" height="150" viewBox="0 0 150 150">
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#2a2d3e" strokeWidth="18" />
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="18" />
           {segments.map((seg, i) => (
             <circle
               key={i} cx={cx} cy={cy} r={r}
@@ -52,7 +52,99 @@ function DonutChart({ data }) {
   )
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Can I Spend Widget ───────────────────────────────────────────────────────
+
+function CanISpend({ remaining }) {
+  const [raw, setRaw]   = useState('')
+  const amount          = parseFloat(raw.replace(',', '.')) || 0
+  const hasValue        = amount > 0
+  const afterSpend      = remaining - amount
+  const canSpend        = afterSpend >= 0
+  const pct             = hasValue ? Math.min((amount / Math.max(remaining, 1)) * 100, 100) : 0
+
+  return (
+    <div className="card can-spend-card">
+      <div className="card-header">
+        <div>
+          <div className="card-title">
+            <i className="fi fi-rr-calculator" style={{ marginRight: 8 }} />
+            Posso gastar isso?
+          </div>
+          <div className="card-subtitle">Simule um gasto e veja o impacto no mês</div>
+        </div>
+      </div>
+
+      <div className="can-spend-body">
+        {/* Available balance pill */}
+        <div className="can-spend-balance">
+          <span className="can-spend-balance-label">Disponível este mês</span>
+          <span className="can-spend-balance-value">{fmt(Math.max(remaining, 0))}</span>
+        </div>
+
+        {/* Input */}
+        <div className="can-spend-input-wrap">
+          <span className="can-spend-prefix">R$</span>
+          <input
+            className="can-spend-input"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0,00"
+            value={raw}
+            onChange={e => setRaw(e.target.value)}
+          />
+        </div>
+
+        {/* Progress bar */}
+        {hasValue && (
+          <div className="can-spend-bar-wrap">
+            <div className="can-spend-bar">
+              <div
+                className={`can-spend-fill ${canSpend ? 'ok' : 'over'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="can-spend-pct">{pct.toFixed(0)}% do disponível</span>
+          </div>
+        )}
+
+        {/* Result */}
+        <div className={`can-spend-result ${!hasValue ? 'idle' : canSpend ? 'ok' : 'over'}`}>
+          {!hasValue && (
+            <>
+              <i className="fi fi-rr-interrogation" />
+              <span>Digite um valor para simular</span>
+            </>
+          )}
+          {hasValue && canSpend && (
+            <>
+              <i className="fi fi-rr-check-circle" />
+              <div>
+                <div className="can-spend-result-main">Sim, você pode gastar!</div>
+                <div className="can-spend-result-sub">
+                  Ainda restarão <strong>{fmt(afterSpend)}</strong> até o fim do mês.
+                </div>
+              </div>
+            </>
+          )}
+          {hasValue && !canSpend && (
+            <>
+              <i className="fi fi-rr-cross-circle" />
+              <div>
+                <div className="can-spend-result-main">Atenção!</div>
+                <div className="can-spend-result-sub">
+                  Você ultrapassaria seu limite em <strong>{fmt(Math.abs(afterSpend))}</strong>.
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Overview ─────────────────────────────────────────────────────────────────
 
 const COLORS = ['#6c63ff', '#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#64748b']
 
@@ -61,6 +153,8 @@ export default function Overview() {
     totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, spendingByCategory, monthlyChartData, pctChange,
   } = useApp()
+
+  const remaining = monthlyIncome - monthlyExpenses
 
   const metrics = [
     {
@@ -89,8 +183,6 @@ export default function Overview() {
     name, pct: val, color: COLORS[i % COLORS.length],
   }))
 
-  const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente' }
-
   return (
     <div className="screen">
       {/* Metrics */}
@@ -113,44 +205,50 @@ export default function Overview() {
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="charts-row">
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Receitas vs Despesas</div>
-              <div className="card-subtitle">Últimos 6 meses</div>
+      {/* Charts + Can I Spend */}
+      <div className="overview-bottom-row">
+        {/* Charts */}
+        <div className="charts-row">
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <div className="card-title">Receitas vs Despesas</div>
+                <div className="card-subtitle">Últimos 6 meses</div>
+              </div>
+            </div>
+            <div className="chart-bars">
+              {monthlyChartData.map((d, i) => (
+                <div key={i} className="chart-bar-group">
+                  <div className="chart-bar income" style={{ height: `${(d.income / maxBar) * 100}%` }} title={fmt(d.income)} />
+                  <div className="chart-bar expenses" style={{ height: `${(d.expenses / maxBar) * 100}%` }} title={fmt(d.expenses)} />
+                </div>
+              ))}
+            </div>
+            <div className="chart-labels">
+              {monthlyChartData.map(d => <span key={d.key} className="chart-label">{d.label}</span>)}
+            </div>
+            <div className="chart-legend">
+              <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--accent)' }} />Receitas</div>
+              <div className="legend-item"><div className="legend-dot" style={{ background: 'rgba(108,99,255,0.3)' }} />Despesas</div>
             </div>
           </div>
-          <div className="chart-bars">
-            {monthlyChartData.map((d, i) => (
-              <div key={i} className="chart-bar-group">
-                <div className="chart-bar income" style={{ height: `${(d.income / maxBar) * 100}%` }} title={fmt(d.income)} />
-                <div className="chart-bar expenses" style={{ height: `${(d.expenses / maxBar) * 100}%` }} title={fmt(d.expenses)} />
+
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <div className="card-title">Categorias</div>
+                <div className="card-subtitle">Distribuição de gastos</div>
               </div>
-            ))}
-          </div>
-          <div className="chart-labels">
-            {monthlyChartData.map(d => <span key={d.key} className="chart-label">{d.label}</span>)}
-          </div>
-          <div className="chart-legend">
-            <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--accent)' }} />Receitas</div>
-            <div className="legend-item"><div className="legend-dot" style={{ background: 'rgba(108,99,255,0.3)' }} />Despesas</div>
+            </div>
+            {donutData.length > 0
+              ? <DonutChart data={donutData} />
+              : <div className="empty-state"><p>Sem gastos este mês</p></div>
+            }
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Categorias</div>
-              <div className="card-subtitle">Distribuição de gastos</div>
-            </div>
-          </div>
-          {donutData.length > 0
-            ? <DonutChart data={donutData} />
-            : <div className="empty-state"><p>Sem gastos este mês</p></div>
-          }
-        </div>
+        {/* Can I Spend */}
+        <CanISpend remaining={remaining} />
       </div>
     </div>
   )
