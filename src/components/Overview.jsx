@@ -184,7 +184,7 @@ export default function Overview() {
       {/* Metrics */}
       <div className="metrics-grid">
         {metrics.map((m, i) => (
-          <div key={i} className="metric-card">
+          <div key={i} className={`metric-card metric-card--${m.color}`}>
             <div className="metric-header">
               <span className="metric-label">{m.label}</span>
               <div className={`metric-icon ${m.color}`}><i className={`fi ${m.icon}`} /></div>

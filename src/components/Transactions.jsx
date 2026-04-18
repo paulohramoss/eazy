@@ -303,7 +303,7 @@ export default function Transactions() {
                       </div>
                     </td>
                     <td style={{ textAlign: 'center' }}><span className="category-tag">{tx.category}</span></td>
-                    <td className="tx-date" style={{ textAlign: 'center' }}>{wallet ? `${wallet.icon} ${wallet.name}` : '—'}</td>
+                    <td className="tx-date" style={{ textAlign: 'center' }}>{wallet ? `${wallet.icon || ''} ${wallet.name}`.trim() : '—'}</td>
                     <td className="tx-date" style={{ textAlign: 'center' }}>{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className={`tx-amount ${tx.type === 'income' ? 'positive' : 'negative'}`}>
                       {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
