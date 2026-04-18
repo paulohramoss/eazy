@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { CATEGORIES, CatIcon } from '../context/AppContext'
 import Modal from './Modal'
+import CurrencyInput from './CurrencyInput'
 
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -62,7 +63,7 @@ function TxModal({ initial, onSave, onClose, wallets }) {
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">Valor (R$)</label>
-          <input className="form-input" type="number" min="0" step="0.01" placeholder="0,00" value={form.amount} onChange={e => set('amount', e.target.value)} />
+          <CurrencyInput className="form-input" value={form.amount} onChange={v => set('amount', v)} />
         </div>
         <div className="form-group">
           <label className="form-label">Data</label>

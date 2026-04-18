@@ -54,7 +54,7 @@ export default function Settings() {
   const LANGUAGES = [
     { value: 'pt-BR', label: 'Português (Brasil)' },
     { value: 'en-US', label: 'English (US)' },
-    { value: 'es',    label: 'Español' },
+    { value: 'es', label: 'Español' },
   ]
 
   return (
@@ -123,7 +123,7 @@ export default function Settings() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {[
                 { key: 'notifications', label: 'Notificações', desc: 'Receber alertas de orçamento e metas' },
-                { key: 'weeklyReport',  label: 'Relatório semanal', desc: 'Resumo financeiro toda segunda-feira' },
+                { key: 'weeklyReport', label: 'Relatório semanal', desc: 'Resumo financeiro toda segunda-feira' },
               ].map(row => (
                 <div key={row.key} className="toggle-row">
                   <div className="toggle-info">
@@ -198,10 +198,9 @@ export default function Settings() {
         <Section icon={<i className="fi fi-rr-info" />} title="Sobre">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
             {[
-              { label: 'Aplicação',  value: 'EazyFinance' },
-              { label: 'Versão',     value: '1.0.0' },
-              { label: 'Framework',  value: 'React 19 + Vite 8' },
-              { label: 'Tema',       value: 'Dark Mode' },
+              { label: 'Aplicação', value: 'EazyFinance' },
+              { label: 'Versão', value: '1.0.0' },
+              { label: 'Framework', value: 'React 19 + Vite 8' },
             ].map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{row.label}</span>

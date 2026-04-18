@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
+import CurrencyInput from './CurrencyInput'
 
 const fmt  = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtN = (n, d = 2) => n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -116,11 +117,11 @@ function InvModal({ initial, onSave, onClose }) {
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">Preço Médio (R$)</label>
-          <input className="form-input" type="number" min="0" step="0.01" placeholder="0,00" value={form.avgPrice} onChange={e => set('avgPrice', e.target.value)} />
+          <CurrencyInput className="form-input" value={form.avgPrice} onChange={v => set('avgPrice', v)} />
         </div>
         <div className="form-group">
           <label className="form-label">Preço Atual (R$)</label>
-          <input className="form-input" type="number" min="0" step="0.01" placeholder="0,00" value={form.currentPrice} onChange={e => set('currentPrice', e.target.value)} />
+          <CurrencyInput className="form-input" value={form.currentPrice} onChange={v => set('currentPrice', v)} />
         </div>
       </div>
       <div className="form-group">

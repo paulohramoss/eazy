@@ -1,22 +1,21 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
+import CurrencyInput from './CurrencyInput'
 
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-const EMOJIS = ['🏦', '✈️', '💻', '📈', '🏠', '🚗', '🎓', '💊', '🎮', '💍', '🐾', '🌴', '⛵', '📷']
-const COLORS  = ['#6c63ff', '#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#64748b', '#14b8a6', '#f97316']
-
 const today = new Date().toISOString().split('T')[0]
 
-const EMPTY_FORM = { name: '', emoji: '🏦', target: '', current: '0', deadline: '', color: '#6c63ff' }
+const EMPTY_FORM = { name: '', target: '', current: '0', deadline: '' }
 
 // ─── Goal Modal ───────────────────────────────────────────────────────────────
 
 function GoalModal({ initial, onSave, onClose }) {
-  const [form, setForm] = useState(initial
-    ? { ...initial, target: String(initial.target), current: String(initial.current) }
-    : EMPTY_FORM
+  const [form, setForm] = useState(
+    initial
+      ? { ...initial, target: String(initial.target), current: String(initial.current) }
+      : EMPTY_FORM
   )
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -28,7 +27,7 @@ function GoalModal({ initial, onSave, onClose }) {
 
   return (
     <Modal
-      title={initial ? 'Editar Meta' : 'Nova Meta'}
+      title={initial ? 'Editar Objetivo' : 'Novo Objetivo'}
       onClose={onClose}
       footer={
         <>
@@ -38,128 +37,86 @@ function GoalModal({ initial, onSave, onClose }) {
       }
     >
       <div className="form-group">
-        <label className="form-label">Nome da Meta</label>
-        <input className="form-input" placeholder="Ex: Viagem, Reserva, Carro..." value={form.name} onChange={e => set('name', e.target.value)} />
-      </div>
-      <div className="form-group">
-        <label className="form-label">Emoji</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {EMOJIS.map(em => (
-            <button
-              key={em} type="button" onClick={() => set('emoji', em)}
-              style={{
-                width: 40, height: 40, fontSize: 20, borderRadius: 8, cursor: 'pointer',
-                background: form.emoji === em ? 'rgba(108,99,255,0.2)' : 'var(--bg-hover)',
-                border: form.emoji === em ? '2px solid var(--accent)' : '2px solid transparent',
-              }}
-            >{em}</button>
-          ))}
-        </div>
+        <label className="form-label">Nome do Objetivo</label>
+        <input
+          className="form-input"
+          placeholder="Ex: Viagem, Reserva, Carro..."
+          value={form.name}
+          onChange={e => set('name', e.target.value)}
+          autoFocus
+        />
       </div>
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">Valor Alvo (R$)</label>
-          <input className="form-input" type="number" min="1" step="0.01" placeholder="0,00" value={form.target} onChange={e => set('target', e.target.value)} />
+          <CurrencyInput className="form-input" value={form.target} onChange={v => set('target', v)} />
         </div>
         <div className="form-group">
           <label className="form-label">Valor Atual (R$)</label>
-          <input className="form-input" type="number" min="0" step="0.01" placeholder="0,00" value={form.current} onChange={e => set('current', e.target.value)} />
+          <CurrencyInput className="form-input" value={form.current} onChange={v => set('current', v)} />
         </div>
       </div>
       <div className="form-group">
         <label className="form-label">Prazo</label>
         <input className="form-input" type="date" min={today} value={form.deadline} onChange={e => set('deadline', e.target.value)} />
       </div>
-      <div className="form-group">
-        <label className="form-label">Cor</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {COLORS.map(color => (
-            <button
-              key={color} type="button" onClick={() => set('color', color)}
-              style={{
-                width: 28, height: 28, borderRadius: '50%', background: color, cursor: 'pointer',
-                border: form.color === color ? '3px solid white' : '3px solid transparent',
-                outline: form.color === color ? `2px solid ${color}` : 'none',
-              }}
-            />
-          ))}
-        </div>
-      </div>
     </Modal>
   )
 }
 
-// ─── Contribute Modal ─────────────────────────────────────────────────────────
+// ─── Alocar Fundos Modal ──────────────────────────────────────────────────────
 
-function ContributeModal({ goal, onSave, onClose }) {
-  const [amount, setAmount] = useState('')
+function AlocarModal({ goal, onSave, onClose }) {
+  const [amount, setAmount] = useState(0)
   const remaining = goal.target - goal.current
 
   const handleSave = () => {
-    const val = Number(amount)
-    if (!val || val <= 0) return
-    onSave(val)
+    if (!amount || amount <= 0) return
+    onSave(amount)
     onClose()
   }
 
-  return (
-    <Modal
-      title={`Contribuir para "${goal.name}"`}
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Adicionar</button>
-        </>
-      }
-    >
-      <div style={{ textAlign: 'center', padding: '8px 0 16px', fontSize: 36 }}>{goal.emoji}</div>
-      <div style={{ background: 'var(--bg-primary)', borderRadius: 8, padding: 12, marginBottom: 4, fontSize: 13, color: 'var(--text-secondary)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span>Progresso atual</span>
-          <strong style={{ color: 'var(--text-primary)' }}>{fmt(goal.current)} / {fmt(goal.target)}</strong>
-        </div>
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${Math.round((goal.current / goal.target) * 100)}%`, background: goal.color }} />
-        </div>
-        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-          Faltam {fmt(remaining)} para concluir
-        </div>
-      </div>
-      <div className="form-group" style={{ marginTop: 8 }}>
-        <label className="form-label">Valor a adicionar (R$)</label>
-        <input
-          className="form-input" type="number" min="0.01" step="0.01"
-          placeholder="0,00" value={amount} onChange={e => setAmount(e.target.value)}
-          autoFocus
-        />
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {[100, 500, 1000, remaining].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map(v => (
-          <button key={v} type="button" className="btn btn-secondary btn-sm" onClick={() => setAmount(String(v))}>
-            {fmt(v)}
-          </button>
-        ))}
-      </div>
-    </Modal>
-  )
-}
+  const shortcuts = [100, 500, 1000, remaining].filter((v, i, a) => v > 0 && a.indexOf(v) === i)
 
-function ConfirmModal({ name, onConfirm, onClose }) {
   return (
     <Modal
-      title="Excluir Meta"
+      title={`Alocar Fundos — ${goal.name}`}
       onClose={onClose}
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-danger" onClick={() => { onConfirm(); onClose() }}>Excluir</button>
+          <button className="btn btn-primary" onClick={handleSave}>Alocar</button>
         </>
       }
     >
-      <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-        Deseja excluir a meta <strong style={{ color: 'var(--text-primary)' }}>{name}</strong>?
-      </p>
+      <div className="moovia-alocar-info">
+        <div className="moovia-alocar-row">
+          <span>Progresso atual</span>
+          <strong>{fmt(goal.current)} / {fmt(goal.target)}</strong>
+        </div>
+        <div className="moovia-progress-wrap" style={{ marginTop: 8 }}>
+          <div
+            className="moovia-progress-fill"
+            style={{ width: `${Math.min((goal.current / goal.target) * 100, 100)}%` }}
+          />
+        </div>
+        <div className="moovia-alocar-remaining">Faltam {fmt(remaining)} para concluir</div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Valor a alocar (R$)</label>
+        <CurrencyInput className="form-input" value={amount} onChange={setAmount} autoFocus />
+      </div>
+
+      {shortcuts.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {shortcuts.map(v => (
+            <button key={v} type="button" className="btn btn-secondary btn-sm" onClick={() => setAmount(v)}>
+              {fmt(v)}
+            </button>
+          ))}
+        </div>
+      )}
     </Modal>
   )
 }
@@ -168,108 +125,104 @@ function ConfirmModal({ name, onConfirm, onClose }) {
 
 export default function Goals() {
   const { goals, addGoal, updateGoal, deleteGoal, contributeGoal } = useApp()
-  const [addModal, setAddModal]   = useState(false)
-  const [editItem, setEditItem]   = useState(null)
-  const [contItem, setContItem]   = useState(null)
-  const [delItem, setDelItem]     = useState(null)
+  const [addModal, setAddModal] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [alocarItem, setAlocarItem] = useState(null)
+  const [delItem,  setDelItem]  = useState(null)
 
-  const totalTarget  = goals.reduce((s, g) => s + g.target, 0)
-  const totalCurrent = goals.reduce((s, g) => s + g.current, 0)
-  const completed    = goals.filter(g => g.current >= g.target).length
+  const toggleStar = (goal) =>
+    updateGoal(goal.id, { starred: !goal.starred })
+
+  // Starred goals first
+  const sorted = [...goals].sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
 
   return (
-    <div className="screen">
-      {/* Summary */}
-      <div className="summary-strip">
-        <div className="summary-stat">
-          <div className="summary-stat-label">Total das Metas</div>
-          <div className="summary-stat-value">{fmt(totalTarget)}</div>
+    <div className="screen moovia-screen">
+      {/* Page header */}
+      <div className="moovia-page-header">
+        <div>
+          <h2 className="moovia-page-title">Objetivos</h2>
+          <p className="moovia-page-sub">Acompanhe o progresso dos seus objetivos.</p>
         </div>
-        <div className="summary-stat">
-          <div className="summary-stat-label">Total Acumulado</div>
-          <div className="summary-stat-value positive-text">{fmt(totalCurrent)}</div>
-        </div>
-        <div className="summary-stat">
-          <div className="summary-stat-label">Metas Concluídas</div>
-          <div className="summary-stat-value">{completed} / {goals.length}</div>
-        </div>
+        <button className="btn btn-primary" onClick={() => setAddModal(true)}>
+          + Adicionar Objetivo
+        </button>
       </div>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 15, fontWeight: 600 }}>Suas Metas</span>
-        <button className="btn btn-primary" onClick={() => setAddModal(true)}>+ Nova Meta</button>
-      </div>
-
+      {/* Goal cards */}
       {goals.length === 0 ? (
-        <div className="card">
-          <div className="empty-state">
-            <span style={{ fontSize: 36 }}>🎯</span>
-            <p>Nenhuma meta definida</p>
-            <button className="btn btn-primary" onClick={() => setAddModal(true)}>Criar primeira meta</button>
-          </div>
+        <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <i className="fi fi-rr-star" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
+          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Nenhum objetivo definido</p>
+          <button className="btn btn-primary" onClick={() => setAddModal(true)}>Criar primeiro objetivo</button>
         </div>
       ) : (
-        <div className="goals-grid">
-          {goals.map(goal => {
-            const pct       = Math.min(Math.round((goal.current / goal.target) * 100), 100)
-            const done      = goal.current >= goal.target
-            const remaining = goal.target - goal.current
-            const daysLeft  = goal.deadline
-              ? Math.ceil((new Date(goal.deadline) - new Date()) / 86400000)
+        <div className="moovia-goals-grid">
+          {sorted.map(goal => {
+            const pct  = Math.min(Math.round((goal.current / goal.target) * 100), 100)
+            const done = goal.current >= goal.target
+
+            const deadlineFmt = goal.deadline
+              ? new Date(goal.deadline + 'T12:00').toLocaleDateString('pt-BR')
               : null
 
             return (
-              <div key={goal.id} className={`goal-card${done ? ' goal-card-done' : ''}`}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 32 }}>{goal.emoji}</span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 15 }}>{goal.name}</div>
-                      {goal.deadline && (
-                        <div style={{ fontSize: 11, color: daysLeft !== null && daysLeft < 30 ? 'var(--accent-red)' : 'var(--text-muted)', marginTop: 3 }}>
-                          {done ? '✅ Concluída!' : daysLeft !== null ? `${daysLeft > 0 ? `${daysLeft} dias restantes` : 'Prazo vencido'}` : ''}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button className="btn-icon" title="Contribuir" onClick={() => setContItem(goal)} style={{ color: 'var(--accent-light)' }}>+</button>
-                    <button className="btn-icon" title="Editar" onClick={() => setEditItem(goal)}>✏️</button>
-                    <button className="btn-icon danger" title="Excluir" onClick={() => setDelItem(goal)}>🗑️</button>
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Progresso</span>
-                    <span style={{ fontWeight: 700, color: done ? 'var(--accent-green)' : 'var(--text-primary)' }}>{pct}%</span>
-                  </div>
-                  <div className="progress-bar" style={{ height: 8 }}>
-                    <div className="progress-fill" style={{ width: `${pct}%`, background: done ? 'var(--accent-green)' : goal.color }} />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingTop: 4 }}>
-                  <div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Acumulado</div>
-                    <div style={{ fontWeight: 700, color: 'var(--accent-green)' }}>{fmt(goal.current)}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Objetivo</div>
-                    <div style={{ fontWeight: 700 }}>{fmt(goal.target)}</div>
-                  </div>
-                </div>
-
-                {!done && (
+              <div key={goal.id} className={`moovia-card moovia-goal-card${done ? ' moovia-goal-done' : ''}`}>
+                {/* Top row */}
+                <div className="moovia-goal-top">
+                  <span className="moovia-goal-name">{goal.name}</span>
                   <button
-                    className="btn btn-primary"
-                    style={{ width: '100%', marginTop: 4 }}
-                    onClick={() => setContItem(goal)}
+                    className={`moovia-star-btn${goal.starred ? ' moovia-star-active' : ''}`}
+                    title={goal.starred ? 'Remover destaque' : 'Destacar'}
+                    onClick={() => toggleStar(goal)}
                   >
-                    + Adicionar valor
+                    <i className={`fi ${goal.starred ? 'fi-rr-star' : 'fi-rr-star'}`} />
                   </button>
+                </div>
+
+                {/* Amounts */}
+                <div className="moovia-goal-amounts">
+                  <span style={{ fontWeight: 700 }}>{fmt(goal.current)}</span>
+                  <span className="moovia-goal-amounts-sub"> acumulados de </span>
+                  <span style={{ fontWeight: 700 }}>{fmt(goal.target)}</span>
+                  <span className="moovia-goal-pct"> ({pct}%)</span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="moovia-progress-wrap">
+                  <div
+                    className="moovia-progress-fill"
+                    style={{ width: `${pct}%`, background: done ? 'var(--accent-green)' : undefined }}
+                  />
+                </div>
+
+                {/* Deadline */}
+                {deadlineFmt && (
+                  <div className="moovia-goal-deadline">{deadlineFmt}</div>
                 )}
+
+                {/* Actions */}
+                <div className="moovia-goal-actions">
+                  {!done && (
+                    <button className="btn moovia-alocar-btn" onClick={() => setAlocarItem(goal)}>
+                      <i className="fi fi-rr-bank" />
+                      Alocar Fundos
+                    </button>
+                  )}
+                  {done && (
+                    <span className="moovia-done-badge">
+                      <i className="fi fi-rr-check" /> Concluído
+                    </span>
+                  )}
+                  <div className="moovia-goal-btns">
+                    <button className="moovia-icon-btn" title="Editar" onClick={() => setEditItem(goal)}>
+                      <i className="fi fi-rr-pencil" />
+                    </button>
+                    <button className="moovia-icon-btn danger" title="Excluir" onClick={() => setDelItem(goal)}>
+                      <i className="fi fi-rr-trash" />
+                    </button>
+                  </div>
+                </div>
               </div>
             )
           })}
@@ -284,19 +237,28 @@ export default function Goals() {
           onClose={() => setEditItem(null)}
         />
       )}
-      {contItem && (
-        <ContributeModal
-          goal={contItem}
-          onSave={amount => contributeGoal(contItem.id, amount)}
-          onClose={() => setContItem(null)}
+      {alocarItem && (
+        <AlocarModal
+          goal={alocarItem}
+          onSave={amount => contributeGoal(alocarItem.id, amount)}
+          onClose={() => setAlocarItem(null)}
         />
       )}
       {delItem && (
-        <ConfirmModal
-          name={delItem.name}
-          onConfirm={() => deleteGoal(delItem.id)}
+        <Modal
+          title="Excluir Objetivo"
           onClose={() => setDelItem(null)}
-        />
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setDelItem(null)}>Cancelar</button>
+              <button className="btn btn-danger" onClick={() => { deleteGoal(delItem.id); setDelItem(null) }}>Excluir</button>
+            </>
+          }
+        >
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+            Deseja excluir o objetivo <strong style={{ color: 'var(--text-primary)' }}>{delItem.name}</strong>?
+          </p>
+        </Modal>
       )}
     </div>
   )

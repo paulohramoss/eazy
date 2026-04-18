@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
+import CurrencyInput from './CurrencyInput'
 
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -55,8 +56,7 @@ function DonutChart({ data }) {
 // ─── Can I Spend Widget ───────────────────────────────────────────────────────
 
 function CanISpend({ remaining }) {
-  const [raw, setRaw]   = useState('')
-  const amount          = parseFloat(raw.replace(',', '.')) || 0
+  const [amount, setAmount] = useState(0)
   const hasValue        = amount > 0
   const afterSpend      = remaining - amount
   const canSpend        = afterSpend >= 0
@@ -84,14 +84,10 @@ function CanISpend({ remaining }) {
         {/* Input */}
         <div className="can-spend-input-wrap">
           <span className="can-spend-prefix">R$</span>
-          <input
+          <CurrencyInput
             className="can-spend-input"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="0,00"
-            value={raw}
-            onChange={e => setRaw(e.target.value)}
+            value={amount}
+            onChange={setAmount}
           />
         </div>
 

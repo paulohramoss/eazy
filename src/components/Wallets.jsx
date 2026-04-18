@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
+import CurrencyInput from './CurrencyInput'
 
 const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -57,7 +58,7 @@ function WalletModal({ initial, onSave, onClose }) {
         </div>
         <div className="form-group">
           <label className="form-label">Saldo Atual (R$)</label>
-          <input className="form-input" type="number" step="0.01" placeholder="0,00" value={form.balance} onChange={e => set('balance', e.target.value)} />
+          <CurrencyInput className="form-input" value={form.balance} onChange={v => set('balance', v)} />
         </div>
       </div>
       <div className="form-group">
