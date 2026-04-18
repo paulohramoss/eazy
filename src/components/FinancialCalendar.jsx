@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 
-const fmt    = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const fmt    = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtShort = (n) => {
   if (Math.abs(n) >= 1000) return `R$ ${(n / 1000).toFixed(1)}k`
   return `R$ ${Math.round(n)}`
@@ -108,8 +108,6 @@ export default function FinancialCalendar() {
               const txs      = txByDate[key] || []
               const isToday  = key === todayKey
               const isSel    = key === selectedDay
-              const hasIncome  = txs.some(t => t.type === 'income')
-              const hasExpense = txs.some(t => t.type === 'expense')
 
               return (
                 <div

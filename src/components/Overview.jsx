@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
 
-const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 // ─── Donut Chart ──────────────────────────────────────────────────────────────
 
