@@ -2,13 +2,18 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 const ERR = {
-  'auth/user-not-found':       'E-mail não encontrado.',
-  'auth/wrong-password':       'Senha incorreta.',
-  'auth/email-already-in-use': 'E-mail já cadastrado.',
-  'auth/weak-password':        'Senha deve ter ao menos 6 caracteres.',
-  'auth/invalid-email':        'E-mail inválido.',
-  'auth/invalid-credential':   'E-mail ou senha incorretos.',
-  'auth/popup-closed-by-user': 'Login com Google cancelado.',
+  'auth/user-not-found':           'E-mail não encontrado.',
+  'auth/wrong-password':           'Senha incorreta.',
+  'auth/email-already-in-use':     'E-mail já cadastrado.',
+  'auth/weak-password':            'Senha deve ter ao menos 6 caracteres.',
+  'auth/invalid-email':            'E-mail inválido.',
+  'auth/invalid-credential':       'E-mail ou senha incorretos.',
+  'auth/popup-closed-by-user':     'Login com Google cancelado.',
+  'auth/cancelled-popup-request':  'Login com Google cancelado.',
+  'auth/popup-blocked':            'Pop-up bloqueado pelo navegador. Permita pop-ups para este site.',
+  'auth/operation-not-allowed':    'Login com Google não está ativado. Ative no Firebase Console.',
+  'auth/unauthorized-domain':      'Domínio não autorizado no Firebase Console.',
+  'auth/network-request-failed':   'Erro de rede. Verifique sua conexão.',
 }
 
 export default function Login() {
@@ -28,7 +33,8 @@ export default function Login() {
     try {
       await fn()
     } catch (e) {
-      setError(ERR[e.code] || 'Erro inesperado. Tente novamente.')
+      console.error('[Auth error]', e.code, e.message)
+      setError(ERR[e.code] || `Erro inesperado. (${e.code ?? e.message})`)
     } finally {
       setLoad(false)
     }
