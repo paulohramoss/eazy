@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 
-const fmt = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 const WALLET_TYPES = [
   { value: 'checking', label: 'Conta Corrente' },
