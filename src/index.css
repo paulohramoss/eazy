@@ -1,111 +1,92 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* ─── Dark theme (default) ── verde escuro ───────────────── */
+:root {
+  --bg-primary:    #09180F;
+  --bg-secondary:  #0D2218;
+  --bg-card:       #102B1E;
+  --bg-hover:      #1A3D2C;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  --accent:        #B9E66A;
+  --accent-light:  #D0EE8C;
+  --accent-rgb:    185, 230, 106;
+  --btn-text:      #0F4D3F;
+
+  --accent-green:  #B9E66A;
+  --accent-red:    #FF9F6E;
+  --accent-yellow: #F5C842;
+  --accent-blue:   #60A5FA;
+  --green-rgb: 185, 230, 106;
+  --red-rgb:   255, 159, 110;
+
+  --text-primary:   #EEF5EB;
+  --text-secondary: #8DBF9F;
+  --text-muted:     #4D7A5C;
+
+  --border:       #1A3D2C;
+  --border-light: #265540;
+
+  --sidebar-width:  240px;
+  --header-height:  64px;
+  --radius:    12px;
+  --radius-sm:  8px;
+  --shadow:  0 4px 24px rgba(0, 0, 0, 0.45);
+  --transition: 0.2s ease;
+}
+
+/* ─── Light theme ── lifestyle / bege + verde ─────────────── */
+[data-theme="light"] {
+  --bg-primary:    #F3F6EF;
+  --bg-secondary:  #FFFFFF;
+  --bg-card:       #FFFFFF;
+  --bg-hover:      #ECF1E8;
+
+  --accent:        #0F4D3F;
+  --accent-light:  #186B53;
+  --accent-rgb:    15, 77, 63;
+  --btn-text:      #FFFFFF;
+
+  --accent-green:  #2D9E6E;
+  --accent-red:    #E05A2B;
+  --accent-yellow: #D18700;
+  --accent-blue:   #2563EB;
+  --green-rgb: 45, 158, 110;
+  --red-rgb:   224, 90, 43;
+
+  --text-primary:   #0D2B22;
+  --text-secondary: #3D6655;
+  --text-muted:     #7A9B8A;
+
+  --border:       #D5E8CE;
+  --border-light: #BAD4B2;
+
+  --shadow: 0 4px 24px rgba(15, 77, 63, 0.10);
 }
 
 body {
-  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+a {
+  text-decoration: none;
+  color: inherit;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+ul {
+  list-style: none;
 }
