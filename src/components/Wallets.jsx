@@ -16,9 +16,9 @@ const WALLET_TYPES = [
 ]
 const TYPE_LABELS = Object.fromEntries(WALLET_TYPES.map(t => [t.value, t.label]))
 
-const PRESET_COLORS = ['#6c63ff', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#ef4444', '#14b8a6', '#f97316', '#64748b', '#8b5cf6', '#06b6d4', '#84cc16']
+const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#F59E0B', '#3370F5', '#BBBBBB', '#555555', '#EEF3FF', '#B8DC1A', '#141414']
 
-const EMPTY_FORM = { name: '', type: 'checking', balance: '', color: '#6c63ff', icon: '🏦' }
+const EMPTY_FORM = { name: '', type: 'checking', balance: '', color: '#0053EF', icon: '🏦' }
 
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 

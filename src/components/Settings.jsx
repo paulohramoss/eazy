@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { CATEGORIES } from '../context/AppContext'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 
@@ -32,17 +31,12 @@ function Section({ icon, title, children }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const { settings, updateSettings, toggleTheme } = useApp()
-  const [profile, setProfile] = useState({ name: settings.name, email: settings.email, initials: settings.initials })
-  const [saved, setSaved] = useState(false)
+  const { settings, updateSettings, toggleTheme, categories, addCategory, removeCategory } = useApp()
+  const [newCat, setNewCat] = useState('')
 
-  const set = (k, v) => setProfile(prev => ({ ...prev, [k]: v }))
-
-  const saveProfile = () => {
-    if (!profile.name.trim()) return
-    updateSettings(profile)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleAddCategory = () => {
+    addCategory(newCat)
+    setNewCat('')
   }
 
   const CURRENCIES = [
@@ -60,41 +54,6 @@ export default function Settings() {
   return (
     <div className="screen">
       <div className="settings-grid">
-
-        {/* Profile */}
-        <Section icon={<i className="fi fi-rr-user" />} title="Perfil">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: '50%',
-                background: 'linear-gradient(135deg, var(--accent), var(--accent-blue))',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 20, fontWeight: 700, color: 'white', flexShrink: 0,
-              }}>
-                {profile.initials || profile.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15 }}>{settings.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{settings.email}</div>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Nome</label>
-              <input className="form-input" value={profile.name} onChange={e => set('name', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">E-mail</label>
-              <input className="form-input" type="email" value={profile.email} onChange={e => set('email', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Iniciais (avatar)</label>
-              <input className="form-input" maxLength={2} value={profile.initials} onChange={e => set('initials', e.target.value.toUpperCase())} style={{ width: 80 }} />
-            </div>
-            <button className="btn btn-primary" onClick={saveProfile} style={{ alignSelf: 'flex-start' }}>
-              {saved ? <><i className="fi fi-rr-check" /> Salvo!</> : 'Salvar perfil'}
-            </button>
-          </div>
-        </Section>
 
         {/* Preferences */}
         <Section icon={<i className="fi fi-rr-settings-sliders" />} title="Preferências">
@@ -150,17 +109,69 @@ export default function Settings() {
           </div>
         </Section>
 
-        {/* Categories info */}
-        <Section icon={<i className="fi fi-rr-tags" />} title="Categorias Disponíveis">
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-            Categorias usadas nas transações e orçamentos.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {CATEGORIES.map(cat => (
-              <span key={cat} className="category-tag" style={{ fontSize: 12, padding: '4px 10px' }}>{cat}</span>
+        {/* Categories */}
+        <div className="settings-section" style={{ gridColumn: '1 / -1' }}>
+          <div className="settings-section-title">
+            <span style={{ fontSize: 18 }}><i className="fi fi-rr-tags" /></span>
+            Categorias Disponíveis
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>
+              {categories.length} categoria{categories.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <input
+              className="form-input"
+              placeholder="Nome da nova categoria..."
+              value={newCat}
+              onChange={e => setNewCat(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+              style={{ flex: 1, maxWidth: 320 }}
+            />
+            <button
+              className="btn btn-primary"
+              onClick={handleAddCategory}
+              disabled={!newCat.trim()}
+            >
+              <i className="fi fi-rr-plus" /> Adicionar
+            </button>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: 8,
+          }}>
+            {categories.map(cat => (
+              <div
+                key={cat}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'var(--bg-primary)', border: '1px solid var(--border)',
+                  borderRadius: 8, padding: '8px 12px', gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <i className="fi fi-rr-tag" style={{ fontSize: 13, color: 'var(--accent)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {cat}
+                  </span>
+                </div>
+                <button
+                  onClick={() => removeCategory(cat)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+                    color: 'var(--text-muted)', display: 'flex', alignItems: 'center',
+                    borderRadius: 4, flexShrink: 0,
+                  }}
+                  title="Remover categoria"
+                >
+                  <i className="fi fi-rr-trash" style={{ fontSize: 13 }} />
+                </button>
+              </div>
             ))}
           </div>
-        </Section>
+        </div>
 
         {/* Data */}
         <Section icon={<i className="fi fi-rr-database" />} title="Dados">

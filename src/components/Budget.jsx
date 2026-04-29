@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { CATEGORIES } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 
@@ -36,7 +35,7 @@ function BudgetModal({ initial, onSave, onClose }) {
       <div className="form-group">
         <label className="form-label">Categoria</label>
         <select className="form-select" value={form.category} onChange={e => set('category', e.target.value)}>
-          {CATEGORIES
+          {categories
             .filter(c => !['Salário', 'Freelance', 'Investimentos', 'Outros Rendimentos'].includes(c))
             .map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -52,7 +51,7 @@ function BudgetModal({ initial, onSave, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Budget() {
-  const { budgets, spendingByCategory, transactions, addBudget, updateBudget, deleteBudget } = useApp()
+  const { budgets, spendingByCategory, transactions, addBudget, updateBudget, deleteBudget, categories } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem,  setDelItem]  = useState(null)

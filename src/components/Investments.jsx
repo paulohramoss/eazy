@@ -7,9 +7,9 @@ const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency',
 const fmtN = (n, d = 2) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
 
 const TYPES = ['Ação', 'Cripto', 'FII/ETF', 'Renda F.', 'Outro']
-const COLORS = ['#6c63ff', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#64748b', '#14b8a6', '#f97316']
+const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB', '#555555', '#3370F5']
 
-const EMPTY_FORM = { name: '', ticker: '', type: 'Ação', quantity: '', avgPrice: '', currentPrice: '', color: '#6c63ff' }
+const EMPTY_FORM = { name: '', ticker: '', type: 'Ação', quantity: '', avgPrice: '', currentPrice: '', color: '#0053EF' }
 
 // ─── Market data ──────────────────────────────────────────────────────────────
 
@@ -327,7 +327,7 @@ function InvModal({ initial, onSave, onClose }) {
       </div>
       <div className="form-group">
         <label className="form-label">Cor</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {COLORS.map(color => (
             <button key={color} type="button" onClick={() => set('color', color)}
               style={{
@@ -337,6 +337,20 @@ function InvModal({ initial, onSave, onClose }) {
               }}
             />
           ))}
+          <label title="Cor personalizada" style={{ position: 'relative', width: 28, height: 28, cursor: 'pointer' }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
+              border: !COLORS.includes(form.color) ? '3px solid white' : '3px solid transparent',
+              outline: !COLORS.includes(form.color) ? `2px solid ${form.color}` : 'none',
+            }} />
+            <input
+              type="color"
+              value={form.color}
+              onChange={e => set('color', e.target.value)}
+              style={{ position: 'absolute', opacity: 0, width: 0, height: 0, top: 0, left: 0 }}
+            />
+          </label>
         </div>
       </div>
     </Modal>
