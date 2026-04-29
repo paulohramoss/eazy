@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import logoImg from './assets/image.png'
 import { createPortal } from 'react-dom'
+import Calculator from './components/Calculator'
+import CurrencyConverter from './components/CurrencyConverter'
 import './App.css'
 import { useAuth } from './context/AuthContext'
 import { AppProvider, useApp } from './context/AppContext'
@@ -13,6 +16,9 @@ const Budget            = lazy(() => import('./components/Budget'))
 const Goals             = lazy(() => import('./components/Goals'))
 const Investments       = lazy(() => import('./components/Investments'))
 const Settings          = lazy(() => import('./components/Settings'))
+const Profile           = lazy(() => import('./components/Profile'))
+const CreditCards       = lazy(() => import('./components/CreditCards'))
+const Alerts            = lazy(() => import('./components/Alerts'))
 const FinancialCalendar = lazy(() => import('./components/FinancialCalendar'))
 
 // ─── Navigation Config ────────────────────────────────────────────────────────
@@ -20,7 +26,14 @@ const FinancialCalendar = lazy(() => import('./components/FinancialCalendar'))
 const NAV = [
   { icon: 'fi-rr-dashboard', label: 'Visão Geral', screen: 'overview' },
   { icon: 'fi-rr-exchange', label: 'Transações', screen: 'transactions' },
-  { icon: 'fi-rr-wallet', label: 'Carteiras', screen: 'wallets' },
+  {
+    section: 'Carteiras',
+    icon: 'fi-rr-wallet',
+    children: [
+      { icon: 'fi-rr-bank', label: 'Minhas Contas', screen: 'wallets' },
+      { icon: 'fi-rr-credit-card', label: 'Cartões de Crédito', screen: 'creditcards' },
+    ],
+  },
   {
     section: 'Planejamento',
     icon: 'fi-rr-layers',
@@ -36,6 +49,8 @@ const NAV = [
     section: 'Sistema',
     icon: 'fi-rr-settings',
     children: [
+      { icon: 'fi-rr-bell', label: 'Alertas', screen: 'alerts' },
+      { icon: 'fi-rr-user', label: 'Meu Perfil', screen: 'profile' },
       { icon: 'fi-rr-settings-sliders', label: 'Configurações', screen: 'settings' },
     ],
   },
@@ -45,12 +60,15 @@ const SCREEN_TITLES = {
   overview: { title: 'Visão Geral', sub: 'Resumo financeiro completo' },
   transactions: { title: 'Transações', sub: 'Histórico de movimentações' },
   analysis: { title: 'Análise', sub: 'Tendências e insights' },
-  wallets: { title: 'Carteiras', sub: 'Contas e saldos' },
+  wallets: { title: 'Minhas Contas', sub: 'Saldos e carteiras' },
   budget: { title: 'Orçamento', sub: 'Limites por categoria' },
   goals: { title: 'Objetivos', sub: 'Acompanhe o progresso dos seus objetivos' },
   investments: { title: 'Investimentos', sub: 'Carteira de ativos' },
   calendar: { title: 'Calendário Financeiro', sub: 'Visualize receitas e despesas por data' },
-  settings: { title: 'Configurações', sub: 'Perfil e preferências' },
+  creditcards: { title: 'Cartões de Crédito', sub: 'Gerencie seus cartões e faturas' },
+  alerts: { title: 'Notificações', sub: 'Canais e preferências de notificação' },
+  profile: { title: 'Meu Perfil', sub: 'Informações pessoais da conta' },
+  settings: { title: 'Configurações', sub: 'Preferências do sistema' },
 }
 
 const SCREENS = {
@@ -62,12 +80,15 @@ const SCREENS = {
   goals: () => <Goals />,
   investments: () => <Investments />,
   calendar: () => <FinancialCalendar />,
+  creditcards: () => <CreditCards />,
+  alerts: () => <Alerts />,
+  profile: () => <Profile />,
   settings: () => <Settings />,
 }
 
 // ─── NavAccordion (inline expandable group) ───────────────────────────────────
 
-function NavAccordion({ item, screen, setScreen }) {
+function NavAccordion({ item, screen, setScreen, badges = {} }) {
   const hasActive = item.children.some(c => c.screen === screen)
   const [prevHasActive, setPrevHasActive] = useState(hasActive)
   const [open, setOpen] = useState(hasActive)
@@ -97,6 +118,9 @@ function NavAccordion({ item, screen, setScreen }) {
             >
               <i className={`fi ${child.icon} nav-icon`} />
               {child.label}
+              {badges[child.screen] > 0 && (
+                <span className="nav-badge" style={{ background: 'var(--accent-red)' }}>{badges[child.screen]}</span>
+              )}
             </div>
           ))}
         </div>
@@ -110,6 +134,7 @@ function NavAccordion({ item, screen, setScreen }) {
 function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const onCloseRef = useRef(onClose)
+  const dropdownRef = useRef(null)
   onCloseRef.current = onClose
 
   useEffect(() => {
@@ -119,7 +144,10 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
     }
 
     const handleClick = (e) => {
-      if (!anchorRef.current?.contains(e.target)) onCloseRef.current()
+      if (
+        !anchorRef.current?.contains(e.target) &&
+        !dropdownRef.current?.contains(e.target)
+      ) onCloseRef.current()
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -131,13 +159,17 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
 
   return createPortal(
     <div
+      ref={dropdownRef}
       className="profile-dropdown"
       style={{ top: pos.top, right: pos.right }}
     >
       {/* Header */}
       <div className="profile-dropdown-header">
-        <div className="profile-dropdown-avatar">
-          {settings.initials || settings.name?.slice(0, 2).toUpperCase()}
+        <div className="profile-dropdown-avatar" style={{ overflow: 'hidden', padding: 0 }}>
+          {settings.photoURL
+            ? <img src={settings.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            : (settings.initials || settings.name?.slice(0, 2).toUpperCase())
+          }
         </div>
         <div className="profile-dropdown-info">
           <div className="profile-dropdown-name">{settings.name}</div>
@@ -147,7 +179,7 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
 
       <div className="profile-dropdown-divider" />
 
-      <div className="profile-dropdown-item" onClick={() => go('settings')}>
+      <div className="profile-dropdown-item" onClick={() => go('profile')}>
         <i className="fi fi-rr-user" />
         Meu perfil
       </div>
@@ -170,11 +202,20 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
 // ─── Dashboard (requer auth + AppContext) ────────────────────────────────────
 
 function Dashboard() {
-  const [screen, setScreen] = useState('overview')
+  const [screen, setScreen] = useState(() => {
+    const saved = localStorage.getItem('eazy_screen')
+    return (saved && SCREEN_TITLES[saved]) ? saved : 'overview'
+  })
   const [profileOpen, setProfileOpen] = useState(false)
-  const { settings, pendingCount, toggleTheme } = useApp()
+  const [calcOpen, setCalcOpen] = useState(false)
+  const [converterOpen, setConverterOpen] = useState(false)
+  const { settings, pendingCount, alertsDueCount, toggleTheme } = useApp()
   const { logOut } = useAuth()
   const userCardRef = useRef(null)
+  const calcBtnRef = useRef(null)
+  const converterBtnRef = useRef(null)
+
+  const navigate = (s) => { setScreen(s); localStorage.setItem('eazy_screen', s) }
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
@@ -189,24 +230,29 @@ function Dashboard() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="logo-icon"><i className="fi fi-rr-sack-dollar" /></div>
-          <span>Eazy<em>Finance</em></span>
+          <div className="sidebar-logo-wrap">
+            <img src={logoImg} alt="Eazy" />
+          </div>
         </div>
 
         <nav className="sidebar-nav">
           {NAV.map((item, i) =>
             item.section ? (
-              <NavAccordion key={i} item={item} screen={screen} setScreen={setScreen} />
+              <NavAccordion key={i} item={item} screen={screen} setScreen={navigate}
+                badges={{ alerts: alertsDueCount, transactions: pendingCount }} />
             ) : (
               <div
                 key={item.screen}
                 className={`nav-item${screen === item.screen ? ' active' : ''}`}
-                onClick={() => setScreen(item.screen)}
+                onClick={() => navigate(item.screen)}
               >
                 <i className={`fi ${item.icon} nav-icon`} />
                 {item.label}
                 {item.screen === 'transactions' && pendingCount > 0 && (
                   <span className="nav-badge">{pendingCount}</span>
+                )}
+                {item.screen === 'alerts' && alertsDueCount > 0 && (
+                  <span className="nav-badge" style={{ background: 'var(--accent-red)' }}>{alertsDueCount}</span>
                 )}
               </div>
             )
@@ -227,6 +273,33 @@ function Dashboard() {
           </div>
           <div className="header-right">
             <button
+              ref={calcBtnRef}
+              className={`header-btn${calcOpen ? ' header-btn--active' : ''}`}
+              title="Calculadora"
+              onClick={() => { setCalcOpen(o => !o); setConverterOpen(false) }}
+            >
+              <i className="fi fi-rr-calculator" />
+            </button>
+
+            <button
+              ref={converterBtnRef}
+              className={`header-btn${converterOpen ? ' header-btn--active' : ''}`}
+              title="Conversor de moeda"
+              onClick={() => { setConverterOpen(o => !o); setCalcOpen(false) }}
+            >
+              <i className="fi fi-rr-exchange" />
+            </button>
+
+            <button
+              className="header-btn"
+              title="Alertas"
+              onClick={() => navigate('alerts')}
+            >
+              <i className="fi fi-rr-bell" />
+              {alertsDueCount > 0 && <span className="alert-badge">{alertsDueCount}</span>}
+            </button>
+
+            <button
               className="header-btn theme-toggle"
               title={settings.theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
               onClick={toggleTheme}
@@ -234,14 +307,24 @@ function Dashboard() {
               <i className={`fi ${settings.theme === 'dark' ? 'fi-rr-sun' : 'fi-rr-moon'}`} />
             </button>
 
+            {calcOpen && (
+              <Calculator anchorRef={calcBtnRef} onClose={() => setCalcOpen(false)} />
+            )}
+            {converterOpen && (
+              <CurrencyConverter anchorRef={converterBtnRef} onClose={() => setConverterOpen(false)} />
+            )}
+
             {/* Profile trigger */}
             <div
               ref={userCardRef}
               className={`header-profile${profileOpen ? ' header-profile--open' : ''}`}
               onClick={() => setProfileOpen(o => !o)}
             >
-              <div className="header-profile-avatar">
-                {settings.initials || settings.name?.slice(0, 2).toUpperCase()}
+              <div className="header-profile-avatar" style={{ overflow: 'hidden', padding: 0 }}>
+                {settings.photoURL
+                  ? <img src={settings.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  : (settings.initials || settings.name?.slice(0, 2).toUpperCase())
+                }
               </div>
               <div className="header-profile-info">
                 <div className="header-profile-name">{settings.name}</div>
@@ -256,7 +339,7 @@ function Dashboard() {
             {profileOpen && (
               <ProfileDropdown
                 settings={settings}
-                onNavigate={setScreen}
+                onNavigate={navigate}
                 onClose={() => setProfileOpen(false)}
                 anchorRef={userCardRef}
                 logOut={logOut}
@@ -267,7 +350,7 @@ function Dashboard() {
 
         <div className="content">
           <Suspense fallback={<div className="empty-state"><p>Carregando...</p></div>}>
-            {(SCREENS[screen] || SCREENS.overview)(setScreen)}
+            {(SCREENS[screen] || SCREENS.overview)(navigate)}
           </Suspense>
         </div>
       </main>

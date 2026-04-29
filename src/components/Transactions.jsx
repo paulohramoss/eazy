@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { CATEGORIES, CatIcon } from '../context/AppContext'
+import { CatIcon } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 
@@ -9,22 +9,44 @@ const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency',
 const EMPTY_FORM = {
   type: 'expense', name: '', category: 'Alimentação', amount: '',
   date: new Date().toISOString().split('T')[0],
-  walletId: '', status: 'completed', notes: '',
+  walletId: '', cardId: '', status: 'completed', notes: '', tags: [],
 }
 
 const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente' }
 
 // ─── Form Modal ───────────────────────────────────────────────────────────────
 
-function TxModal({ initial, onSave, onClose, wallets }) {
+function TxModal({ initial, onSave, onClose, wallets, creditCards, categories }) {
+  const { getCardCurrentUsed } = useApp()
   const [form, setForm] = useState(initial
-    ? { ...initial, amount: String(initial.amount) }
+    ? { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
     : { ...EMPTY_FORM, walletId: wallets[0]?.id || '' }
   )
+  const [tagInput, setTagInput] = useState('')
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const handleCardChange = (cardId) => {
+    setForm(prev => ({
+      ...prev,
+      cardId,
+      walletId: cardId ? '' : (wallets[0]?.id || ''),
+    }))
+  }
+
+  // Validação de limite do cartão
+  const selectedCard = form.cardId ? creditCards.find(c => c.id === form.cardId) : null
+  const cardUsed = selectedCard ? getCardCurrentUsed(selectedCard.id) : 0
+  const newAmount = Number(form.amount) || 0
+  // Ao editar, desconta o valor original para não contar duas vezes
+  const originalAmount = (initial?.cardId === form.cardId && initial?.type === 'expense')
+    ? (Number(initial.amount) || 0)
+    : 0
+  const cardAvailable = selectedCard ? (selectedCard.limit || 0) - cardUsed + originalAmount : Infinity
+  const limitExceeded = selectedCard && form.type === 'expense' && newAmount > cardAvailable
 
   const handleSave = () => {
     if (!form.name.trim() || !form.amount || Number(form.amount) <= 0) return
+    if (limitExceeded) return
     onSave({ ...form, amount: Number(form.amount) })
     onClose()
   }
@@ -36,7 +58,12 @@ function TxModal({ initial, onSave, onClose, wallets }) {
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Salvar</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={limitExceeded}
+            style={limitExceeded ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+          >Salvar</button>
         </>
       }
     >
@@ -74,15 +101,104 @@ function TxModal({ initial, onSave, onClose, wallets }) {
         <div className="form-group">
           <label className="form-label">Categoria</label>
           <select className="form-select" value={form.category} onChange={e => set('category', e.target.value)}>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Carteira</label>
-          <select className="form-select" value={form.walletId} onChange={e => set('walletId', e.target.value)}>
+          <label className="form-label">
+            Carteira
+            {form.cardId && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--text-muted)', marginLeft: 5 }}>(opcional)</span>}
+          </label>
+          <select
+            className="form-select"
+            value={form.walletId}
+            onChange={e => set('walletId', e.target.value)}
+            disabled={!!form.cardId}
+            style={form.cardId ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+          >
+            <option value="">— Nenhuma —</option>
             {wallets.map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
           </select>
         </div>
+      </div>
+      {form.type === 'expense' && creditCards.length > 0 && (
+        <div className="form-group">
+          <label className="form-label">Cartão de crédito</label>
+          <select className="form-select" value={form.cardId} onChange={e => handleCardChange(e.target.value)}>
+            <option value="">— Não usar cartão —</option>
+            {creditCards.map(c => <option key={c.id} value={c.id}>💳 {c.name}</option>)}
+          </select>
+          {/* Indicador de limite disponível */}
+          {selectedCard && form.type === 'expense' && (
+            <div style={{
+              marginTop: 8,
+              padding: '10px 14px',
+              borderRadius: 10,
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              ...(limitExceeded
+                ? { background: 'rgba(232,56,42,0.08)', border: '1px solid rgba(232,56,42,0.25)', color: 'var(--accent-red)' }
+                : { background: 'rgba(24,160,88,0.08)', border: '1px solid rgba(24,160,88,0.2)', color: 'var(--accent-green)' }
+              ),
+            }}>
+              <i className={`fi ${limitExceeded ? 'fi-rr-ban' : 'fi-rr-shield-check'}`} style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }} />
+              <div>
+                {limitExceeded ? (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: 2 }}>Limite insuficiente</div>
+                    <div style={{ opacity: 0.85 }}>
+                      Disponível: <strong>{(Number(cardAvailable) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      {' · '}Falta: <strong>{(newAmount - cardAvailable).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontWeight: 600 }}>
+                      Disponível: {cardAvailable.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      {newAmount > 0 && (
+                        <span style={{ fontWeight: 400, opacity: 0.75 }}>
+                          {' → '}
+                          {(cardAvailable - newAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          {' após'}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="form-group">
+        <label className="form-label">Tags</label>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+          {(form.tags || []).map(tag => (
+            <span key={tag} style={{
+              fontSize: 12, padding: '3px 8px', borderRadius: 99,
+              background: 'rgba(var(--accent-rgb),.12)', color: 'var(--accent)',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              #{tag}
+              <button onClick={() => set('tags', form.tags.filter(t => t !== tag))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}>×</button>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input className="form-input" placeholder="Adicionar tag..." value={tagInput}
+            onChange={e => setTagInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && tagInput.trim()) {
+                const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-')
+                if (!form.tags.includes(t)) set('tags', [...(form.tags || []), t])
+                setTagInput('')
+              }
+            }} style={{ flex: 1 }} />
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Pressione Enter para adicionar</div>
       </div>
       <div className="form-group">
         <label className="form-label">Observações</label>
@@ -135,7 +251,7 @@ function Checkbox({ checked, indeterminate, onChange }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses, categories } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')
@@ -299,7 +415,19 @@ export default function Transactions() {
                         <div className="tx-icon" style={{ background: 'var(--bg-hover)' }}>
                           <CatIcon category={tx.category} />
                         </div>
-                        <div className="tx-name">{tx.name}</div>
+                        <div>
+                          <div className="tx-name">{tx.name}</div>
+                          {tx.tags?.length > 0 && (
+                            <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                              {tx.tags.map(tag => (
+                                <span key={tag} style={{
+                                  fontSize: 10, padding: '1px 6px', borderRadius: 99,
+                                  background: 'rgba(var(--accent-rgb),.1)', color: 'var(--accent)', fontWeight: 600,
+                                }}>#{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td style={{ textAlign: 'center' }}><span className="category-tag">{tx.category}</span></td>
@@ -326,11 +454,11 @@ export default function Transactions() {
       </div>
 
       {addModal && (
-        <TxModal wallets={wallets} onSave={addTransaction} onClose={() => setAddModal(false)} />
+        <TxModal wallets={wallets} creditCards={creditCards} categories={categories} onSave={addTransaction} onClose={() => setAddModal(false)} />
       )}
       {editItem && (
         <TxModal
-          initial={editItem} wallets={wallets}
+          initial={editItem} wallets={wallets} creditCards={creditCards} categories={categories}
           onSave={(data) => updateTransaction(editItem.id, data)}
           onClose={() => setEditItem(null)}
         />
