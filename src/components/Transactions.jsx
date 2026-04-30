@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext'
 import { CatIcon } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
+import { resolveWalletIcon } from '../utils/walletIcons'
 
 const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -117,7 +118,7 @@ function TxModal({ initial, onSave, onClose, wallets, creditCards, categories })
             style={form.cardId ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
           >
             <option value="">— Nenhuma —</option>
-            {wallets.map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
+            {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
         </div>
       </div>
@@ -126,7 +127,7 @@ function TxModal({ initial, onSave, onClose, wallets, creditCards, categories })
           <label className="form-label">Cartão de crédito</label>
           <select className="form-select" value={form.cardId} onChange={e => handleCardChange(e.target.value)}>
             <option value="">— Não usar cartão —</option>
-            {creditCards.map(c => <option key={c.id} value={c.id}>💳 {c.name}</option>)}
+            {creditCards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           {/* Indicador de limite disponível */}
           {selectedCard && form.type === 'expense' && (
@@ -377,7 +378,7 @@ export default function Transactions() {
 
         {filtered.length === 0 ? (
           <div className="empty-state">
-            <span style={{ fontSize: 32 }}>🔍</span>
+            <i className="fi fi-rr-search" style={{ fontSize: 30, color: 'var(--text-muted)' }} />
             <p>Nenhuma transação encontrada</p>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Tente ajustar os filtros</span>
           </div>
@@ -431,7 +432,14 @@ export default function Transactions() {
                       </div>
                     </td>
                     <td style={{ textAlign: 'center' }}><span className="category-tag">{tx.category}</span></td>
-                    <td className="tx-date" style={{ textAlign: 'center' }}>{wallet ? `${wallet.icon || ''} ${wallet.name}`.trim() : '—'}</td>
+                    <td className="tx-date" style={{ textAlign: 'center' }}>
+                      {wallet ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                          <i className={`fi ${resolveWalletIcon(wallet.icon, wallet.type)}`} />
+                          {wallet.name}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td className="tx-date" style={{ textAlign: 'center' }}>{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className={`tx-amount ${tx.type === 'income' ? 'positive' : 'negative'}`}>
                       {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}

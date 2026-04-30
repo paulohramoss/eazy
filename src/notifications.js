@@ -87,20 +87,20 @@ export async function notify({ type, data = {}, settings }) {
   if (!notifMap[type]) return
 
   const titles = {
-    transaction:   `${data.txType === 'income' ? '📈 Nova receita' : '💸 Nova despesa'}: ${data.name}`,
-    transaction_pending: `⏳ Transação pendente: ${data.name}`,
-    large_expense: `⚠️ Despesa alta: ${fmt(data.amount)}`,
-    budget_near:   `⚠️ Orçamento de ${data.category} em ${data.pct}%`,
-    budget_over:   `🚨 Orçamento de ${data.category} estourado!`,
-    card_near:     `💳 Cartão ${data.cardName} em ${data.pct}% do limite`,
-    card_limit:    `🚫 Cartão ${data.cardName}: limite atingido!`,
-    card_closing:  `📅 Fatura do ${data.cardName} fecha hoje`,
-    card_due:      `🔔 Fatura do ${data.cardName} vence hoje`,
-    goal_reached:  `🏆 Objetivo "${data.goalName}" concluído!`,
-    goal_reminder: `⭐ Progresso dos objetivos`,
-    weekly_report: `📊 Seu resumo semanal`,
-    monthly_report:`📈 Resumo de ${data.month || 'mês anterior'}`,
-    test:          `🔔 Teste de notificação — EAZY Finance`,
+    transaction:   `${data.txType === 'income' ? 'Nova receita' : 'Nova despesa'}: ${data.name}`,
+    transaction_pending: `Transação pendente: ${data.name}`,
+    large_expense: `Despesa alta: ${fmt(data.amount)}`,
+    budget_near:   `Orçamento de ${data.category} em ${data.pct}%`,
+    budget_over:   `Orçamento de ${data.category} estourado!`,
+    card_near:     `Cartão ${data.cardName} em ${data.pct}% do limite`,
+    card_limit:    `Cartão ${data.cardName}: limite atingido!`,
+    card_closing:  `Fatura do ${data.cardName} fecha hoje`,
+    card_due:      `Fatura do ${data.cardName} vence hoje`,
+    goal_reached:  `Objetivo "${data.goalName}" concluído!`,
+    goal_reminder: `Progresso dos objetivos`,
+    weekly_report: `Seu resumo semanal`,
+    monthly_report:`Resumo de ${data.month || 'mês anterior'}`,
+    test:          `Teste de notificação — EAZY Finance`,
   }
 
   const bodies = {
@@ -113,11 +113,11 @@ export async function notify({ type, data = {}, settings }) {
     card_limit:    `Limite de ${fmt(data.limit)} esgotado`,
     card_closing:  `Total da fatura: ${fmt(data.amount)}`,
     card_due:      `Fatura de ${fmt(data.amount)} vence hoje`,
-    goal_reached:  `Meta de ${fmt(data.amount)} atingida 🎉`,
+    goal_reached:  `Meta de ${fmt(data.amount)} atingida`,
     goal_reminder: `Veja o progresso dos seus objetivos`,
     weekly_report: `Receitas: ${data.income} · Despesas: ${data.expenses}`,
     monthly_report:`Receitas: ${data.income} · Despesas: ${data.expenses}`,
-    test:          `Suas notificações estão configuradas corretamente! ✅`,
+    test:          `Suas notificações estão configuradas corretamente!`,
   }
 
   const title = titles[type] || titles.test

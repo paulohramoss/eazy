@@ -6,6 +6,7 @@ import {
   addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { notify } from '../notifications'
+import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
 
 // ─── Static config ────────────────────────────────────────────────────────────
 
@@ -56,9 +57,9 @@ const COL = {
 // ─── Default wallets (seed on first login) ────────────────────────────────────
 
 const DEFAULT_WALLETS = [
-  { name: 'Conta Corrente', type: 'checking',   balance: 0, color: '#0053EF', icon: '🏦' },
-  { name: 'Poupança',       type: 'savings',    balance: 0, color: '#CFF330', icon: '🐷' },
-  { name: 'Investimentos',  type: 'investment', balance: 0, color: '#0A0A0A', icon: '📈' },
+  { name: 'Conta Corrente', type: 'checking',   balance: 0, color: '#0053EF', icon: WALLET_TYPE_ICONS.checking },
+  { name: 'Poupança',       type: 'savings',    balance: 0, color: '#CFF330', icon: WALLET_TYPE_ICONS.savings },
+  { name: 'Investimentos',  type: 'investment', balance: 0, color: '#0A0A0A', icon: WALLET_TYPE_ICONS.investment },
 ]
 
 // ─── Settings helpers ─────────────────────────────────────────────────────────
