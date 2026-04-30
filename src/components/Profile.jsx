@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { storage } from '../firebase'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { formatBrazilMobile, getBrazilMobileError, PHONE_MASK_PLACEHOLDER } from '../utils/phone'
 
 function Section({ icon, title, children, style }) {
   return (
@@ -44,11 +45,12 @@ export default function Profile() {
     name:     settings.name     || '',
     email:    settings.email    || '',
     initials: settings.initials || '',
-    phone:    settings.phone    || '',
+    phone:    formatBrazilMobile(settings.phone || settings.smsPhone || ''),
   })
   const [saved,        setSaved]        = useState(false)
   const [uploading,    setUploading]    = useState(false)
   const [uploadError,  setUploadError]  = useState(null)
+  const [phoneTouched, setPhoneTouched] = useState(false)
   const [photoPreview, setPhotoPreview] = useState(settings.photoURL || null)
 
   const fileInputRef = useRef(null)
@@ -56,6 +58,7 @@ export default function Profile() {
 
   const displayInitials = profile.initials || profile.name?.slice(0, 2).toUpperCase()
   const hasPhoto = !!photoPreview
+  const phoneError = getBrazilMobileError(profile.phone)
 
   // ── Upload de foto ───────────────────────────────────────────────────────────
 
@@ -95,9 +98,23 @@ export default function Profile() {
 
   // ── Salvar perfil ────────────────────────────────────────────────────────────
 
+  const handlePhoneChange = (e) => {
+    set('phone', formatBrazilMobile(e.target.value))
+  }
+
   const saveProfile = () => {
     if (!profile.name.trim()) return
-    updateSettings({ ...profile, smsPhone: profile.phone })
+
+    const phone = formatBrazilMobile(profile.phone)
+    const nextPhoneError = getBrazilMobileError(phone)
+
+    if (nextPhoneError) {
+      set('phone', phone)
+      setPhoneTouched(true)
+      return
+    }
+
+    updateSettings({ ...profile, phone, smsPhone: phone })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -277,12 +294,22 @@ export default function Profile() {
                 <input
                   className="form-input"
                   type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={17}
                   value={profile.phone}
-                  onChange={e => set('phone', e.target.value)}
-                  placeholder="+55 11 99999-9999"
-                  style={{ paddingLeft: 38 }}
+                  onChange={handlePhoneChange}
+                  onBlur={() => setPhoneTouched(true)}
+                  placeholder={PHONE_MASK_PLACEHOLDER}
+                  aria-invalid={!!phoneError}
+                  style={{ paddingLeft: 38, borderColor: phoneTouched && phoneError ? 'var(--accent-red)' : undefined }}
                 />
               </div>
+              {phoneTouched && phoneError && (
+                <p style={{ fontSize: 11, color: 'var(--accent-red)', marginTop: 5 }}>
+                  {phoneError}
+                </p>
+              )}
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
                 Usado para notificações por SMS quando ativadas
               </p>
