@@ -489,7 +489,7 @@ export default function Investments() {
         </div>
         {enriched.length === 0 ? (
           <div className="empty-state">
-            <span style={{ fontSize: 36 }}>📈</span>
+            <i className="fi fi-rr-chart-line-up" style={{ fontSize: 34, color: 'var(--text-muted)' }} />
             <p>Nenhum ativo na carteira</p>
             <button className="btn btn-primary" onClick={() => setAddModal(true)}>Adicionar primeiro ativo</button>
           </div>
@@ -539,7 +539,7 @@ export default function Investments() {
                   <td style={{ paddingRight: 20 }}>
                     <div className="table-actions">
                       <button className="btn-icon" title="Editar" onClick={() => setEditItem(inv)}>✏️</button>
-                      <button className="btn-icon danger" title="Remover" onClick={() => setDelItem(inv)}>🗑️</button>
+                    <button className="btn-icon danger" title="Remover" onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
                     </div>
                   </td>
                 </tr>

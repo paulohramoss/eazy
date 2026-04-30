@@ -149,7 +149,7 @@ export default function Alerts() {
     const results = []
 
     if (settings.pushEnabled) {
-      showLocalNotification('🔔 EAZY Finance', 'Suas notificações push estão funcionando! ✅')
+      showLocalNotification('EAZY Finance', 'Suas notificações push estão funcionando!')
       results.push('Push enviado')
     }
 

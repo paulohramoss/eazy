@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
-import Picker from '@emoji-mart/react'
-import data from '@emoji-mart/data'
+import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -18,20 +17,21 @@ const TYPE_LABELS = Object.fromEntries(WALLET_TYPES.map(t => [t.value, t.label])
 
 const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#F59E0B', '#3370F5', '#BBBBBB', '#555555', '#EEF3FF', '#B8DC1A', '#141414']
 
-const EMPTY_FORM = { name: '', type: 'checking', balance: '', color: '#0053EF', icon: '🏦' }
+const EMPTY_FORM = { name: '', type: 'checking', balance: '', color: '#0053EF', icon: DEFAULT_WALLET_ICON }
 
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 
 function WalletModal({ initial, onSave, onClose }) {
   const [form, setForm] = useState(initial
-    ? { ...initial, balance: String(initial.balance) }
+    ? { ...initial, icon: resolveWalletIcon(initial.icon, initial.type), balance: String(initial.balance) }
     : EMPTY_FORM
   )
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const selectedIcon = resolveWalletIcon(form.icon, form.type)
 
   const handleSave = () => {
     if (!form.name.trim() || form.balance === '') return
-    onSave({ ...form, balance: Number(form.balance) })
+    onSave({ ...form, icon: selectedIcon, balance: Number(form.balance) })
     onClose()
   }
 
@@ -64,30 +64,31 @@ function WalletModal({ initial, onSave, onClose }) {
       </div>
       <div className="form-group">
         <label className="form-label">Ícone</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            type="button"
-            onClick={() => set('_pickerOpen', !form._pickerOpen)}
-            style={{
-              width: 52, height: 52, fontSize: 28, borderRadius: 10,
-              background: 'var(--bg-hover)', border: '2px solid var(--border)',
-              cursor: 'pointer',
-            }}
-          >{form.icon || '🏦'}</button>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Clique para escolher o ícone</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(42px, 42px))', gap: 8 }}>
+          {WALLET_ICON_OPTIONS.map(option => {
+            const selected = selectedIcon === option.icon
+            return (
+              <button
+                key={option.icon}
+                type="button"
+                title={option.label}
+                aria-label={option.label}
+                onClick={() => set('icon', option.icon)}
+                style={{
+                  width: 42, height: 42, borderRadius: 9,
+                  background: selected ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--bg-hover)',
+                  border: selected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                  color: selected ? 'var(--accent)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18,
+                }}
+              >
+                <i className={`fi ${option.icon}`} />
+              </button>
+            )
+          })}
         </div>
-        {form._pickerOpen && (
-          <div style={{ marginTop: 8 }}>
-            <Picker
-              data={data}
-              locale="pt"
-              onEmojiSelect={e => setForm(prev => ({ ...prev, icon: e.native, _pickerOpen: false }))}
-              theme="dark"
-              previewPosition="none"
-              skinTonePosition="none"
-            />
-          </div>
-        )}
       </div>
       <div className="form-group">
         <label className="form-label">Cor</label>
@@ -182,18 +183,20 @@ export default function Wallets() {
             >
               <div className="wallet-card-accent" style={{ background: w.color }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 28 }}>{w.icon}</span>
+                <span style={{ fontSize: 25, color: w.color }}>
+                  <i className={`fi ${resolveWalletIcon(w.icon, w.type)}`} />
+                </span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     className="btn-icon"
                     title="Editar"
                     onClick={e => { e.stopPropagation(); setEditItem(w) }}
-                  >✏️</button>
+                  ><i className="fi fi-rr-pencil" /></button>
                   <button
                     className="btn-icon danger"
                     title="Excluir"
                     onClick={e => { e.stopPropagation(); setDelItem(w) }}
-                  >🗑️</button>
+                  ><i className="fi fi-rr-trash" /></button>
                 </div>
               </div>
               <div>
