@@ -23,6 +23,8 @@ function TxModal({ initial, onSave, onClose, wallets, creditCards, categories })
     ? { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
     : { ...EMPTY_FORM, walletId: wallets[0]?.id || '' }
   )
+  const [repeatMode, setRepeatMode] = useState('unique')
+  const [repeatCount, setRepeatCount] = useState(12)
   const [tagInput, setTagInput] = useState('')
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -48,7 +50,7 @@ function TxModal({ initial, onSave, onClose, wallets, creditCards, categories })
   const handleSave = () => {
     if (!form.name.trim() || !form.amount || Number(form.amount) <= 0) return
     if (limitExceeded) return
-    onSave({ ...form, amount: Number(form.amount) })
+    onSave({ ...form, amount: Number(form.amount) }, repeatMode, Number(repeatCount))
     onClose()
   }
 
@@ -98,6 +100,24 @@ function TxModal({ initial, onSave, onClose, wallets, creditCards, categories })
           <input className="form-input" type="date" value={form.date} onChange={e => set('date', e.target.value)} />
         </div>
       </div>
+      {!initial && (
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Repetição</label>
+            <select className="form-select" value={repeatMode} onChange={e => setRepeatMode(e.target.value)}>
+              <option value="unique">Única</option>
+              <option value="installment">Parcelada</option>
+              <option value="recurring">Fixa / Recorrente</option>
+            </select>
+          </div>
+          {repeatMode !== 'unique' && (
+            <div className="form-group">
+              <label className="form-label">{repeatMode === 'installment' ? 'Número de Parcelas' : 'Duração (Meses)'}</label>
+              <input className="form-input" type="number" min="2" max="120" value={repeatCount} onChange={e => setRepeatCount(e.target.value)} />
+            </div>
+          )}
+        </div>
+      )}
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">Categoria</label>
@@ -252,12 +272,24 @@ function Checkbox({ checked, indeterminate, onChange }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, creditCards, addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses, categories } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses, categories, thisMonth } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')
   const [filterCat, setCat] = useState('all')
   const [filterStatus, setStatus] = useState('all')
+  
+  const [filterStart, setFilterStart] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
+  })
+  const [filterEnd, setFilterEnd] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
+  })
+  
+  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' })
+
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
@@ -268,12 +300,38 @@ export default function Transactions() {
     if (filterType !== 'all' && t.type !== filterType) return false
     if (filterCat !== 'all' && t.category !== filterCat) return false
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
+    
+    if (filterStart && t.date && t.date < filterStart) return false
+    if (filterEnd && t.date && t.date > filterEnd) return false
+
     if (search && !t.name.toLowerCase().includes(search.toLowerCase()) &&
       !t.category.toLowerCase().includes(search.toLowerCase())) return false
     return true
-  }).sort((a, b) => new Date(b.date) - new Date(a.date))
+  }).sort((a, b) => {
+    if (sortConfig.key === 'date') {
+      const dA = new Date(a.date).getTime()
+      const dB = new Date(b.date).getTime()
+      return sortConfig.direction === 'asc' ? dA - dB : dB - dA
+    }
+    if (sortConfig.key === 'amount') {
+      const aA = a.type === 'expense' ? -a.amount : a.amount
+      const aB = b.type === 'expense' ? -b.amount : b.amount
+      return sortConfig.direction === 'asc' ? aA - aB : aB - aA
+    }
+    if (sortConfig.key === 'name') {
+      const nameA = a.name.toLowerCase()
+      const nameB = b.name.toLowerCase()
+      if (nameA < nameB) return sortConfig.direction === 'asc' ? -1 : 1
+      if (nameA > nameB) return sortConfig.direction === 'asc' ? 1 : -1
+      return 0
+    }
+    return 0
+  })
 
-  const net = monthlyIncome - monthlyExpenses
+  const viewIncome = filtered.filter(t => t.type === 'income' && t.status !== 'failed').reduce((s, t) => s + (t.amount || 0), 0)
+  const viewExpenses = filtered.filter(t => t.type === 'expense' && t.status !== 'failed').reduce((s, t) => s + (t.amount || 0), 0)
+  const viewNet = viewIncome - viewExpenses
+
   const usedCategories = [...new Set(transactions.map(t => t.category))].sort()
 
   const filteredIds = filtered.map(t => t.id)
@@ -308,21 +366,32 @@ export default function Transactions() {
     clearSelection()
   }
 
+  const handleSort = (key) => {
+    let direction = 'asc'
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'
+    setSortConfig({ key, direction })
+  }
+
+  const renderSortIcon = (key) => {
+    if (sortConfig.key !== key) return <i className="fi fi-rr-sort-alt" style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }} />
+    return <i className={`fi fi-rr-angle-small-${sortConfig.direction === 'asc' ? 'up' : 'down'}`} style={{ fontSize: 14, marginLeft: 2, position: 'relative', top: 2 }} />
+  }
+
   return (
     <div className="screen">
       {/* Summary */}
       <div className="summary-strip">
         <div className="summary-stat">
-          <div className="summary-stat-label">Receitas (mês)</div>
-          <div className="summary-stat-value positive-text">{fmt(monthlyIncome)}</div>
+          <div className="summary-stat-label">Receitas (filtro)</div>
+          <div className="summary-stat-value positive-text">{fmt(viewIncome)}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Despesas (mês)</div>
-          <div className="summary-stat-value negative-text">{fmt(monthlyExpenses)}</div>
+          <div className="summary-stat-label">Despesas (filtro)</div>
+          <div className="summary-stat-value negative-text">{fmt(viewExpenses)}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Saldo do mês</div>
-          <div className={`summary-stat-value ${net >= 0 ? 'positive-text' : 'negative-text'}`}>{fmt(net)}</div>
+          <div className="summary-stat-label">Saldo (filtro)</div>
+          <div className={`summary-stat-value ${viewNet >= 0 ? 'positive-text' : 'negative-text'}`}>{fmt(viewNet)}</div>
         </div>
       </div>
 
@@ -335,6 +404,23 @@ export default function Transactions() {
             placeholder="Buscar transações..."
             value={search}
             onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input 
+            type="date" 
+            className="filter-select" 
+            value={filterStart} 
+            onChange={e => setFilterStart(e.target.value)} 
+            title="Data inicial"
+          />
+          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>até</span>
+          <input 
+            type="date" 
+            className="filter-select" 
+            value={filterEnd} 
+            onChange={e => setFilterEnd(e.target.value)} 
+            title="Data final"
           />
         </div>
         <select className="filter-select" value={filterType} onChange={e => setType(e.target.value)}>
@@ -393,11 +479,17 @@ export default function Transactions() {
                     onChange={toggleAll}
                   />
                 </th>
-                <th>Descrição</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('name')}>
+                  Descrição {renderSortIcon('name')}
+                </th>
                 <th style={{ textAlign: 'center' }}>Categoria</th>
                 <th style={{ textAlign: 'center' }}>Carteira</th>
-                <th style={{ textAlign: 'center' }}>Data</th>
-                <th style={{ textAlign: 'right' }}>Valor</th>
+                <th style={{ textAlign: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('date')}>
+                  Data {renderSortIcon('date')}
+                </th>
+                <th style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('amount')}>
+                  Valor {renderSortIcon('amount')}
+                </th>
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th style={{ textAlign: 'center' }}>Ações</th>
               </tr>
@@ -462,7 +554,12 @@ export default function Transactions() {
       </div>
 
       {addModal && (
-        <TxModal wallets={wallets} creditCards={creditCards} categories={categories} onSave={addTransaction} onClose={() => setAddModal(false)} />
+        <TxModal wallets={wallets} creditCards={creditCards} categories={categories} 
+          onSave={(data, mode, count) => {
+            if (mode === 'unique') addTransaction(data)
+            else addMultipleTransactions(data, mode, count)
+          }} 
+          onClose={() => setAddModal(false)} />
       )}
       {editItem && (
         <TxModal
