@@ -182,6 +182,21 @@ export function AppProvider({ children }) {
     return () => unsubs.forEach(u => u())
   }, [user?.uid])
 
+  // ── Auto-complete pending transactions ─────────────────────────────────────
+  useEffect(() => {
+    if (!transactions || transactions.length === 0) return
+    const todayStr = new Date().toISOString().split('T')[0]
+    const toComplete = transactions.filter(t => t.status === 'pending' && t.date && t.date <= todayStr)
+
+    if (toComplete.length > 0) {
+      const batch = writeBatch(db)
+      toComplete.forEach(t => {
+        batch.update(doc(db, COL.transactions, t.id), { status: 'completed' })
+      })
+      batch.commit().catch(console.error)
+    }
+  }, [transactions])
+
   // ── Base doc fields ────────────────────────────────────────────────────────
 
   const base = (data) => ({
@@ -255,6 +270,48 @@ export function AppProvider({ children }) {
   })
 
   // ── Transactions ───────────────────────────────────────────────────────────
+
+  const addMultipleTransactions = async (data, mode, count) => {
+    const batch = writeBatch(db)
+    const baseDate = new Date(data.date + 'T12:00:00')
+    const totalAmount = data.amount
+    const perInstallment = mode === 'installment' ? Number((totalAmount / count).toFixed(2)) : totalAmount
+
+    let remainder = 0
+    if (mode === 'installment') {
+      const sum = perInstallment * count
+      remainder = totalAmount - sum
+    }
+
+    for (let i = 0; i < count; i++) {
+      const txDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, baseDate.getDate(), 12, 0, 0)
+      if (txDate.getMonth() !== (baseDate.getMonth() + i) % 12) {
+        txDate.setDate(0)
+      }
+      
+      const dateStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`
+      
+      let amount = perInstallment
+      if (i === 0 && mode === 'installment') amount += remainder
+
+      let name = data.name
+      if (mode === 'installment' || mode === 'recurring') name = `${data.name} (${i + 1}/${count})`
+
+      const txData = {
+        ...data,
+        amount: Number(amount.toFixed(2)),
+        date: dateStr,
+        name
+      }
+      
+      const docRef = doc(collection(db, COL.transactions))
+      batch.set(docRef, base(txData))
+    }
+
+    await batch.commit()
+
+    notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+  }
 
   const addTransaction = async (data) => {
     const ref = await addDoc(collection(db, COL.transactions), base(data))
@@ -410,7 +467,7 @@ export function AppProvider({ children }) {
       lastIncome, lastExpenses, lastSavings, pendingCount,
       spendingByCategory, monthlyChartData, thisMonth,
       pctChange, getCardCurrentUsed,
-      addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions,
+      addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
       addWallet, updateWallet, deleteWallet,
       addBudget, updateBudget, deleteBudget,
       addGoal, updateGoal, deleteGoal, contributeGoal,
