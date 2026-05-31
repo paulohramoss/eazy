@@ -17,7 +17,7 @@ const TYPE_LABELS = Object.fromEntries(WALLET_TYPES.map(t => [t.value, t.label])
 
 const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#F59E0B', '#3370F5', '#BBBBBB', '#555555', '#EEF3FF', '#B8DC1A', '#141414']
 
-const EMPTY_FORM = { name: '', type: 'checking', balance: '', color: '#0053EF', icon: DEFAULT_WALLET_ICON }
+const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON }
 
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 

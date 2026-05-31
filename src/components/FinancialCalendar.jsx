@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
+import Modal from './Modal'
 
 const fmt    = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtShort = (n) => {
@@ -147,22 +148,12 @@ export default function FinancialCalendar() {
 
       {/* Selected day detail panel */}
       {selectedDay && (
-        <div className="moovia-card">
-          <div className="cal-detail-header">
-            <span className="cal-detail-title">
-              {new Date(selectedDay + 'T12:00').toLocaleDateString('pt-BR', {
-                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-              })}
-            </span>
-            <button
-              className="moovia-icon-btn"
-              onClick={() => setSelectedDay(null)}
-              title="Fechar"
-            >
-              <i className="fi fi-rr-cross-small" />
-            </button>
-          </div>
-
+        <Modal
+          title={new Date(selectedDay + 'T12:00').toLocaleDateString('pt-BR', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+          })}
+          onClose={() => setSelectedDay(null)}
+        >
           {selectedTxs.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>
               Nenhuma transação neste dia.
@@ -197,7 +188,7 @@ export default function FinancialCalendar() {
               </div>
             )
           })()}
-        </div>
+        </Modal>
       )}
     </div>
   )

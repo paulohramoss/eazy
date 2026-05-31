@@ -15,12 +15,12 @@ const CURRENCIES = [
 const FALLBACK = { BRL: 1, USD: 0.19, EUR: 0.18, GBP: 0.15, ARS: 172, CLP: 178, BTC: 0.0000030 }
 
 export default function CurrencyConverter({ anchorRef, onClose }) {
-  const [amount, setAmount]   = useState('1')
-  const [from, setFrom]       = useState('USD')
-  const [to, setTo]           = useState('BRL')
-  const [rates, setRates]     = useState(FALLBACK)
+  const [amount, setAmount] = useState('1')
+  const [from, setFrom] = useState('USD')
+  const [to, setTo] = useState('BRL')
+  const [rates, setRates] = useState(FALLBACK)
   const [loading, setLoading] = useState(true)
-  const [pos, setPos]         = useState({ top: 0, right: 0 })
+  const [pos, setPos] = useState({ top: 0, right: 0 })
   const ref = useRef(null)
 
   useEffect(() => {
@@ -36,11 +36,11 @@ export default function CurrencyConverter({ anchorRef, onClose }) {
     fetch('https://open.er-api.com/v6/latest/BRL')
       .then(r => r.json())
       .then(data => { if (data.rates) setRates({ ...FALLBACK, ...data.rates, BRL: 1 }) })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false))
 
     return () => document.removeEventListener('mousedown', handler)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const convert = () => {
@@ -54,7 +54,7 @@ export default function CurrencyConverter({ anchorRef, onClose }) {
   const swap = () => { setFrom(to); setTo(from) }
 
   const fromSym = CURRENCIES.find(c => c.code === from)?.symbol || ''
-  const toSym   = CURRENCIES.find(c => c.code === to)?.symbol || ''
+  const toSym = CURRENCIES.find(c => c.code === to)?.symbol || ''
 
   return createPortal(
     <div ref={ref} className="calc-popup" style={{ top: pos.top, right: pos.right, width: 300 }}>
@@ -87,7 +87,7 @@ export default function CurrencyConverter({ anchorRef, onClose }) {
             </select>
           </div>
           <button onClick={swap} className="btn btn-secondary" style={{ padding: '8px 10px', marginBottom: 1 }} title="Inverter">
-            <i className="fi fi-rr-retweet" />
+            <i className="fi fi-rr-exchange" />
           </button>
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Para</label>
@@ -106,9 +106,6 @@ export default function CurrencyConverter({ anchorRef, onClose }) {
           </div>
           <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>
             {toSym} {convert()}
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
-            Taxas via open.er-api.com · Valores aproximados
           </div>
         </div>
       </div>
