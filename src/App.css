@@ -3588,3 +3588,100 @@
 [data-theme="dark"] .header-btn--active {
   background: rgba(0, 83, 239, 0.2);
 }
+
+/* ─── PWA Mobile First & Bottom Tab Bar ──────────────────── */
+@media (max-width: 768px) {
+  .dashboard {
+    flex-direction: column;
+  }
+  
+  .main {
+    margin-left: 0;
+    padding-bottom: calc(64px + var(--safe-bottom));
+  }
+  
+  .header {
+    padding: 0 16px;
+    padding-top: var(--safe-top);
+    height: calc(var(--header-height) + var(--safe-top));
+  }
+  
+  .sidebar {
+    width: 100%;
+    height: calc(64px + var(--safe-bottom));
+    top: auto;
+    bottom: 0;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    padding: 0;
+    padding-bottom: var(--safe-bottom);
+    background: var(--bg-card);
+    z-index: 999;
+  }
+  
+  .sidebar-logo {
+    display: none;
+  }
+  
+  .sidebar-nav {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0;
+    width: 100%;
+    overflow-y: visible;
+  }
+
+  .nav-accordion {
+    display: none; /* Hide complex sub-menus in tab bar */
+  }
+  
+  .nav-item {
+    flex-direction: column;
+    padding: 8px 4px;
+    gap: 4px;
+    font-size: 10px;
+    justify-content: center;
+    background: transparent !important;
+    color: var(--text-muted);
+  }
+  
+  .nav-item:hover {
+    color: var(--text-secondary);
+  }
+  
+  .nav-item.active {
+    color: var(--accent) !important;
+  }
+  
+  .nav-icon {
+    font-size: 20px;
+  }
+  
+  .nav-item.active .nav-icon {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease;
+  }
+  
+  .nav-badge {
+    position: absolute;
+    top: 4px;
+    right: 50%;
+    transform: translateX(12px);
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+  
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .charts-row, .bottom-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .content {
+    padding: 16px;
+  }
+}

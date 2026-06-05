@@ -105,6 +105,52 @@ export default function Settings() {
                 </div>
                 <Toggle on={settings.theme === 'dark'} onChange={toggleTheme} />
               </div>
+              <div className="toggle-row">
+                <div className="toggle-info">
+                  <div className="toggle-label">
+                    <i className="fi fi-rr-fingerprint" style={{ marginRight: 6 }} />
+                    Trava por Biometria
+                  </div>
+                  <div className="toggle-desc">Exigir Face ID/Touch ID para abrir o app</div>
+                </div>
+                <Toggle
+                  on={settings.biometricEnabled}
+                  onChange={async (val) => {
+                    if (val) {
+                      try {
+                        if (!window.PublicKeyCredential) throw new Error('Biometria não suportada neste dispositivo.');
+                        const challenge = new Uint8Array(32);
+                        window.crypto.getRandomValues(challenge);
+                        const cred = await navigator.credentials.create({
+                          publicKey: {
+                            challenge,
+                            rp: { name: "Eazy Finance" },
+                            user: {
+                              id: new Uint8Array(16),
+                              name: settings.email || "user@eazy",
+                              displayName: settings.name || "User"
+                            },
+                            pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+                            authenticatorSelection: { userVerification: "required" },
+                            timeout: 60000,
+                          }
+                        });
+                        if (cred) {
+                          localStorage.setItem('eazy_biometric_id', btoa(String.fromCharCode.apply(null, new Uint8Array(cred.rawId))));
+                          updateSettings({ biometricEnabled: true });
+                          alert('Biometria habilitada com sucesso!');
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        alert('Não foi possível ativar a biometria: ' + e.message);
+                      }
+                    } else {
+                      updateSettings({ biometricEnabled: false });
+                      localStorage.removeItem('eazy_biometric_id');
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
         </Section>
