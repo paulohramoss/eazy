@@ -215,6 +215,43 @@ function Dashboard() {
   const calcBtnRef = useRef(null)
   const converterBtnRef = useRef(null)
 
+  // Biometric Lock State
+  const [isLocked, setIsLocked] = useState(() => {
+    return !!settings.biometricEnabled;
+  })
+
+  const handleBiometricUnlock = async () => {
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+      const rawIdStr = localStorage.getItem('eazy_biometric_id');
+      const allowCredentials = rawIdStr ? [{
+        type: 'public-key',
+        id: Uint8Array.from(atob(rawIdStr), c => c.charCodeAt(0))
+      }] : [];
+      
+      await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials,
+          userVerification: "required",
+          timeout: 60000
+        }
+      });
+      setIsLocked(false);
+    } catch (e) {
+      console.error(e);
+      alert('Falha na autenticação biométrica. Tente novamente.');
+    }
+  }
+
+  // Effect to automatically prompt once when locked
+  useEffect(() => {
+    if (isLocked) {
+      handleBiometricUnlock();
+    }
+  }, []);
+
   const navigate = (s) => { setScreen(s); localStorage.setItem('eazy_screen', s) }
 
   useEffect(() => {
@@ -224,6 +261,24 @@ function Dashboard() {
   const now = new Date()
   const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const { title, sub } = SCREEN_TITLES[screen] || SCREEN_TITLES.overview
+
+  if (isLocked) {
+    return (
+      <div className="login-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-primary)' }}>
+        <div style={{ textAlign: 'center', padding: 40, background: 'var(--bg-card)', borderRadius: 24, boxShadow: 'var(--shadow)', maxWidth: 400, width: '90%' }}>
+          <i className="fi fi-rr-fingerprint" style={{ fontSize: 64, color: 'var(--accent)', marginBottom: 24, display: 'block' }} />
+          <h2 style={{ marginBottom: 12, fontSize: 24 }}>App Bloqueado</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 32, fontSize: 15, lineHeight: 1.5 }}>Use sua biometria (Face ID / Touch ID) para acessar suas finanças com segurança.</p>
+          <button className="btn btn-primary" onClick={handleBiometricUnlock} style={{ width: '100%', padding: '14px', fontSize: 16 }}>
+            Desbloquear App
+          </button>
+          <button className="btn btn-secondary" onClick={logOut} style={{ width: '100%', padding: '14px', fontSize: 16, marginTop: 12 }}>
+            Sair da conta
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="dashboard">

@@ -8,6 +8,7 @@ const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency',
 // ─── Budget Modal ─────────────────────────────────────────────────────────────
 
 function BudgetModal({ initial, onSave, onClose }) {
+  const { categories } = useApp()
   const [form, setForm] = useState(
     initial
       ? { ...initial, limit: String(initial.limit) }
@@ -94,7 +95,11 @@ export default function Budget() {
             const pctSpent  = b.limit > 0 ? Math.min(Math.round((spent / b.limit) * 100), 100) : 0
             const pctFill   = Math.max(0, 100 - pctSpent)
             const over      = spent > b.limit
-            const rollover  = Math.max(0, b.limit - (spendingLast[b.category] || 0))
+            
+            // Validate rollover: only apply if budget existed before this month
+            const createdAtDate = b.createdAt?.toDate ? b.createdAt.toDate() : new Date()
+            const isNewThisMonth = createdAtDate.getFullYear() === now.getFullYear() && createdAtDate.getMonth() === now.getMonth()
+            const rollover  = isNewThisMonth ? 0 : Math.max(0, b.limit - (spendingLast[b.category] || 0))
 
             return (
               <div key={b.id} className="moovia-card moovia-budget-item">
@@ -128,7 +133,7 @@ export default function Budget() {
                     {pctSpent}% {over ? 'acima do limite' : 'Gasto'}
                   </span>
                   {rollover > 0 && (
-                    <span className="moovia-rollover">(+{fmt(rollover)} rollover)</span>
+                    <span className="moovia-rollover">(+ {fmt(rollover)} sobra do mês passado)</span>
                   )}
                 </div>
               </div>
