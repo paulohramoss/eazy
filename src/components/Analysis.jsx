@@ -84,7 +84,7 @@ export default function Analysis() {
       return acc
     }, {})
 
-  const COLORS = ['#6c63ff', '#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#64748b']
+  const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB']
 
   return (
     <div className="screen">

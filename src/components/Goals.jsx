@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
+import confetti from 'canvas-confetti'
 
 const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -130,6 +131,21 @@ export default function Goals() {
   const [alocarItem, setAlocarItem] = useState(null)
   const [delItem,  setDelItem]  = useState(null)
 
+  const handleContribute = (goalId, amount) => {
+    const goal = goals.find(g => g.id === goalId)
+    if (goal) {
+      if (goal.current < goal.target && goal.current + amount >= goal.target) {
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          zIndex: 9999
+        })
+      }
+    }
+    contributeGoal(goalId, amount)
+  }
+
   const toggleStar = (goal) =>
     updateGoal(goal.id, { starred: !goal.starred })
 
@@ -240,7 +256,7 @@ export default function Goals() {
       {alocarItem && (
         <AlocarModal
           goal={alocarItem}
-          onSave={amount => contributeGoal(alocarItem.id, amount)}
+          onSave={amount => handleContribute(alocarItem.id, amount)}
           onClose={() => setAlocarItem(null)}
         />
       )}

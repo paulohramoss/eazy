@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
+import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -14,23 +15,23 @@ const WALLET_TYPES = [
 ]
 const TYPE_LABELS = Object.fromEntries(WALLET_TYPES.map(t => [t.value, t.label]))
 
-const WALLET_ICONS = ['🏦', '🐷', '💳', '📈', '💵', '🏧', '💰', '🪙']
-const WALLET_COLORS = ['#6c63ff', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#64748b', '#14b8a6', '#f97316']
+const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#F59E0B', '#3370F5', '#BBBBBB', '#555555', '#EEF3FF', '#B8DC1A', '#141414']
 
-const EMPTY_FORM = { name: '', type: 'checking', balance: '', color: '#6c63ff', icon: '🏦' }
+const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON }
 
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 
 function WalletModal({ initial, onSave, onClose }) {
   const [form, setForm] = useState(initial
-    ? { ...initial, balance: String(initial.balance) }
+    ? { ...initial, icon: resolveWalletIcon(initial.icon, initial.type), balance: String(initial.balance) }
     : EMPTY_FORM
   )
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const selectedIcon = resolveWalletIcon(form.icon, form.type)
 
   const handleSave = () => {
     if (!form.name.trim() || form.balance === '') return
-    onSave({ ...form, balance: Number(form.balance) })
+    onSave({ ...form, icon: selectedIcon, balance: Number(form.balance) })
     onClose()
   }
 
@@ -63,26 +64,36 @@ function WalletModal({ initial, onSave, onClose }) {
       </div>
       <div className="form-group">
         <label className="form-label">Ícone</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {WALLET_ICONS.map(icon => (
-            <button
-              key={icon}
-              type="button"
-              onClick={() => set('icon', icon)}
-              style={{
-                width: 40, height: 40, fontSize: 20, borderRadius: 8,
-                background: form.icon === icon ? 'rgba(108,99,255,0.2)' : 'var(--bg-hover)',
-                border: form.icon === icon ? '2px solid var(--accent)' : '2px solid transparent',
-                cursor: 'pointer',
-              }}
-            >{icon}</button>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(42px, 42px))', gap: 8 }}>
+          {WALLET_ICON_OPTIONS.map(option => {
+            const selected = selectedIcon === option.icon
+            return (
+              <button
+                key={option.icon}
+                type="button"
+                title={option.label}
+                aria-label={option.label}
+                onClick={() => set('icon', option.icon)}
+                style={{
+                  width: 42, height: 42, borderRadius: 9,
+                  background: selected ? 'rgba(var(--accent-rgb), 0.12)' : 'var(--bg-hover)',
+                  border: selected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                  color: selected ? 'var(--accent)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18,
+                }}
+              >
+                <i className={`fi ${option.icon}`} />
+              </button>
+            )
+          })}
         </div>
       </div>
       <div className="form-group">
         <label className="form-label">Cor</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {WALLET_COLORS.map(color => (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {PRESET_COLORS.map(color => (
             <button
               key={color}
               type="button"
@@ -94,6 +105,20 @@ function WalletModal({ initial, onSave, onClose }) {
               }}
             />
           ))}
+          <label title="Cor personalizada" style={{ position: 'relative', width: 28, height: 28, cursor: 'pointer' }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%', cursor: 'pointer',
+              background: `conic-gradient(red, yellow, lime, cyan, blue, magenta, red)`,
+              border: !PRESET_COLORS.includes(form.color) ? '3px solid white' : '3px solid transparent',
+              outline: !PRESET_COLORS.includes(form.color) ? `2px solid ${form.color}` : 'none',
+            }} />
+            <input
+              type="color"
+              value={form.color}
+              onChange={e => set('color', e.target.value)}
+              style={{ position: 'absolute', opacity: 0, width: 0, height: 0, top: 0, left: 0 }}
+            />
+          </label>
         </div>
       </div>
     </Modal>
@@ -137,7 +162,7 @@ export default function Wallets() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Patrimônio Total</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Saldo Total</div>
           <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>{fmt(totalBalance)}</div>
         </div>
         <button className="btn btn-primary" onClick={() => setAddModal(true)}>+ Nova Carteira</button>
@@ -158,18 +183,20 @@ export default function Wallets() {
             >
               <div className="wallet-card-accent" style={{ background: w.color }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 28 }}>{w.icon}</span>
+                <span style={{ fontSize: 25, color: w.color }}>
+                  <i className={`fi ${resolveWalletIcon(w.icon, w.type)}`} />
+                </span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     className="btn-icon"
                     title="Editar"
                     onClick={e => { e.stopPropagation(); setEditItem(w) }}
-                  >✏️</button>
+                  ><i className="fi fi-rr-pencil" /></button>
                   <button
                     className="btn-icon danger"
                     title="Excluir"
                     onClick={e => { e.stopPropagation(); setDelItem(w) }}
-                  >🗑️</button>
+                  ><i className="fi fi-rr-trash" /></button>
                 </div>
               </div>
               <div>
