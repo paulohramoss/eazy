@@ -155,7 +155,7 @@ export default function Overview() {
   const metrics = [
     {
       label: 'Saldo Total', value: fmt(totalBalance), icon: 'fi-rr-wallet', color: 'purple',
-      change: pctChange(totalBalance, totalBalance * 0.92), dir: 'up', period: 'estimativa'
+      change: pctChange(totalBalance, totalBalance - monthlySavings), dir: totalBalance >= (totalBalance - monthlySavings) ? 'up' : 'down', period: 'vs mês anterior'
     },
     {
       label: 'Receitas', value: fmt(monthlyIncome), icon: 'fi-rr-chart-line-up', color: 'green',

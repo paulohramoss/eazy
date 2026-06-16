@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
@@ -31,8 +31,24 @@ function Section({ icon, title, children }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const { settings, updateSettings, toggleTheme, categories, addCategory, removeCategory } = useApp()
+  const { settings, updateSettings, toggleTheme, categories, addCategory, removeCategory,
+          exportJSON, exportCSV, importJSON } = useApp()
   const [newCat, setNewCat] = useState('')
+  const [importStatus, setImportStatus] = useState(null) // null | 'loading' | { ok, msg }
+  const importRef = useRef(null)
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportStatus('loading')
+    try {
+      const count = await importJSON(file)
+      setImportStatus({ ok: true, msg: `${count} transações importadas com sucesso.` })
+    } catch (err) {
+      setImportStatus({ ok: false, msg: err.message })
+    }
+    e.target.value = ''
+  }
 
   const handleAddCategory = () => {
     addCategory(newCat)
@@ -223,30 +239,39 @@ export default function Settings() {
         <Section icon={<i className="fi fi-rr-database" />} title="Dados">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Os dados são armazenados localmente no navegador. Exporte para fazer backup ou importe para restaurar.
+              Dados sincronizados na nuvem via Firestore. Exporte como JSON (backup completo) ou CSV (só transações, abre no Excel).
+              Importe um JSON gerado por este app para restaurar ou mesclar dados.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ background: 'var(--bg-primary)', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Status do armazenamento</div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', display: 'inline-block' }} />
-                  <span style={{ fontSize: 13, color: 'var(--accent-green)', fontWeight: 600 }}>Ativo — dados em memória</span>
-                </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={exportJSON}>
+                  <i className="fi fi-rr-cloud-download" /> Exportar JSON
+                </button>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={exportCSV}>
+                  <i className="fi fi-rr-file-spreadsheet" /> Exportar CSV
+                </button>
               </div>
+              <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
               <button
                 className="btn btn-secondary"
                 style={{ width: '100%' }}
-                onClick={() => alert('Funcionalidade de exportação será implementada em breve.')}
+                disabled={importStatus === 'loading'}
+                onClick={() => { setImportStatus(null); importRef.current?.click() }}
               >
-                <i className="fi fi-rr-upload" /> Exportar dados (JSON)
+                <i className="fi fi-rr-upload" />
+                {importStatus === 'loading' ? 'Importando...' : 'Importar JSON'}
               </button>
-              <button
-                className="btn btn-secondary"
-                style={{ width: '100%' }}
-                onClick={() => alert('Funcionalidade de importação será implementada em breve.')}
-              >
-                <i className="fi fi-rr-download" /> Importar dados
-              </button>
+              {importStatus && importStatus !== 'loading' && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8, fontSize: 13,
+                  background: importStatus.ok ? 'rgba(24,160,88,.1)' : 'rgba(232,56,42,.1)',
+                  color: importStatus.ok ? 'var(--accent-green)' : 'var(--accent-red)',
+                  border: `1px solid ${importStatus.ok ? 'rgba(24,160,88,.25)' : 'rgba(232,56,42,.25)'}`,
+                }}>
+                  <i className={`fi ${importStatus.ok ? 'fi-rr-check' : 'fi-rr-cross-circle'}`} style={{ marginRight: 8 }} />
+                  {importStatus.msg}
+                </div>
+              )}
             </div>
           </div>
         </Section>
