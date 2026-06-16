@@ -58,7 +58,7 @@ function WalletModal({ initial, onSave, onClose }) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Saldo Atual (R$)</label>
+          <label className="form-label">Saldo Inicial (R$)</label>
           <CurrencyInput className="form-input" value={form.balance} onChange={v => set('balance', v)} />
         </div>
       </div>
@@ -147,7 +147,7 @@ function ConfirmModal({ name, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Wallets() {
-  const { wallets, transactions, addWallet, updateWallet, deleteWallet, totalBalance } = useApp()
+  const { wallets, transactions, walletBalances, addWallet, updateWallet, deleteWallet, totalBalance } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
@@ -173,6 +173,7 @@ export default function Wallets() {
         {wallets.map(w => {
           const income = transactions.filter(t => t.walletId === w.id && t.type === 'income' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
           const expenses = transactions.filter(t => t.walletId === w.id && t.type === 'expense' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
+          const currentBalance = walletBalances?.[w.id] ?? w.balance
           const isActive = activeWallet === w.id
 
           return (
@@ -201,7 +202,7 @@ export default function Wallets() {
               </div>
               <div>
                 <div className="wallet-card-name">{w.name}</div>
-                <div className="wallet-card-balance">{fmt(w.balance)}</div>
+                <div className="wallet-card-balance">{fmt(currentBalance)}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span className="wallet-card-type">{TYPE_LABELS[w.type] || w.type}</span>

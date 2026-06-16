@@ -3,6 +3,8 @@ import logoImg from './assets/image.png'
 import { createPortal } from 'react-dom'
 import Calculator from './components/Calculator'
 import CurrencyConverter from './components/CurrencyConverter'
+import Onboarding from './components/Onboarding'
+import TransactionModal from './components/TransactionModal'
 import './App.css'
 import { useAuth } from './context/AuthContext'
 import { AppProvider, useApp } from './context/AppContext'
@@ -209,16 +211,23 @@ function Dashboard() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
   const [converterOpen, setConverterOpen] = useState(false)
-  const { settings, pendingCount, alertsDueCount, toggleTheme } = useApp()
-  const { logOut } = useAuth()
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const {
+    settings, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading,
+    creditCards, categories, addTransaction, addMultipleTransactions,
+  } = useApp()
+  const { logOut, user } = useAuth()
   const userCardRef = useRef(null)
   const calcBtnRef = useRef(null)
   const converterBtnRef = useRef(null)
 
   // Biometric Lock State
-  const [isLocked, setIsLocked] = useState(() => {
-    return !!settings.biometricEnabled;
-  })
+  // Read directly from localStorage — settings starts as PREF_DEFAULTS and only
+  // hydrates from localStorage inside a useEffect, so reading settings here would
+  // always see biometricEnabled=false on first render.
+  const [isLocked, setIsLocked] = useState(() =>
+    !!(JSON.parse(localStorage.getItem(`bio_${user.uid}`) || 'false'))
+  )
 
   const handleBiometricUnlock = async () => {
     try {
@@ -245,12 +254,12 @@ function Dashboard() {
     }
   }
 
-  // Effect to automatically prompt once when locked
+  // Auto-prompt on mount (and if isLocked flips back to true in the future).
+  // deps=[isLocked] avoids the stale-closure bug of deps=[].
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (isLocked) {
-      handleBiometricUnlock();
-    }
-  }, []);
+    if (isLocked) handleBiometricUnlock()
+  }, [isLocked])
 
   const navigate = (s) => { setScreen(s); localStorage.setItem('eazy_screen', s) }
 
@@ -279,6 +288,8 @@ function Dashboard() {
       </div>
     )
   }
+
+  if (!dbLoading && wallets.length === 0) return <Onboarding />
 
   return (
     <div className="dashboard">
@@ -409,6 +420,21 @@ function Dashboard() {
           </Suspense>
         </div>
       </main>
+
+      <button className="fab" title="Nova Transação" onClick={() => setQuickAddOpen(true)}>
+        <i className="fi fi-rr-plus" />
+      </button>
+
+      {quickAddOpen && (
+        <TransactionModal
+          wallets={wallets} creditCards={creditCards} categories={categories}
+          onSave={(data, mode, count) => {
+            if (mode === 'unique') addTransaction(data)
+            else addMultipleTransactions(data, mode, count)
+          }}
+          onClose={() => setQuickAddOpen(false)}
+        />
+      )}
     </div>
   )
 }
