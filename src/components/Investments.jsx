@@ -493,8 +493,9 @@ export default function Investments() {
             <p>Nenhum ativo na carteira</p>
             <button className="btn btn-primary" onClick={() => setAddModal(true)}>Adicionar primeiro ativo</button>
           </div>
-        ) : (
-          <table className="transactions-table" style={{ margin: 0 }}>
+        ) : (<>
+          {/* ── Desktop table ── */}
+          <table className="investments-table transactions-table" style={{ margin: 0 }}>
             <thead>
               <tr>
                 <th style={{ padding: '12px 20px 12px' }}>Ativo</th>
@@ -538,15 +539,47 @@ export default function Investments() {
                   </td>
                   <td style={{ paddingRight: 20 }}>
                     <div className="table-actions">
-                      <button className="btn-icon" title="Editar" onClick={() => setEditItem(inv)}>✏️</button>
-                    <button className="btn-icon danger" title="Remover" onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
+                      <button className="btn-icon" title="Editar" onClick={() => setEditItem(inv)}><i className="fi fi-rr-pencil" /></button>
+                      <button className="btn-icon danger" title="Remover" onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
+
+          {/* ── Mobile card-list ── */}
+          <ul className="inv-card-list">
+            {[...enriched].sort((a, b) => b.currentValue - a.currentValue).map(inv => (
+              <li key={inv.id} className="inv-card">
+                <div className="inv-card-dot" style={{ background: inv.color }} />
+                <div className="inv-card-body">
+                  <div className="inv-card-top">
+                    <div>
+                      <span className="inv-card-ticker">{inv.ticker}</span>
+                      <span className="inv-card-fullname">{inv.name}</span>
+                    </div>
+                    <span className="inv-card-value">{fmt(inv.currentValue)}</span>
+                  </div>
+                  <div className="inv-card-meta">
+                    <span className="category-tag">{inv.type}</span>
+                    <span className={inv.returnPct >= 0 ? 'positive-text' : 'negative-text'} style={{ fontSize: 12, fontWeight: 600 }}>
+                      {inv.returnPct >= 0 ? '+' : ''}{fmtN(inv.returnPct, 2)}%
+                    </span>
+                    <span className="spacer" />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {fmtN(inv.quantity, inv.quantity % 1 === 0 ? 0 : 4)} un
+                    </span>
+                  </div>
+                </div>
+                <div className="table-actions">
+                  <button className="btn-icon" onClick={() => setEditItem(inv)}><i className="fi fi-rr-pencil" /></button>
+                  <button className="btn-icon danger" onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>)}
       </div>
 
       {/* Modals */}
