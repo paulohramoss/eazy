@@ -3684,4 +3684,115 @@
   .content {
     padding: 16px;
   }
+
+  /* ── Tables → card-list swap ─────────────────────────────── */
+  .transactions-table,
+  .investments-table { display: none; }
+
+  .tx-card-list,
+  .inv-card-list { display: flex; flex-direction: column; }
+
+  /* hide bulk-bar controls that don't fit */
+  .tx-table-header { padding: 12px 16px; }
+  .filter-bar { flex-wrap: wrap; gap: 6px; }
+  .filter-bar .search-box { width: 100%; }
+
+  /* ── FAB ─────────────────────────────────────────────────── */
+  .fab { bottom: calc(72px + var(--safe-bottom) + 12px); }
 }
+
+/* ── Transaction card-list (desktop hidden) ──────────────────── */
+.tx-card-list {
+  display: none;
+  list-style: none;
+}
+.tx-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.tx-card:last-child { border-bottom: none; }
+.tx-card--selected { background: rgba(var(--accent-rgb), .05); }
+.tx-card-body { flex: 1; min-width: 0; }
+.tx-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.tx-card-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tx-card-amount { font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.tx-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+.tx-card-wallet { font-size: 11px; color: var(--text-muted); }
+.tx-card-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tx-card-bottom .tx-date { font-size: 11px; color: var(--text-muted); flex: 1; }
+
+/* ── Investment card-list (desktop hidden) ───────────────────── */
+.inv-card-list {
+  display: none;
+  list-style: none;
+}
+.inv-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.inv-card:last-child { border-bottom: none; }
+.inv-card-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.inv-card-body { flex: 1; min-width: 0; }
+.inv-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.inv-card-ticker { font-weight: 700; font-size: 14px; }
+.inv-card-fullname { font-size: 11px; color: var(--text-muted); }
+.inv-card-value { font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.inv-card-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.inv-card-meta .spacer { flex: 1; }
+
+/* ── FAB (Floating Action Button) ────────────────────────────── */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(var(--accent-rgb), .45);
+  z-index: 900;
+  transition: transform .15s, box-shadow .15s;
+}
+.fab:hover  { transform: scale(1.08); box-shadow: 0 6px 28px rgba(var(--accent-rgb), .55); }
+.fab:active { transform: scale(0.94); }

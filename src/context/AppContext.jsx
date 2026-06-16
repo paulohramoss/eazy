@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext'
 import { db } from '../firebase'
 import {
   collection, query, where, onSnapshot,
-  addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch,
+  addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { notify } from '../notifications'
 import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
@@ -46,21 +46,14 @@ export function CatIcon({ category, style }) {
 
 const COL = {
   transactions: 'transactions',
-  wallets:      'accounts',
-  budgets:      'userRules',
+  wallets:      'wallets',
+  budgets:      'budgets',
   goals:        'goals',
-  investments:  'challenges',
+  investments:  'investments',
   creditCards:  'creditCards',
   alerts:       'alerts',
+  users:        'users',
 }
-
-// ─── Default wallets (seed on first login) ────────────────────────────────────
-
-const DEFAULT_WALLETS = [
-  { name: 'Conta Corrente', type: 'checking',   balance: 0, color: '#0053EF', icon: WALLET_TYPE_ICONS.checking },
-  { name: 'Poupança',       type: 'savings',    balance: 0, color: '#CFF330', icon: WALLET_TYPE_ICONS.savings },
-  { name: 'Investimentos',  type: 'investment', balance: 0, color: '#0A0A0A', icon: WALLET_TYPE_ICONS.investment },
-]
 
 // ─── Settings helpers ─────────────────────────────────────────────────────────
 
@@ -91,17 +84,9 @@ const PREF_DEFAULTS = {
   notifications: true, weeklyReport: false,
 }
 
-const loadPrefs = (uid) =>
-  JSON.parse(localStorage.getItem(`prefs_${uid}`) || 'null') || PREF_DEFAULTS
-
-const savePrefs = (uid, prefs) =>
-  localStorage.setItem(`prefs_${uid}`, JSON.stringify(prefs))
-
-const loadCategories = (uid) =>
-  JSON.parse(localStorage.getItem(`categories_${uid}`) || 'null') || CATEGORIES
-
-const saveCategories = (uid, cats) =>
-  localStorage.setItem(`categories_${uid}`, JSON.stringify(cats))
+// biometricEnabled stays device-local (credential registered per-device)
+const loadBiometric = (uid) => !!(JSON.parse(localStorage.getItem(`bio_${uid}`) || 'false'))
+const saveBiometric = (uid, val) => localStorage.setItem(`bio_${uid}`, JSON.stringify(!!val))
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -121,26 +106,13 @@ export function AppProvider({ children }) {
   const [categories,   setCategories]   = useState(CATEGORIES)
   const [dbLoading,    setDbLoading]    = useState(true)
 
-  // ── Load settings from localStorage ───────────────────────────────────────
-
-  useEffect(() => {
-    if (!user) return
-    const prefs = loadPrefs(user.uid)
-    setSettings({
-      ...prefs,
-      name:     user.displayName || user.email?.split('@')[0] || 'Usuário',
-      email:    user.email || '',
-      initials: (user.displayName || user.email || 'U').slice(0, 2).toUpperCase(),
-    })
-    setCategories(loadCategories(user.uid))
-  }, [user?.uid])
-
   // ── Subscribe to Firestore collections ────────────────────────────────────
 
   useEffect(() => {
     if (!user) {
       setTransactions([]); setWallets([]); setBudgets([])
       setGoals([]); setInvestments([]); setCreditCards([]); setAlerts([])
+      setSettings(PREF_DEFAULTS); setCategories(CATEGORIES)
       setDbLoading(false)
       return
     }
@@ -148,28 +120,54 @@ export function AppProvider({ children }) {
     setDbLoading(true)
     const uid = user.uid
     const userQuery = (col) => query(collection(db, col), where('allowedUsers', 'array-contains', uid))
+    const authDisplay = {
+      name:     user.displayName || user.email?.split('@')[0] || 'Usuário',
+      email:    user.email || '',
+      initials: (user.displayName || user.email || 'U').slice(0, 2).toUpperCase(),
+    }
 
     let walletsReady = false
-    const readyCb = () => { if (walletsReady) setDbLoading(false) }
+    let userDocReady = false
+    const readyCb = () => { if (walletsReady && userDocReady) setDbLoading(false) }
+
+    const userDocRef = doc(db, COL.users, uid)
 
     const unsubs = [
+      // User preferences & categories — source of truth in Firestore
+      onSnapshot(userDocRef, snap => {
+        if (snap.exists()) {
+          const { prefs = {}, categories: cats } = snap.data()
+          setSettings({
+            ...PREF_DEFAULTS,
+            ...prefs,
+            ...authDisplay,
+            biometricEnabled: loadBiometric(uid),
+          })
+          setCategories(Array.isArray(cats) && cats.length ? cats : CATEGORIES)
+        } else {
+          // Migrate from localStorage if coming from an older session, then delete local copies
+          const localPrefs = JSON.parse(localStorage.getItem(`prefs_${uid}`) || 'null') || {}
+          const localCats  = JSON.parse(localStorage.getItem(`categories_${uid}`) || 'null') || CATEGORIES
+          const { biometricEnabled, name, email, initials, ...serializablePrefs } = localPrefs
+          if (biometricEnabled) saveBiometric(uid, true)
+          setDoc(userDocRef, {
+            prefs: { ...PREF_DEFAULTS, ...serializablePrefs },
+            categories: localCats,
+            createdAt: serverTimestamp(),
+          }).then(() => {
+            localStorage.removeItem(`prefs_${uid}`)
+            localStorage.removeItem(`categories_${uid}`)
+          }).catch(console.error)
+          // onSnapshot fires again once the doc is written, hydrating state then
+        }
+        userDocReady = true; readyCb()
+      }),
+
       onSnapshot(userQuery(COL.transactions), snap =>
         setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
       ),
-      onSnapshot(userQuery(COL.wallets), async snap => {
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        setWallets(data)
-        // Seed default wallets for brand-new users
-        if (data.length === 0 && !localStorage.getItem(`seeded_${uid}`)) {
-          localStorage.setItem(`seeded_${uid}`, '1')
-          const batch = writeBatch(db)
-          DEFAULT_WALLETS.forEach(w =>
-            batch.set(doc(collection(db, COL.wallets)), {
-              ...w, userId: uid, allowedUsers: [uid], createdAt: serverTimestamp(),
-            })
-          )
-          await batch.commit()
-        }
+      onSnapshot(userQuery(COL.wallets), snap => {
+        setWallets(snap.docs.map(d => ({ id: d.id, ...d.data() })))
         walletsReady = true; readyCb()
       }),
       onSnapshot(userQuery(COL.budgets),      snap => setBudgets(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
@@ -252,8 +250,17 @@ export function AppProvider({ children }) {
   const lastIncome      = sumIncome(txLast)
   const lastExpenses    = sumExpenses(txLast)
   const lastSavings     = lastIncome - lastExpenses
-  const totalBalance    = wallets.reduce((s, w) => s + (w.balance || 0), 0)
   const pendingCount    = transactions.filter(t => t.status === 'pending').length
+
+  // Saldo real = saldo inicial + receitas − despesas de cada carteira
+  const walletBalances = wallets.reduce((acc, w) => {
+    const income   = validTx.filter(t => t.walletId === w.id && t.type === 'income').reduce((s, t) => s + t.amount, 0)
+    const expenses = validTx.filter(t => t.walletId === w.id && t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    acc[w.id] = (w.balance || 0) + income - expenses
+    return acc
+  }, {})
+
+  const totalBalance = Object.values(walletBalances).reduce((s, b) => s + b, 0)
 
   const pctChange = (curr, prev) =>
     prev === 0 ? 0 : +(((curr - prev) / prev) * 100).toFixed(1)
@@ -268,6 +275,37 @@ export function AppProvider({ children }) {
     const txs = validTx.filter(t => t.date?.startsWith(key))
     return { key, label: d.toLocaleString('pt-BR', { month: 'short' }), income: sumIncome(txs), expenses: sumExpenses(txs) }
   })
+
+  // ── Notification helpers ───────────────────────────────────────────────────
+
+  const checkBudgetNotify = (category, addedAmount, status) => {
+    if (status === 'failed') return
+    const budget = budgets.find(b => b.category === category)
+    if (!budget) return
+    const currentSpend = validTx
+      .filter(t => t.type === 'expense' && t.category === category && t.date?.startsWith(thisMonth))
+      .reduce((s, t) => s + t.amount, 0)
+    const projected = currentSpend + addedAmount
+    const pct = budget.limit > 0 ? Math.round((projected / budget.limit) * 100) : 0
+    if (projected > budget.limit) {
+      notify({ type: 'budget_over', data: { category, pct }, settings })
+    } else if (pct >= 80) {
+      notify({ type: 'budget_near', data: { category, pct }, settings })
+    }
+  }
+
+  const checkCardNotify = (cardId, addedAmount, type, status) => {
+    if (type !== 'expense' || status === 'failed' || !cardId) return
+    const card = creditCards.find(c => c.id === cardId)
+    if (!card?.limit) return
+    const projected = getCardCurrentUsed(cardId) + addedAmount
+    const pct = Math.round((projected / card.limit) * 100)
+    if (projected >= card.limit) {
+      notify({ type: 'card_limit', data: { cardName: card.name, limit: card.limit }, settings })
+    } else if (pct >= 80) {
+      notify({ type: 'card_near', data: { cardName: card.name, pct, available: card.limit - projected }, settings })
+    }
+  }
 
   // ── Transactions ───────────────────────────────────────────────────────────
 
@@ -311,6 +349,13 @@ export function AppProvider({ children }) {
     await batch.commit()
 
     notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+
+    if (data.type === 'expense') {
+      // Para parceladas/recorrentes verifica só o impacto da 1ª parcela no mês atual
+      const firstAmount = mode === 'installment' ? perInstallment : data.amount
+      checkBudgetNotify(data.category, firstAmount, data.status)
+      checkCardNotify(data.cardId, firstAmount, data.type, data.status)
+    }
   }
 
   const addTransaction = async (data) => {
@@ -330,6 +375,11 @@ export function AppProvider({ children }) {
       if (Number(data.amount) >= threshold) {
         notify({ type: 'large_expense', data: { name: data.name, amount: data.amount }, settings })
       }
+    }
+
+    if (data.type === 'expense') {
+      checkBudgetNotify(data.category, data.amount, data.status)
+      checkCardNotify(data.cardId, data.amount, data.type, data.status)
     }
 
     return ref
@@ -383,9 +433,11 @@ export function AppProvider({ children }) {
   const contributeGoal = async (id, amount) => {
     const goal = goals.find(g => g.id === id)
     if (!goal) return
-    await updateDoc(doc(db, COL.goals, id), {
-      current: Math.min(goal.current + Number(amount), goal.target),
-    })
+    const newCurrent = Math.min(goal.current + Number(amount), goal.target)
+    await updateDoc(doc(db, COL.goals, id), { current: newCurrent })
+    if (newCurrent >= goal.target) {
+      notify({ type: 'goal_reached', data: { goalName: goal.name, amount: goal.target }, settings })
+    }
   }
 
   // ── Investments ────────────────────────────────────────────────────────────
@@ -429,13 +481,71 @@ export function AppProvider({ children }) {
     return diff <= 3
   }).length
 
+  // ── Export / Import ────────────────────────────────────────────────────────
+
+  const _download = (content, filename, mime) => {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }))
+    Object.assign(document.createElement('a'), { href: url, download: filename }).click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportJSON = () => {
+    const strip = arr => arr.map(({ id, userId, allowedUsers, createdAt, ...rest }) => rest)
+    _download(
+      JSON.stringify({ version: '1.0', exportedAt: new Date().toISOString(),
+        transactions: strip(transactions), wallets: strip(wallets), budgets: strip(budgets),
+        goals: strip(goals), investments: strip(investments), creditCards: strip(creditCards),
+      }, null, 2),
+      `eazy-backup-${new Date().toISOString().split('T')[0]}.json`,
+      'application/json'
+    )
+  }
+
+  const exportCSV = () => {
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const header = ['Data','Descrição','Tipo','Categoria','Valor','Status','Carteira','Observações']
+    const rows = [...transactions]
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+      .map(t => [
+        t.date || '', t.name || '',
+        t.type === 'income' ? 'Receita' : 'Despesa',
+        t.category || '', t.amount ?? 0,
+        t.status === 'completed' ? 'Concluído' : 'Pendente',
+        wallets.find(w => w.id === t.walletId)?.name || '',
+        t.notes || '',
+      ])
+    _download(
+      '﻿' + [header, ...rows].map(r => r.map(esc).join(',')).join('\n'),
+      `eazy-transacoes-${new Date().toISOString().split('T')[0]}.csv`,
+      'text/csv;charset=utf-8'
+    )
+  }
+
+  const importJSON = async (file) => {
+    const text = await file.text()
+    const data = JSON.parse(text)
+    if (!data.version || !Array.isArray(data.transactions)) throw new Error('Arquivo inválido ou corrompido')
+    const batch = writeBatch(db)
+    const push = (items, col) => items?.forEach(item => batch.set(doc(collection(db, col)), base(item)))
+    push(data.transactions, COL.transactions)
+    push(data.wallets,      COL.wallets)
+    push(data.budgets,      COL.budgets)
+    push(data.goals,        COL.goals)
+    push(data.investments,  COL.investments)
+    push(data.creditCards,  COL.creditCards)
+    await batch.commit()
+    return data.transactions?.length ?? 0
+  }
+
   // ── Settings ───────────────────────────────────────────────────────────────
 
   const updateSettings = (data) => {
     setSettings(prev => {
       const next = { ...prev, ...data }
-      const { name, email, initials, ...prefs } = next
-      savePrefs(user.uid, prefs)
+      const { name, email, initials, biometricEnabled, ...prefs } = next
+      // biometricEnabled is device-local — never written to Firestore
+      if ('biometricEnabled' in data) saveBiometric(user.uid, biometricEnabled)
+      updateDoc(doc(db, COL.users, user.uid), { prefs }).catch(console.error)
       return next
     })
   }
@@ -448,13 +558,13 @@ export function AppProvider({ children }) {
     if (!trimmed || categories.includes(trimmed)) return
     const next = [...categories, trimmed]
     setCategories(next)
-    saveCategories(user.uid, next)
+    updateDoc(doc(db, COL.users, user.uid), { categories: next }).catch(console.error)
   }
 
   const removeCategory = (name) => {
     const next = categories.filter(c => c !== name)
     setCategories(next)
-    saveCategories(user.uid, next)
+    updateDoc(doc(db, COL.users, user.uid), { categories: next }).catch(console.error)
   }
 
   // ── Value ──────────────────────────────────────────────────────────────────
@@ -463,7 +573,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
       settings, categories, dbLoading,
-      totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
+      totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
       lastIncome, lastExpenses, lastSavings, pendingCount,
       spendingByCategory, monthlyChartData, thisMonth,
       pctChange, getCardCurrentUsed,
@@ -475,6 +585,7 @@ export function AppProvider({ children }) {
       addCreditCard, updateCreditCard, deleteCreditCard,
       addAlert, updateAlert, deleteAlert,
       updateSettings, toggleTheme, addCategory, removeCategory,
+      exportJSON, exportCSV, importJSON,
     }}>
       {children}
     </AppContext.Provider>

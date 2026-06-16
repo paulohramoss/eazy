@@ -130,13 +130,13 @@ export async function notify({ type, data = {}, settings }) {
 
   // E-mail
   if (emailEnabled && emailAddress) {
-    // Mapeia tipo composto para tipo do template de e-mail
-    const emailType = type.replace('_near', '_limit').replace('_over', '')
-      || type === 'budget_near' ? 'budget'
-      : type === 'budget_over'  ? 'budget'
-      : type === 'card_near'    ? 'card_limit'
-      : type === 'card_limit'   ? 'card_limit'
-      : type
+    const EMAIL_TYPE_MAP = {
+      budget_near:  'budget',
+      budget_over:  'budget',
+      card_near:    'card_limit',
+      card_limit:   'card_limit',
+    }
+    const emailType = EMAIL_TYPE_MAP[type] ?? type
     sendEmail({ to: emailAddress, type: emailType, data }).catch(() => {})
   }
 }
