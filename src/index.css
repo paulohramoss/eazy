@@ -4,67 +4,66 @@
   padding: 0;
 }
 
-/* ─── Dark theme (default) ── verde escuro ───────────────── */
 :root {
-  --bg-primary:    #09180F;
-  --bg-secondary:  #0D2218;
-  --bg-card:       #102B1E;
-  --bg-hover:      #1A3D2C;
-
-  --accent:        #B9E66A;
-  --accent-light:  #D0EE8C;
-  --accent-rgb:    185, 230, 106;
-  --btn-text:      #0F4D3F;
-
-  --accent-green:  #B9E66A;
-  --accent-red:    #FF9F6E;
-  --accent-yellow: #F5C842;
-  --accent-blue:   #60A5FA;
-  --green-rgb: 185, 230, 106;
-  --red-rgb:   255, 159, 110;
-
-  --text-primary:   #EEF5EB;
-  --text-secondary: #8DBF9F;
-  --text-muted:     #4D7A5C;
-
-  --border:       #1A3D2C;
-  --border-light: #265540;
-
-  --sidebar-width:  240px;
-  --header-height:  64px;
-  --radius:    12px;
-  --radius-sm:  8px;
-  --shadow:  0 4px 24px rgba(0, 0, 0, 0.45);
-  --transition: 0.2s ease;
-}
-
-/* ─── Light theme ── lifestyle / bege + verde ─────────────── */
-[data-theme="light"] {
-  --bg-primary:    #F3F6EF;
+  --bg-primary:    #FFF9EF;
   --bg-secondary:  #FFFFFF;
   --bg-card:       #FFFFFF;
-  --bg-hover:      #ECF1E8;
+  --bg-hover:      #F2F2F2;
 
-  --accent:        #0F4D3F;
-  --accent-light:  #186B53;
-  --accent-rgb:    15, 77, 63;
+  --accent:        #0053EF;
+  --accent-light:  #3370F5;
+  --accent-rgb:    0, 83, 239;
   --btn-text:      #FFFFFF;
 
-  --accent-green:  #2D9E6E;
-  --accent-red:    #E05A2B;
-  --accent-yellow: #D18700;
-  --accent-blue:   #2563EB;
-  --green-rgb: 45, 158, 110;
-  --red-rgb:   224, 90, 43;
+  --accent-green:  #18A058;
+  --accent-red:    #E8382A;
+  --accent-yellow: #F59E0B;
+  --accent-blue:   #0053EF;
+  --green-rgb: 24, 160, 88;
+  --red-rgb:   232, 56, 42;
 
-  --text-primary:   #0D2B22;
-  --text-secondary: #3D6655;
-  --text-muted:     #7A9B8A;
+  --text-primary:   #0A0A0A;
+  --text-secondary: #555555;
+  --text-muted:     #888888;
 
-  --border:       #D5E8CE;
-  --border-light: #BAD4B2;
+  --border:       #E5E5E5;
+  --border-light: #BBBBBB;
 
-  --shadow: 0 4px 24px rgba(15, 77, 63, 0.10);
+  --sidebar-width:  240px;
+  --header-height:  60px;
+  --radius:    16px;
+  --radius-sm:  10px;
+  --shadow:  0 4px 20px rgba(0, 0, 0, 0.06);
+  --transition: 0.15s ease;
+}
+
+/* ── Tema Escuro ────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg-primary:    #111111;
+  --bg-secondary:  #1A1A1A;
+  --bg-card:       #1A1A1A;
+  --bg-hover:      #252525;
+
+  --accent:        #0053EF;
+  --accent-light:  #4D84FF;
+  --accent-rgb:    0, 83, 239;
+  --btn-text:      #FFFFFF;
+
+  --accent-green:  #22C55E;
+  --accent-red:    #F87171;
+  --accent-yellow: #FBBF24;
+  --accent-blue:   #0053EF;
+  --green-rgb: 34, 197, 94;
+  --red-rgb:   248, 113, 113;
+
+  --text-primary:   #F0F0F0;
+  --text-secondary: #AAAAAA;
+  --text-muted:     #666666;
+
+  --border:       #2A2A2A;
+  --border-light: #3A3A3A;
+
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 body {
@@ -73,6 +72,13 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none; /* Native app feel */
+}
+
+/* PWA Mobile Support */
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
 button {

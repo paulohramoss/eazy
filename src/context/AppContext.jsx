@@ -5,6 +5,8 @@ import {
   collection, query, where, onSnapshot,
   addDoc, updateDoc, deleteDoc, doc, serverTimestamp, writeBatch,
 } from 'firebase/firestore'
+import { notify } from '../notifications'
+import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
 
 // ─── Static config ────────────────────────────────────────────────────────────
 
@@ -48,25 +50,58 @@ const COL = {
   budgets:      'userRules',
   goals:        'goals',
   investments:  'challenges',
+  creditCards:  'creditCards',
+  alerts:       'alerts',
 }
 
 // ─── Default wallets (seed on first login) ────────────────────────────────────
 
 const DEFAULT_WALLETS = [
-  { name: 'Conta Corrente', type: 'checking',   balance: 0, color: '#0F4D3F', icon: '🏦' },
-  { name: 'Poupança',       type: 'savings',    balance: 0, color: '#B9E66A', icon: '🐷' },
-  { name: 'Investimentos',  type: 'investment', balance: 0, color: '#F5C842', icon: '📈' },
+  { name: 'Conta Corrente', type: 'checking',   balance: 0, color: '#0053EF', icon: WALLET_TYPE_ICONS.checking },
+  { name: 'Poupança',       type: 'savings',    balance: 0, color: '#CFF330', icon: WALLET_TYPE_ICONS.savings },
+  { name: 'Investimentos',  type: 'investment', balance: 0, color: '#0A0A0A', icon: WALLET_TYPE_ICONS.investment },
 ]
 
 // ─── Settings helpers ─────────────────────────────────────────────────────────
 
-const PREF_DEFAULTS = { currency: 'BRL', notifications: true, weeklyReport: true, language: 'pt-BR', theme: 'light' }
+const PREF_DEFAULTS = {
+  currency: 'BRL', language: 'pt-BR', theme: 'light',
+  // canais
+  pushEnabled: false,
+  emailEnabled: false, emailAddress: '',
+  smsEnabled: false,   smsPhone: '',
+  // transações
+  notifNewTransaction: true,
+  notifPendingTransaction: true,
+  notifLargeExpense: false, notifLargeExpenseThreshold: '500',
+  // cartão de crédito
+  notifCardNearLimit: true,
+  notifCardLimitReached: true,
+  notifCardClosingDay: false,
+  notifCardDueDay: true,
+  // planejamento
+  notifBudgetNearLimit: true,
+  notifBudgetExceeded: true,
+  notifGoalReached: true,
+  notifGoalReminder: false,
+  // relatórios
+  notifWeeklyReport: false,
+  notifMonthlyReport: true,
+  // legado (mantido para compatibilidade)
+  notifications: true, weeklyReport: false,
+}
 
 const loadPrefs = (uid) =>
   JSON.parse(localStorage.getItem(`prefs_${uid}`) || 'null') || PREF_DEFAULTS
 
 const savePrefs = (uid, prefs) =>
   localStorage.setItem(`prefs_${uid}`, JSON.stringify(prefs))
+
+const loadCategories = (uid) =>
+  JSON.parse(localStorage.getItem(`categories_${uid}`) || 'null') || CATEGORIES
+
+const saveCategories = (uid, cats) =>
+  localStorage.setItem(`categories_${uid}`, JSON.stringify(cats))
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -80,7 +115,10 @@ export function AppProvider({ children }) {
   const [budgets,      setBudgets]      = useState([])
   const [goals,        setGoals]        = useState([])
   const [investments,  setInvestments]  = useState([])
+  const [creditCards,  setCreditCards]  = useState([])
+  const [alerts,       setAlerts]       = useState([])
   const [settings,     setSettings]     = useState(PREF_DEFAULTS)
+  const [categories,   setCategories]   = useState(CATEGORIES)
   const [dbLoading,    setDbLoading]    = useState(true)
 
   // ── Load settings from localStorage ───────────────────────────────────────
@@ -94,6 +132,7 @@ export function AppProvider({ children }) {
       email:    user.email || '',
       initials: (user.displayName || user.email || 'U').slice(0, 2).toUpperCase(),
     })
+    setCategories(loadCategories(user.uid))
   }, [user?.uid])
 
   // ── Subscribe to Firestore collections ────────────────────────────────────
@@ -101,7 +140,8 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!user) {
       setTransactions([]); setWallets([]); setBudgets([])
-      setGoals([]); setInvestments([]); setDbLoading(false)
+      setGoals([]); setInvestments([]); setCreditCards([]); setAlerts([])
+      setDbLoading(false)
       return
     }
 
@@ -135,10 +175,27 @@ export function AppProvider({ children }) {
       onSnapshot(userQuery(COL.budgets),      snap => setBudgets(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
       onSnapshot(userQuery(COL.goals),        snap => setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
       onSnapshot(userQuery(COL.investments),  snap => setInvestments(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      onSnapshot(userQuery(COL.creditCards),  snap => setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      onSnapshot(userQuery(COL.alerts),       snap => setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
     ]
 
     return () => unsubs.forEach(u => u())
   }, [user?.uid])
+
+  // ── Auto-complete pending transactions ─────────────────────────────────────
+  useEffect(() => {
+    if (!transactions || transactions.length === 0) return
+    const todayStr = new Date().toISOString().split('T')[0]
+    const toComplete = transactions.filter(t => t.status === 'pending' && t.date && t.date <= todayStr)
+
+    if (toComplete.length > 0) {
+      const batch = writeBatch(db)
+      toComplete.forEach(t => {
+        batch.update(doc(db, COL.transactions, t.id), { status: 'completed' })
+      })
+      batch.commit().catch(console.error)
+    }
+  }, [transactions])
 
   // ── Base doc fields ────────────────────────────────────────────────────────
 
@@ -157,6 +214,32 @@ export function AppProvider({ children }) {
   const lastMonth = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1))
 
   const validTx   = transactions.filter(t => t.status !== 'failed')
+
+  // Retorna a data de início do ciclo de faturamento atual do cartão
+  const getCardCycleStart = (closingDay) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const day = today.getDate()
+    const y = today.getFullYear()
+    const m = today.getMonth()
+    return day >= closingDay
+      ? new Date(y, m, closingDay)
+      : new Date(y, m - 1, closingDay)
+  }
+
+  // Retorna o total gasto no ciclo atual de um cartão
+  const getCardCurrentUsed = (cardId) => {
+    const card = creditCards.find(c => c.id === cardId)
+    if (!card) return 0
+    const cycleStart = getCardCycleStart(card.closingDay || 1)
+    return validTx
+      .filter(t => t.cardId === cardId && t.type === 'expense')
+      .filter(t => {
+        if (!t.date) return false
+        return new Date(t.date + 'T00:00:00') >= cycleStart
+      })
+      .reduce((s, t) => s + (t.amount || 0), 0)
+  }
   const txThis    = validTx.filter(t => t.date?.startsWith(thisMonth))
   const txLast    = validTx.filter(t => t.date?.startsWith(lastMonth))
 
@@ -188,8 +271,69 @@ export function AppProvider({ children }) {
 
   // ── Transactions ───────────────────────────────────────────────────────────
 
-  const addTransaction = (data) =>
-    addDoc(collection(db, COL.transactions), base(data))
+  const addMultipleTransactions = async (data, mode, count) => {
+    const batch = writeBatch(db)
+    const baseDate = new Date(data.date + 'T12:00:00')
+    const totalAmount = data.amount
+    const perInstallment = mode === 'installment' ? Number((totalAmount / count).toFixed(2)) : totalAmount
+
+    let remainder = 0
+    if (mode === 'installment') {
+      const sum = perInstallment * count
+      remainder = totalAmount - sum
+    }
+
+    for (let i = 0; i < count; i++) {
+      const txDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, baseDate.getDate(), 12, 0, 0)
+      if (txDate.getMonth() !== (baseDate.getMonth() + i) % 12) {
+        txDate.setDate(0)
+      }
+      
+      const dateStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`
+      
+      let amount = perInstallment
+      if (i === 0 && mode === 'installment') amount += remainder
+
+      let name = data.name
+      if (mode === 'installment' || mode === 'recurring') name = `${data.name} (${i + 1}/${count})`
+
+      const txData = {
+        ...data,
+        amount: Number(amount.toFixed(2)),
+        date: dateStr,
+        name
+      }
+      
+      const docRef = doc(collection(db, COL.transactions))
+      batch.set(docRef, base(txData))
+    }
+
+    await batch.commit()
+
+    notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+  }
+
+  const addTransaction = async (data) => {
+    const ref = await addDoc(collection(db, COL.transactions), base(data))
+
+    // Notificação: nova transação
+    notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+
+    // Notificação: transação pendente
+    if (data.status === 'pending') {
+      notify({ type: 'transaction_pending', data: { name: data.name, amount: data.amount }, settings })
+    }
+
+    // Notificação: despesa acima do threshold
+    if (data.type === 'expense' && settings.notifLargeExpense) {
+      const threshold = Number(settings.notifLargeExpenseThreshold) || 500
+      if (Number(data.amount) >= threshold) {
+        notify({ type: 'large_expense', data: { name: data.name, amount: data.amount }, settings })
+      }
+    }
+
+    return ref
+  }
 
   const updateTransaction = (id, data) =>
     updateDoc(doc(db, COL.transactions, id), data)
@@ -255,6 +399,36 @@ export function AppProvider({ children }) {
   const deleteInvestment = (id) =>
     deleteDoc(doc(db, COL.investments, id))
 
+  // ── Credit Cards ───────────────────────────────────────────────────────────
+
+  const addCreditCard = (data) =>
+    addDoc(collection(db, COL.creditCards), base(data))
+
+  const updateCreditCard = (id, data) =>
+    updateDoc(doc(db, COL.creditCards, id), data)
+
+  const deleteCreditCard = (id) =>
+    deleteDoc(doc(db, COL.creditCards, id))
+
+  // ── Alerts ─────────────────────────────────────────────────────────────────
+
+  const addAlert = (data) =>
+    addDoc(collection(db, COL.alerts), base(data))
+
+  const updateAlert = (id, data) =>
+    updateDoc(doc(db, COL.alerts, id), data)
+
+  const deleteAlert = (id) =>
+    deleteDoc(doc(db, COL.alerts, id))
+
+  const alertsDueCount = alerts.filter(a => {
+    if (a.paid) return false
+    const today = new Date()
+    const due = new Date(a.dueDate + 'T12:00:00')
+    const diff = (due - today) / (1000 * 60 * 60 * 24)
+    return diff <= 3
+  }).length
+
   // ── Settings ───────────────────────────────────────────────────────────────
 
   const updateSettings = (data) => {
@@ -269,21 +443,38 @@ export function AppProvider({ children }) {
   const toggleTheme = () =>
     updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
 
+  const addCategory = (name) => {
+    const trimmed = name.trim()
+    if (!trimmed || categories.includes(trimmed)) return
+    const next = [...categories, trimmed]
+    setCategories(next)
+    saveCategories(user.uid, next)
+  }
+
+  const removeCategory = (name) => {
+    const next = categories.filter(c => c !== name)
+    setCategories(next)
+    saveCategories(user.uid, next)
+  }
+
   // ── Value ──────────────────────────────────────────────────────────────────
 
   return (
     <AppContext.Provider value={{
-      transactions, wallets, budgets, goals, investments, settings, dbLoading,
+      transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
+      settings, categories, dbLoading,
       totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
       lastIncome, lastExpenses, lastSavings, pendingCount,
       spendingByCategory, monthlyChartData, thisMonth,
-      pctChange,
-      addTransaction, updateTransaction, deleteTransaction, bulkDeleteTransactions,
+      pctChange, getCardCurrentUsed,
+      addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
       addWallet, updateWallet, deleteWallet,
       addBudget, updateBudget, deleteBudget,
       addGoal, updateGoal, deleteGoal, contributeGoal,
       addInvestment, updateInvestment, deleteInvestment,
-      updateSettings, toggleTheme,
+      addCreditCard, updateCreditCard, deleteCreditCard,
+      addAlert, updateAlert, deleteAlert,
+      updateSettings, toggleTheme, addCategory, removeCategory,
     }}>
       {children}
     </AppContext.Provider>

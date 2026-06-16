@@ -142,7 +142,7 @@ function CanISpend({ remaining }) {
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
-const COLORS = ['#6c63ff', '#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#64748b']
+const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB']
 
 export default function Overview() {
   const {
@@ -184,7 +184,7 @@ export default function Overview() {
       {/* Metrics */}
       <div className="metrics-grid">
         {metrics.map((m, i) => (
-          <div key={i} className="metric-card">
+          <div key={i} className={`metric-card metric-card--${m.color}`}>
             <div className="metric-header">
               <span className="metric-label">{m.label}</span>
               <div className={`metric-icon ${m.color}`}><i className={`fi ${m.icon}`} /></div>
