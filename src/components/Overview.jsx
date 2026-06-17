@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
 // ─── Donut Chart ──────────────────────────────────────────────────────────────
 
 function DonutChart({ data }) {
@@ -56,6 +54,7 @@ function DonutChart({ data }) {
 // ─── Can I Spend Widget ───────────────────────────────────────────────────────
 
 function CanISpend({ remaining }) {
+  const { formatCurrency: fmt, currencySymbol } = useApp()
   const [amount, setAmount] = useState(0)
   const hasValue        = amount > 0
   const afterSpend      = remaining - amount
@@ -83,7 +82,7 @@ function CanISpend({ remaining }) {
 
         {/* Input */}
         <div className="can-spend-input-wrap">
-          <span className="can-spend-prefix">R$</span>
+          <span className="can-spend-prefix">{currencySymbol}</span>
           <CurrencyInput
             className="can-spend-input"
             value={amount}
@@ -147,7 +146,8 @@ const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB'
 export default function Overview() {
   const {
     totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
-    lastIncome, lastExpenses, lastSavings, spendingByCategory, monthlyChartData, pctChange,
+    lastIncome, lastExpenses, lastSavings, lastBalance, spendingByCategory, monthlyChartData, pctChange,
+    formatCurrency: fmt,
   } = useApp()
 
   const remaining = monthlyIncome - monthlyExpenses
@@ -155,7 +155,7 @@ export default function Overview() {
   const metrics = [
     {
       label: 'Saldo Total', value: fmt(totalBalance), icon: 'fi-rr-wallet', color: 'purple',
-      change: pctChange(totalBalance, totalBalance - monthlySavings), dir: totalBalance >= (totalBalance - monthlySavings) ? 'up' : 'down', period: 'vs mês anterior'
+      change: pctChange(totalBalance, lastBalance), dir: totalBalance >= lastBalance ? 'up' : 'down', period: 'vs mês anterior'
     },
     {
       label: 'Receitas', value: fmt(monthlyIncome), icon: 'fi-rr-chart-line-up', color: 'green',

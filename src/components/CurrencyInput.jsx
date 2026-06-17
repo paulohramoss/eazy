@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 // Converts numeric cents to "1.000,00" display string
 const format = (cents) => {
@@ -18,15 +18,28 @@ const toCents = (v) => Math.round((Number(v) || 0) * 100)
  */
 export default function CurrencyInput({ value, onChange, className, placeholder, ...rest }) {
   const [display, setDisplay] = useState(() => format(toCents(value)))
+  const lastEmitted = useRef(toCents(value))
+
+  // Resync when `value` changes from outside (e.g. programmatic reset/shortcut
+  // buttons) — but not when it's just an echo of what we ourselves emitted.
+  useEffect(() => {
+    const cents = toCents(value)
+    if (cents !== lastEmitted.current) {
+      lastEmitted.current = cents
+      setDisplay(format(cents))
+    }
+  }, [value])
 
   const handleChange = (e) => {
     const digits = e.target.value.replace(/\D/g, '')
     if (!digits) {
+      lastEmitted.current = 0
       setDisplay('')
       onChange(0)
       return
     }
     const cents = parseInt(digits, 10)
+    lastEmitted.current = cents
     setDisplay(format(cents))
     onChange(cents / 100)
   }

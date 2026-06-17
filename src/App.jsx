@@ -216,50 +216,10 @@ function Dashboard() {
     settings, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading,
     creditCards, categories, addTransaction, addMultipleTransactions,
   } = useApp()
-  const { logOut, user } = useAuth()
+  const { logOut } = useAuth()
   const userCardRef = useRef(null)
   const calcBtnRef = useRef(null)
   const converterBtnRef = useRef(null)
-
-  // Biometric Lock State
-  // Read directly from localStorage — settings starts as PREF_DEFAULTS and only
-  // hydrates from localStorage inside a useEffect, so reading settings here would
-  // always see biometricEnabled=false on first render.
-  const [isLocked, setIsLocked] = useState(() =>
-    !!(JSON.parse(localStorage.getItem(`bio_${user.uid}`) || 'false'))
-  )
-
-  const handleBiometricUnlock = async () => {
-    try {
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-      const rawIdStr = localStorage.getItem('eazy_biometric_id');
-      const allowCredentials = rawIdStr ? [{
-        type: 'public-key',
-        id: Uint8Array.from(atob(rawIdStr), c => c.charCodeAt(0))
-      }] : [];
-      
-      await navigator.credentials.get({
-        publicKey: {
-          challenge,
-          allowCredentials,
-          userVerification: "required",
-          timeout: 60000
-        }
-      });
-      setIsLocked(false);
-    } catch (e) {
-      console.error(e);
-      alert('Falha na autenticação biométrica. Tente novamente.');
-    }
-  }
-
-  // Auto-prompt on mount (and if isLocked flips back to true in the future).
-  // deps=[isLocked] avoids the stale-closure bug of deps=[].
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (isLocked) handleBiometricUnlock()
-  }, [isLocked])
 
   const navigate = (s) => { setScreen(s); localStorage.setItem('eazy_screen', s) }
 
@@ -270,24 +230,6 @@ function Dashboard() {
   const now = new Date()
   const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const { title, sub } = SCREEN_TITLES[screen] || SCREEN_TITLES.overview
-
-  if (isLocked) {
-    return (
-      <div className="login-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-primary)' }}>
-        <div style={{ textAlign: 'center', padding: 40, background: 'var(--bg-card)', borderRadius: 24, boxShadow: 'var(--shadow)', maxWidth: 400, width: '90%' }}>
-          <i className="fi fi-rr-fingerprint" style={{ fontSize: 64, color: 'var(--accent)', marginBottom: 24, display: 'block' }} />
-          <h2 style={{ marginBottom: 12, fontSize: 24 }}>App Bloqueado</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 32, fontSize: 15, lineHeight: 1.5 }}>Use sua biometria (Face ID / Touch ID) para acessar suas finanças com segurança.</p>
-          <button className="btn btn-primary" onClick={handleBiometricUnlock} style={{ width: '100%', padding: '14px', fontSize: 16 }}>
-            Desbloquear App
-          </button>
-          <button className="btn btn-secondary" onClick={logOut} style={{ width: '100%', padding: '14px', fontSize: 16, marginTop: 12 }}>
-            Sair da conta
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   if (!dbLoading && wallets.length === 0) return <Onboarding />
 
@@ -439,6 +381,79 @@ function Dashboard() {
   )
 }
 
+// ─── Biometric Lock Screen ────────────────────────────────────────────────────
+
+function LockScreen({ onUnlock, onLogOut }) {
+  return (
+    <div className="login-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-primary)' }}>
+      <div style={{ textAlign: 'center', padding: 40, background: 'var(--bg-card)', borderRadius: 24, boxShadow: 'var(--shadow)', maxWidth: 400, width: '90%' }}>
+        <i className="fi fi-rr-fingerprint" style={{ fontSize: 64, color: 'var(--accent)', marginBottom: 24, display: 'block' }} />
+        <h2 style={{ marginBottom: 12, fontSize: 24 }}>App Bloqueado</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 32, fontSize: 15, lineHeight: 1.5 }}>Use sua biometria (Face ID / Touch ID) para acessar suas finanças com segurança.</p>
+        <button className="btn btn-primary" onClick={onUnlock} style={{ width: '100%', padding: '14px', fontSize: 16 }}>
+          Desbloquear App
+        </button>
+        <button className="btn btn-secondary" onClick={onLogOut} style={{ width: '100%', padding: '14px', fontSize: 16, marginTop: 12 }}>
+          Sair da conta
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── AuthedApp — gate biométrico antes de montar o AppProvider ───────────────
+// O AppProvider abre as subscriptions do Firestore (dados financeiros) assim que
+// monta. Por isso o lock precisa decidir ANTES de montar AppProvider/Dashboard —
+// senão os dados já estariam em memória enquanto a tela de cadeado é exibida.
+
+function AuthedApp({ user }) {
+  const { logOut } = useAuth()
+
+  const [isLocked, setIsLocked] = useState(() =>
+    !!(JSON.parse(localStorage.getItem(`bio_${user.uid}`) || 'false'))
+  )
+
+  const handleBiometricUnlock = async () => {
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+      const rawIdStr = localStorage.getItem('eazy_biometric_id');
+      const allowCredentials = rawIdStr ? [{
+        type: 'public-key',
+        id: Uint8Array.from(atob(rawIdStr), c => c.charCodeAt(0))
+      }] : [];
+
+      await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials,
+          userVerification: "required",
+          timeout: 60000
+        }
+      });
+      setIsLocked(false);
+    } catch (e) {
+      console.error(e);
+      alert('Falha na autenticação biométrica. Tente novamente.');
+    }
+  }
+
+  // Auto-prompt on mount (and if isLocked flips back to true in the future).
+  useEffect(() => {
+    if (isLocked) handleBiometricUnlock()
+  }, [isLocked])
+
+  if (isLocked) {
+    return <LockScreen onUnlock={handleBiometricUnlock} onLogOut={logOut} />
+  }
+
+  return (
+    <AppProvider>
+      <Dashboard />
+    </AppProvider>
+  )
+}
+
 // ─── App root — gate de autenticação ─────────────────────────────────────────
 
 export default function App() {
@@ -446,9 +461,5 @@ export default function App() {
 
   if (!user) return <Login />
 
-  return (
-    <AppProvider>
-      <Dashboard />
-    </AppProvider>
-  )
+  return <AuthedApp user={user} />
 }

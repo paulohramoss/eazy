@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 
-const fmt    = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const fmtShort = (n) => {
-  if (Math.abs(n) >= 1000) return `R$ ${(n / 1000).toFixed(1)}k`
-  return `R$ ${Math.round(n)}`
+const fmtShort = (n, symbol) => {
+  if (Math.abs(n) >= 1000) return `${symbol} ${(n / 1000).toFixed(1)}k`
+  return `${symbol} ${Math.round(n)}`
 }
 
 const MONTHS_PT = [
@@ -19,7 +18,7 @@ const dateKey = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 export default function FinancialCalendar() {
-  const { transactions } = useApp()
+  const { transactions, formatCurrency: fmt, currencySymbol } = useApp()
   const now   = new Date()
   const todayKey = dateKey(now)
 
@@ -131,7 +130,7 @@ export default function FinancialCalendar() {
                       {txs.slice(0, 2).map((t, i) => (
                         <div key={i} className={`cal-tx-pill cal-tx-${t.type}`}>
                           <span className="cal-tx-dot" />
-                          <span className="cal-tx-amt">{fmtShort(t.amount)}</span>
+                          <span className="cal-tx-amt">{fmtShort(t.amount, currencySymbol)}</span>
                         </div>
                       ))}
                       {txs.length > 2 && (

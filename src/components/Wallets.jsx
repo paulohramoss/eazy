@@ -4,8 +4,6 @@ import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
 const WALLET_TYPES = [
   { value: 'checking', label: 'Conta Corrente' },
   { value: 'savings', label: 'Poupança' },
@@ -22,6 +20,7 @@ const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', i
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 
 function WalletModal({ initial, onSave, onClose }) {
+  const { currencySymbol } = useApp()
   const [form, setForm] = useState(initial
     ? { ...initial, icon: resolveWalletIcon(initial.icon, initial.type), balance: String(initial.balance) }
     : EMPTY_FORM
@@ -58,7 +57,7 @@ function WalletModal({ initial, onSave, onClose }) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Saldo Inicial (R$)</label>
+          <label className="form-label">Saldo Inicial ({currencySymbol})</label>
           <CurrencyInput className="form-input" value={form.balance} onChange={v => set('balance', v)} />
         </div>
       </div>
@@ -147,7 +146,7 @@ function ConfirmModal({ name, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Wallets() {
-  const { wallets, transactions, walletBalances, addWallet, updateWallet, deleteWallet, totalBalance } = useApp()
+  const { wallets, transactions, walletBalances, addWallet, updateWallet, deleteWallet, totalBalance, formatCurrency: fmt } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
