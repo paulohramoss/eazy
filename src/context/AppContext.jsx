@@ -151,6 +151,14 @@ export function AppProvider({ children }) {
 
     const userDocRef = doc(db, COL.users, uid)
 
+    // Sem isso, um erro no listener (regra negada, rede instável etc.) deixa
+    // walletsReady/userDocReady travados em false pra sempre — dbLoading nunca
+    // vira false, e o gate do Onboarding (!dbLoading && wallets.length===0)
+    // nunca chega a avaliar. Erro também precisa liberar o "ready".
+    const onSnapError = (label) => (err) => {
+      console.error(`[Firestore:${label}]`, err)
+    }
+
     const unsubs = [
       // User preferences & categories — source of truth in Firestore
       onSnapshot(userDocRef, snap => {
@@ -180,20 +188,20 @@ export function AppProvider({ children }) {
           // onSnapshot fires again once the doc is written, hydrating state then
         }
         userDocReady = true; readyCb()
-      }),
+      }, err => { onSnapError('users')(err); userDocReady = true; readyCb() }),
 
       onSnapshot(userQuery(COL.transactions), snap =>
-        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      ),
+        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      onSnapError('transactions')),
       onSnapshot(userQuery(COL.wallets), snap => {
         setWallets(snap.docs.map(d => ({ id: d.id, ...d.data() })))
         walletsReady = true; readyCb()
-      }),
-      onSnapshot(userQuery(COL.budgets),      snap => setBudgets(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
-      onSnapshot(userQuery(COL.goals),        snap => setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
-      onSnapshot(userQuery(COL.investments),  snap => setInvestments(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
-      onSnapshot(userQuery(COL.creditCards),  snap => setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
-      onSnapshot(userQuery(COL.alerts),       snap => setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      }, err => { onSnapError('wallets')(err); walletsReady = true; readyCb() }),
+      onSnapshot(userQuery(COL.budgets),      snap => setBudgets(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('budgets')),
+      onSnapshot(userQuery(COL.goals),        snap => setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('goals')),
+      onSnapshot(userQuery(COL.investments),  snap => setInvestments(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('investments')),
+      onSnapshot(userQuery(COL.creditCards),  snap => setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('creditCards')),
+      onSnapshot(userQuery(COL.alerts),       snap => setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('alerts')),
     ]
 
     return () => unsubs.forEach(u => u())
