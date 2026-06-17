@@ -1,18 +1,6 @@
 import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
-
-// ─── Toggle ───────────────────────────────────────────────────────────────────
-
-function Toggle({ on, onChange }) {
-  return (
-    <div
-      className={`toggle ${on ? 'on' : ''}`}
-      onClick={() => onChange(!on)}
-      role="switch"
-      aria-checked={on}
-    />
-  )
-}
+import Toggle from './Toggle'
 
 // ─── Section ──────────────────────────────────────────────────────────────────
 
@@ -85,11 +73,21 @@ export default function Settings() {
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Idioma</label>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                Idioma
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+                  background: 'var(--bg-hover)', color: 'var(--text-muted)',
+                  textTransform: 'uppercase', letterSpacing: '0.5px',
+                }}>em breve</span>
+              </label>
               <select
                 className="form-select"
                 value={settings.language}
                 onChange={e => updateSettings({ language: e.target.value })}
+                disabled
+                title="Tradução da interface ainda não implementada"
+                style={{ opacity: 0.6, cursor: 'not-allowed' }}
               >
                 {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
               </select>

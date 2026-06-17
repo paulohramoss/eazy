@@ -3,8 +3,6 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
 const CARD_COLORS = [
   '#0053EF', '#0A0A0A', '#1E1E1E', '#2A2A2A',
   '#141414', '#E8382A', '#18A058', '#555555',
@@ -20,6 +18,7 @@ const EMPTY_FORM = {
 // ─── Card Visual ──────────────────────────────────────────────────────────────
 
 function CardVisual({ card, used, mini = false }) {
+  const { formatCurrency: fmt } = useApp()
   const available = (card.limit || 0) - used
   const pct = card.limit ? Math.min((used / card.limit) * 100, 100) : 0
 
@@ -140,6 +139,7 @@ function CardModal({ initial, onSave, onClose }) {
 // ─── Invoice / Fatura ─────────────────────────────────────────────────────────
 
 function Invoice({ card, transactions, onClose }) {
+  const { formatCurrency: fmt } = useApp()
   const now = new Date()
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const cardTx = transactions.filter(t => t.cardId === card.id && t.date?.startsWith(thisMonth))
@@ -199,7 +199,7 @@ function DeleteModal({ card, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function CreditCards() {
-  const { creditCards, addCreditCard, updateCreditCard, deleteCreditCard, transactions, getCardCurrentUsed } = useApp()
+  const { creditCards, addCreditCard, updateCreditCard, deleteCreditCard, transactions, getCardCurrentUsed, formatCurrency: fmt } = useApp()
   const [modal, setModal] = useState(null)
   const [invoice, setInvoice] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -216,7 +216,7 @@ export default function CreditCards() {
       map[c.id] = getCardCurrentUsed(c.id)
     })
     return map
-  }, [creditCards, transactions]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [creditCards, getCardCurrentUsed])
 
   const totalLimit = creditCards.reduce((s, c) => s + (c.limit || 0), 0)
   const totalUsed = creditCards.reduce((s, c) => s + (usedByCard[c.id] || 0), 0)

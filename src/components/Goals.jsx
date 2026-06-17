@@ -4,8 +4,6 @@ import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import confetti from 'canvas-confetti'
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
 const today = new Date().toISOString().split('T')[0]
 
 const EMPTY_FORM = { name: '', target: '', current: '0', deadline: '' }
@@ -13,6 +11,7 @@ const EMPTY_FORM = { name: '', target: '', current: '0', deadline: '' }
 // ─── Goal Modal ───────────────────────────────────────────────────────────────
 
 function GoalModal({ initial, onSave, onClose }) {
+  const { currencySymbol } = useApp()
   const [form, setForm] = useState(
     initial
       ? { ...initial, target: String(initial.target), current: String(initial.current) }
@@ -49,11 +48,11 @@ function GoalModal({ initial, onSave, onClose }) {
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Valor Alvo (R$)</label>
+          <label className="form-label">Valor Alvo ({currencySymbol})</label>
           <CurrencyInput className="form-input" value={form.target} onChange={v => set('target', v)} />
         </div>
         <div className="form-group">
-          <label className="form-label">Valor Atual (R$)</label>
+          <label className="form-label">Valor Atual ({currencySymbol})</label>
           <CurrencyInput className="form-input" value={form.current} onChange={v => set('current', v)} />
         </div>
       </div>
@@ -68,6 +67,7 @@ function GoalModal({ initial, onSave, onClose }) {
 // ─── Alocar Fundos Modal ──────────────────────────────────────────────────────
 
 function AlocarModal({ goal, onSave, onClose }) {
+  const { formatCurrency: fmt, currencySymbol } = useApp()
   const [amount, setAmount] = useState(0)
   const remaining = goal.target - goal.current
 
@@ -105,7 +105,7 @@ function AlocarModal({ goal, onSave, onClose }) {
       </div>
 
       <div className="form-group">
-        <label className="form-label">Valor a alocar (R$)</label>
+        <label className="form-label">Valor a alocar ({currencySymbol})</label>
         <CurrencyInput className="form-input" value={amount} onChange={setAmount} autoFocus />
       </div>
 
@@ -125,7 +125,7 @@ function AlocarModal({ goal, onSave, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Goals() {
-  const { goals, addGoal, updateGoal, deleteGoal, contributeGoal } = useApp()
+  const { goals, addGoal, updateGoal, deleteGoal, contributeGoal, formatCurrency: fmt } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [alocarItem, setAlocarItem] = useState(null)

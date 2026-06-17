@@ -1,12 +1,12 @@
 import { useApp } from '../context/AppContext'
 import { CatIcon } from '../context/AppContext'
 
-const fmt  = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const fmtK = (n) => n >= 1000 ? `R$${(n / 1000).toFixed(1)}k` : `R$${n.toFixed(0)}`
+const fmtK = (n, symbol) => n >= 1000 ? `${symbol}${(n / 1000).toFixed(1)}k` : `${symbol}${n.toFixed(0)}`
 
 // ─── Line Chart ───────────────────────────────────────────────────────────────
 
 function LineChart({ data, color, label }) {
+  const { currencySymbol } = useApp()
   const W = 500, H = 140
   const max = Math.max(...data, 1)
   const min = 0
@@ -47,7 +47,7 @@ function LineChart({ data, color, label }) {
       <path d={linePath} stroke={color} fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
       {pts.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r="5" fill={color} stroke="var(--bg-card)" strokeWidth="2">
-          <title>{fmtK(data[i])}</title>
+          <title>{fmtK(data[i], currencySymbol)}</title>
         </circle>
       ))}
     </svg>
@@ -57,7 +57,7 @@ function LineChart({ data, color, label }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Analysis() {
-  const { transactions, monthlyChartData, spendingByCategory, monthlyIncome, monthlySavings } = useApp()
+  const { transactions, monthlyChartData, spendingByCategory, monthlyIncome, monthlySavings, formatCurrency: fmt } = useApp()
 
   const incomeData   = monthlyChartData.map(d => d.income)
   const expenseData  = monthlyChartData.map(d => d.expenses)

@@ -10,7 +10,7 @@ const EMPTY_FORM = {
 }
 
 export default function TransactionModal({ initial, onSave, onClose, wallets, creditCards, categories }) {
-  const { getCardCurrentUsed } = useApp()
+  const { getCardCurrentUsed, formatCurrency: fmt, currencySymbol } = useApp()
   const [form, setForm] = useState(initial
     ? { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
     : { ...EMPTY_FORM, walletId: wallets[0]?.id || '' }
@@ -84,7 +84,7 @@ export default function TransactionModal({ initial, onSave, onClose, wallets, cr
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Valor (R$)</label>
+          <label className="form-label">Valor ({currencySymbol})</label>
           <CurrencyInput className="form-input" value={form.amount} onChange={v => set('amount', v)} />
         </div>
         <div className="form-group">
@@ -162,18 +162,18 @@ export default function TransactionModal({ initial, onSave, onClose, wallets, cr
                   <>
                     <div style={{ fontWeight: 700, marginBottom: 2 }}>Limite insuficiente</div>
                     <div style={{ opacity: 0.85 }}>
-                      Disponível: <strong>{(Number(cardAvailable) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                      {' · '}Falta: <strong>{(newAmount - cardAvailable).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                      Disponível: <strong>{fmt(cardAvailable)}</strong>
+                      {' · '}Falta: <strong>{fmt(newAmount - cardAvailable)}</strong>
                     </div>
                   </>
                 ) : (
                   <>
                     <div style={{ fontWeight: 600 }}>
-                      Disponível: {cardAvailable.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      Disponível: {fmt(cardAvailable)}
                       {newAmount > 0 && (
                         <span style={{ fontWeight: 400, opacity: 0.75 }}>
                           {' → '}
-                          {(cardAvailable - newAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          {fmt(cardAvailable - newAmount)}
                           {' após'}
                         </span>
                       )}
