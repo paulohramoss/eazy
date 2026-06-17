@@ -168,6 +168,13 @@ export default function Wallets() {
       </div>
 
       {/* Wallet Cards */}
+      {wallets.length === 0 ? (
+        <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <i className="fi fi-rr-wallet" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
+          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Nenhuma carteira cadastrada</p>
+          <button className="btn btn-primary" onClick={() => setAddModal(true)}>Criar primeira carteira</button>
+        </div>
+      ) : (
       <div className="wallets-grid">
         {wallets.map(w => {
           const income = transactions.filter(t => t.walletId === w.id && t.type === 'income' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
@@ -214,6 +221,7 @@ export default function Wallets() {
           )
         })}
       </div>
+      )}
 
       {/* Wallet transactions */}
       {activeWallet && (
