@@ -3,12 +3,10 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
 // ─── Budget Modal ─────────────────────────────────────────────────────────────
 
 function BudgetModal({ initial, onSave, onClose }) {
-  const { categories } = useApp()
+  const { categories, currencySymbol } = useApp()
   const [form, setForm] = useState(
     initial
       ? { ...initial, limit: String(initial.limit) }
@@ -42,7 +40,7 @@ function BudgetModal({ initial, onSave, onClose }) {
         </select>
       </div>
       <div className="form-group">
-        <label className="form-label">Limite Mensal (R$)</label>
+        <label className="form-label">Limite Mensal ({currencySymbol})</label>
         <CurrencyInput className="form-input" value={form.limit} onChange={v => set('limit', v)} />
       </div>
     </Modal>
@@ -52,7 +50,7 @@ function BudgetModal({ initial, onSave, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Budget() {
-  const { budgets, spendingByCategory, transactions, addBudget, updateBudget, deleteBudget, categories } = useApp()
+  const { budgets, spendingByCategory, transactions, addBudget, updateBudget, deleteBudget, categories, formatCurrency: fmt } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem,  setDelItem]  = useState(null)

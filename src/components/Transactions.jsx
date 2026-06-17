@@ -5,8 +5,6 @@ import Modal from './Modal'
 import TransactionModal from './TransactionModal'
 import { resolveWalletIcon } from '../utils/walletIcons'
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
 const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente' }
 
 // ─── Delete Confirm ───────────────────────────────────────────────────────────
@@ -52,7 +50,7 @@ function Checkbox({ checked, indeterminate, onChange }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses, categories, thisMonth } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses, categories, thisMonth, formatCurrency: fmt } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')

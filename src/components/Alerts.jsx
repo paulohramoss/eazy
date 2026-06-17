@@ -1,20 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { requestPushPermission, listenForegroundMessages, sendEmail, showLocalNotification } from '../notifications'
-
-// ─── Toggle ───────────────────────────────────────────────────────────────────
-
-function Toggle({ on, onChange, disabled }) {
-  return (
-    <div
-      className={`toggle ${on ? 'on' : ''}`}
-      onClick={() => !disabled && onChange(!on)}
-      role="switch"
-      aria-checked={on}
-      style={disabled ? { opacity: 0.4, cursor: 'not-allowed' } : { cursor: 'pointer' }}
-    />
-  )
-}
+import Toggle from './Toggle'
 
 // ─── Row ──────────────────────────────────────────────────────────────────────
 
@@ -98,7 +85,7 @@ function StatusMsg({ type, msg }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Alerts() {
-  const { settings, updateSettings } = useApp()
+  const { settings, updateSettings, currencySymbol } = useApp()
   const set = (key, val) => updateSettings({ [key]: val })
 
   const [pushStatus,  setPushStatus]  = useState(null) // { type, msg }
@@ -236,7 +223,7 @@ export default function Alerts() {
           <Row
             icon="fi-rr-smartphone"
             label="Push — Navegador / PWA"
-            desc="Notificações instantâneas no navegador e no celular quando o app for instalado"
+            desc="Notificações instantâneas enquanto esta aba ou app estiver aberto, no momento exato da ação (não funciona em segundo plano)"
             on={settings.pushEnabled}
             onChange={handlePushToggle}
           />
@@ -316,7 +303,7 @@ export default function Alerts() {
             onChange={v => set('notifLargeExpense', v)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <label className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>Valor mínimo (R$)</label>
+              <label className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>Valor mínimo ({currencySymbol})</label>
               <input
                 className="form-input"
                 type="number"
@@ -350,16 +337,20 @@ export default function Alerts() {
           <Row
             icon="fi-rr-calendar-clock"
             label="Dia de fechamento"
-            desc="Lembrete no dia em que a fatura fecha"
-            on={settings.notifCardClosingDay}
-            onChange={v => set('notifCardClosingDay', v)}
+            desc="Lembrete no dia em que a fatura fecha — requer agendamento no servidor, ainda não implementado"
+            badge="em breve"
+            on={false}
+            disabled
+            onChange={() => {}}
           />
           <Row
             icon="fi-rr-calendar-exclamation"
             label="Dia de vencimento"
-            desc="Lembrete no dia em que a fatura vence"
-            on={settings.notifCardDueDay}
-            onChange={v => set('notifCardDueDay', v)}
+            desc="Lembrete no dia em que a fatura vence — requer agendamento no servidor, ainda não implementado"
+            badge="em breve"
+            on={false}
+            disabled
+            onChange={() => {}}
           />
         </Section>
 
@@ -391,9 +382,11 @@ export default function Alerts() {
           <Row
             icon="fi-rr-bell"
             label="Lembrete semanal de objetivos"
-            desc="Resumo semanal do progresso dos seus objetivos"
-            on={settings.notifGoalReminder}
-            onChange={v => set('notifGoalReminder', v)}
+            desc="Resumo semanal do progresso dos seus objetivos — requer agendamento no servidor, ainda não implementado"
+            badge="em breve"
+            on={false}
+            disabled
+            onChange={() => {}}
           />
         </Section>
 
@@ -404,16 +397,20 @@ export default function Alerts() {
           <Row
             icon="fi-rr-calendar"
             label="Resumo semanal"
-            desc="Todo domingo, um resumo das transações da semana"
-            on={settings.notifWeeklyReport}
-            onChange={v => set('notifWeeklyReport', v)}
+            desc="Todo domingo, um resumo das transações da semana — requer agendamento no servidor, ainda não implementado"
+            badge="em breve"
+            on={false}
+            disabled
+            onChange={() => {}}
           />
           <Row
             icon="fi-rr-chart-pie"
             label="Resumo mensal"
-            desc="No primeiro dia do mês, análise completa do mês anterior"
-            on={settings.notifMonthlyReport}
-            onChange={v => set('notifMonthlyReport', v)}
+            desc="No primeiro dia do mês, análise completa do mês anterior — requer agendamento no servidor, ainda não implementado"
+            badge="em breve"
+            on={false}
+            disabled
+            onChange={() => {}}
           />
         </Section>
       </div>

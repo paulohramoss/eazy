@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtN = (n, d = 2) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
 
 const TYPES = ['Ação', 'Cripto', 'FII/ETF', 'Renda F.', 'Outro']
@@ -72,6 +71,7 @@ async function fetchOneTicker(ticker, tab) {
 // ─── Market Explorer ──────────────────────────────────────────────────────────
 
 function MarketExplorer({ onAdd }) {
+  const { formatCurrency: fmt } = useApp()
   const [tab, setTab] = useState('Ação')
   const [quotes, setQuotes] = useState({})
   const [loading, setLoading] = useState(false)
@@ -259,6 +259,7 @@ function AllocationDonut({ data }) {
 // ─── Investment Modal ─────────────────────────────────────────────────────────
 
 function InvModal({ initial, onSave, onClose }) {
+  const { currencySymbol } = useApp()
   const [form, setForm] = useState(() => {
     if (!initial) return EMPTY_FORM
     return {
@@ -317,11 +318,11 @@ function InvModal({ initial, onSave, onClose }) {
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Preço Médio (R$)</label>
+          <label className="form-label">Preço Médio ({currencySymbol})</label>
           <CurrencyInput className="form-input" value={form.avgPrice} onChange={v => set('avgPrice', v)} />
         </div>
         <div className="form-group">
-          <label className="form-label">Preço Atual (R$)</label>
+          <label className="form-label">Preço Atual ({currencySymbol})</label>
           <CurrencyInput className="form-input" value={form.currentPrice} onChange={v => set('currentPrice', v)} />
         </div>
       </div>
@@ -375,7 +376,7 @@ function ConfirmModal({ name, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Investments() {
-  const { investments, addInvestment, updateInvestment, deleteInvestment } = useApp()
+  const { investments, addInvestment, updateInvestment, deleteInvestment, formatCurrency: fmt } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)

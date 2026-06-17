@@ -2300,6 +2300,11 @@
   background: var(--accent);
 }
 
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .toggle::after {
   content: '';
   position: absolute;
