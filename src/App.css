@@ -439,12 +439,6 @@
   color: var(--text-muted);
 }
 
-/* ── Metric icon variants ── */
-.metric-icon.purple { background: rgba(255, 255, 255, 0.08); }
-.metric-icon.green  { background: #E6F6EE; }
-.metric-icon.red    { background: #FDECEA; }
-.metric-icon.yellow { background: #F4FDD0; }
-
 .metric-header {
   display: flex;
   align-items: center;
@@ -469,18 +463,22 @@
 
 .metric-icon.purple {
   background: #EEF3FF;
+  color: var(--accent);
 }
 
 .metric-icon.green {
   background: #E6F6EE;
+  color: var(--accent-green);
 }
 
 .metric-icon.red {
   background: #FDECEA;
+  color: var(--accent-red);
 }
 
 .metric-icon.yellow {
   background: rgba(245, 158, 11, 0.12);
+  color: var(--accent-yellow);
 }
 
 .metric-value {
@@ -3582,11 +3580,6 @@
   background: var(--bg-secondary);
   border-color: var(--border);
   color: var(--text-primary);
-}
-
-/* Toggle */
-[data-theme="dark"] .toggle {
-  background: var(--border);
 }
 
 /* Header btn active */
