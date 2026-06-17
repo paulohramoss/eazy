@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from './AuthContext'
 import { db } from '../firebase'
 import {
@@ -87,6 +87,25 @@ const PREF_DEFAULTS = {
 // biometricEnabled stays device-local (credential registered per-device)
 const loadBiometric = (uid) => !!(JSON.parse(localStorage.getItem(`bio_${uid}`) || 'false'))
 const saveBiometric = (uid, val) => localStorage.setItem(`bio_${uid}`, JSON.stringify(!!val))
+
+// ─── Pure helpers (no closures over component state — safe to hoist) ─────────
+
+const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+const sumIncome   = (txs) => txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+const sumExpenses = (txs) => txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+const pctChange   = (curr, prev) => prev === 0 ? 0 : +(((curr - prev) / prev) * 100).toFixed(1)
+
+// Retorna a data de início do ciclo de faturamento atual do cartão
+const getCardCycleStart = (closingDay) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const day = today.getDate()
+  const y = today.getFullYear()
+  const m = today.getMonth()
+  return day >= closingDay
+    ? new Date(y, m, closingDay)
+    : new Date(y, m - 1, closingDay)
+}
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -197,36 +216,34 @@ export function AppProvider({ children }) {
 
   // ── Base doc fields ────────────────────────────────────────────────────────
 
-  const base = (data) => ({
+  const base = useCallback((data) => ({
     ...data,
     userId:       user.uid,
     allowedUsers: [user.uid],
     createdAt:    serverTimestamp(),
-  })
+  }), [user])
+
+  // ── Currency (settings.currency é a fonte da verdade — não hardcoded) ───────
+
+  const formatCurrency = useCallback((n) =>
+    (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: settings.currency || 'BRL' }),
+  [settings.currency])
+
+  const currencySymbol = useMemo(() => {
+    const parts = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: settings.currency || 'BRL' }).formatToParts(0)
+    return parts.find(p => p.type === 'currency')?.value || settings.currency
+  }, [settings.currency])
 
   // ── Computed ───────────────────────────────────────────────────────────────
 
   const now   = new Date()
-  const fmt   = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   const thisMonth = fmt(now)
   const lastMonth = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1))
 
-  const validTx   = transactions.filter(t => t.status !== 'failed')
-
-  // Retorna a data de início do ciclo de faturamento atual do cartão
-  const getCardCycleStart = (closingDay) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const day = today.getDate()
-    const y = today.getFullYear()
-    const m = today.getMonth()
-    return day >= closingDay
-      ? new Date(y, m, closingDay)
-      : new Date(y, m - 1, closingDay)
-  }
+  const validTx = useMemo(() => transactions.filter(t => t.status !== 'failed'), [transactions])
 
   // Retorna o total gasto no ciclo atual de um cartão
-  const getCardCurrentUsed = (cardId) => {
+  const getCardCurrentUsed = useCallback((cardId) => {
     const card = creditCards.find(c => c.id === cardId)
     if (!card) return 0
     const cycleStart = getCardCycleStart(card.closingDay || 1)
@@ -237,48 +254,60 @@ export function AppProvider({ children }) {
         return new Date(t.date + 'T00:00:00') >= cycleStart
       })
       .reduce((s, t) => s + (t.amount || 0), 0)
-  }
-  const txThis    = validTx.filter(t => t.date?.startsWith(thisMonth))
-  const txLast    = validTx.filter(t => t.date?.startsWith(lastMonth))
+  }, [creditCards, validTx])
 
-  const sumIncome   = (txs) => txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const sumExpenses = (txs) => txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const txThis = useMemo(() => validTx.filter(t => t.date?.startsWith(thisMonth)), [validTx, thisMonth])
+  const txLast = useMemo(() => validTx.filter(t => t.date?.startsWith(lastMonth)), [validTx, lastMonth])
 
-  const monthlyIncome   = sumIncome(txThis)
-  const monthlyExpenses = sumExpenses(txThis)
+  const monthlyIncome   = useMemo(() => sumIncome(txThis), [txThis])
+  const monthlyExpenses = useMemo(() => sumExpenses(txThis), [txThis])
   const monthlySavings  = monthlyIncome - monthlyExpenses
-  const lastIncome      = sumIncome(txLast)
-  const lastExpenses    = sumExpenses(txLast)
+  const lastIncome      = useMemo(() => sumIncome(txLast), [txLast])
+  const lastExpenses    = useMemo(() => sumExpenses(txLast), [txLast])
   const lastSavings     = lastIncome - lastExpenses
-  const pendingCount    = transactions.filter(t => t.status === 'pending').length
+  const pendingCount    = useMemo(() => transactions.filter(t => t.status === 'pending').length, [transactions])
 
   // Saldo real = saldo inicial + receitas − despesas de cada carteira
-  const walletBalances = wallets.reduce((acc, w) => {
+  const walletBalances = useMemo(() => wallets.reduce((acc, w) => {
     const income   = validTx.filter(t => t.walletId === w.id && t.type === 'income').reduce((s, t) => s + t.amount, 0)
     const expenses = validTx.filter(t => t.walletId === w.id && t.type === 'expense').reduce((s, t) => s + t.amount, 0)
     acc[w.id] = (w.balance || 0) + income - expenses
     return acc
-  }, {})
+  }, {}), [wallets, validTx])
 
-  const totalBalance = Object.values(walletBalances).reduce((s, b) => s + b, 0)
+  const totalBalance = useMemo(
+    () => Object.values(walletBalances).reduce((s, b) => s + b, 0),
+    [walletBalances]
+  )
 
-  const pctChange = (curr, prev) =>
-    prev === 0 ? 0 : +(((curr - prev) / prev) * 100).toFixed(1)
+  // Saldo no fim do mês anterior: só tx com data < 1º deste mês — exclui tx
+  // deste mês e parcelas/recorrências futuras (que já contam em totalBalance,
+  // mas não devem contar como "ganho deste mês" na comparação abaixo).
+  const lastBalance = useMemo(() => wallets.reduce((sum, w) => {
+    const txsUpToLastMonth = validTx.filter(t => t.walletId === w.id && t.date && t.date < `${thisMonth}-01`)
+    const income   = txsUpToLastMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+    const expenses = txsUpToLastMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    return sum + (w.balance || 0) + income - expenses
+  }, 0), [wallets, validTx, thisMonth])
 
-  const spendingByCategory = txThis
+  const spendingByCategory = useMemo(() => txThis
     .filter(t => t.type === 'expense')
-    .reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + t.amount; return acc }, {})
+    .reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + t.amount; return acc }, {}),
+  [txThis])
 
-  const monthlyChartData = Array.from({ length: 6 }, (_, i) => {
-    const d   = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
-    const key = fmt(d)
-    const txs = validTx.filter(t => t.date?.startsWith(key))
-    return { key, label: d.toLocaleString('pt-BR', { month: 'short' }), income: sumIncome(txs), expenses: sumExpenses(txs) }
-  })
+  const monthlyChartData = useMemo(() => {
+    const [y, m] = thisMonth.split('-').map(Number) // m é 1-based
+    return Array.from({ length: 6 }, (_, i) => {
+      const d   = new Date(y, (m - 1) - (5 - i), 1)
+      const key = fmt(d)
+      const txs = validTx.filter(t => t.date?.startsWith(key))
+      return { key, label: d.toLocaleString('pt-BR', { month: 'short' }), income: sumIncome(txs), expenses: sumExpenses(txs) }
+    })
+  }, [validTx, thisMonth])
 
   // ── Notification helpers ───────────────────────────────────────────────────
 
-  const checkBudgetNotify = (category, addedAmount, status) => {
+  const checkBudgetNotify = useCallback((category, addedAmount, status) => {
     if (status === 'failed') return
     const budget = budgets.find(b => b.category === category)
     if (!budget) return
@@ -292,9 +321,9 @@ export function AppProvider({ children }) {
     } else if (pct >= 80) {
       notify({ type: 'budget_near', data: { category, pct }, settings })
     }
-  }
+  }, [budgets, validTx, thisMonth, settings])
 
-  const checkCardNotify = (cardId, addedAmount, type, status) => {
+  const checkCardNotify = useCallback((cardId, addedAmount, type, status) => {
     if (type !== 'expense' || status === 'failed' || !cardId) return
     const card = creditCards.find(c => c.id === cardId)
     if (!card?.limit) return
@@ -305,11 +334,11 @@ export function AppProvider({ children }) {
     } else if (pct >= 80) {
       notify({ type: 'card_near', data: { cardName: card.name, pct, available: card.limit - projected }, settings })
     }
-  }
+  }, [creditCards, getCardCurrentUsed, settings])
 
   // ── Transactions ───────────────────────────────────────────────────────────
 
-  const addMultipleTransactions = async (data, mode, count) => {
+  const addMultipleTransactions = useCallback(async (data, mode, count) => {
     const batch = writeBatch(db)
     const baseDate = new Date(data.date + 'T12:00:00')
     const totalAmount = data.amount
@@ -326,9 +355,9 @@ export function AppProvider({ children }) {
       if (txDate.getMonth() !== (baseDate.getMonth() + i) % 12) {
         txDate.setDate(0)
       }
-      
+
       const dateStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`
-      
+
       let amount = perInstallment
       if (i === 0 && mode === 'installment') amount += remainder
 
@@ -341,7 +370,7 @@ export function AppProvider({ children }) {
         date: dateStr,
         name
       }
-      
+
       const docRef = doc(collection(db, COL.transactions))
       batch.set(docRef, base(txData))
     }
@@ -356,9 +385,9 @@ export function AppProvider({ children }) {
       checkBudgetNotify(data.category, firstAmount, data.status)
       checkCardNotify(data.cardId, firstAmount, data.type, data.status)
     }
-  }
+  }, [base, settings, checkBudgetNotify, checkCardNotify])
 
-  const addTransaction = async (data) => {
+  const addTransaction = useCallback(async (data) => {
     const ref = await addDoc(collection(db, COL.transactions), base(data))
 
     // Notificação: nova transação
@@ -383,54 +412,54 @@ export function AppProvider({ children }) {
     }
 
     return ref
-  }
+  }, [base, settings, checkBudgetNotify, checkCardNotify])
 
-  const updateTransaction = (id, data) =>
-    updateDoc(doc(db, COL.transactions, id), data)
+  const updateTransaction = useCallback((id, data) =>
+    updateDoc(doc(db, COL.transactions, id), data), [])
 
-  const deleteTransaction = (id) =>
-    deleteDoc(doc(db, COL.transactions, id))
+  const deleteTransaction = useCallback((id) =>
+    deleteDoc(doc(db, COL.transactions, id)), [])
 
-  const bulkDeleteTransactions = async (ids) => {
+  const bulkDeleteTransactions = useCallback(async (ids) => {
     const batch = writeBatch(db)
     ids.forEach(id => batch.delete(doc(db, COL.transactions, id)))
     await batch.commit()
-  }
+  }, [])
 
   // ── Wallets ────────────────────────────────────────────────────────────────
 
-  const addWallet = (data) =>
-    addDoc(collection(db, COL.wallets), base(data))
+  const addWallet = useCallback((data) =>
+    addDoc(collection(db, COL.wallets), base(data)), [base])
 
-  const updateWallet = (id, data) =>
-    updateDoc(doc(db, COL.wallets, id), data)
+  const updateWallet = useCallback((id, data) =>
+    updateDoc(doc(db, COL.wallets, id), data), [])
 
-  const deleteWallet = (id) =>
-    deleteDoc(doc(db, COL.wallets, id))
+  const deleteWallet = useCallback((id) =>
+    deleteDoc(doc(db, COL.wallets, id)), [])
 
   // ── Budgets ────────────────────────────────────────────────────────────────
 
-  const addBudget = (data) =>
-    addDoc(collection(db, COL.budgets), base(data))
+  const addBudget = useCallback((data) =>
+    addDoc(collection(db, COL.budgets), base(data)), [base])
 
-  const updateBudget = (id, data) =>
-    updateDoc(doc(db, COL.budgets, id), data)
+  const updateBudget = useCallback((id, data) =>
+    updateDoc(doc(db, COL.budgets, id), data), [])
 
-  const deleteBudget = (id) =>
-    deleteDoc(doc(db, COL.budgets, id))
+  const deleteBudget = useCallback((id) =>
+    deleteDoc(doc(db, COL.budgets, id)), [])
 
   // ── Goals ──────────────────────────────────────────────────────────────────
 
-  const addGoal = (data) =>
-    addDoc(collection(db, COL.goals), base({ ...data, current: Number(data.current) || 0 }))
+  const addGoal = useCallback((data) =>
+    addDoc(collection(db, COL.goals), base({ ...data, current: Number(data.current) || 0 })), [base])
 
-  const updateGoal = (id, data) =>
-    updateDoc(doc(db, COL.goals, id), data)
+  const updateGoal = useCallback((id, data) =>
+    updateDoc(doc(db, COL.goals, id), data), [])
 
-  const deleteGoal = (id) =>
-    deleteDoc(doc(db, COL.goals, id))
+  const deleteGoal = useCallback((id) =>
+    deleteDoc(doc(db, COL.goals, id)), [])
 
-  const contributeGoal = async (id, amount) => {
+  const contributeGoal = useCallback(async (id, amount) => {
     const goal = goals.find(g => g.id === id)
     if (!goal) return
     const newCurrent = Math.min(goal.current + Number(amount), goal.target)
@@ -438,48 +467,48 @@ export function AppProvider({ children }) {
     if (newCurrent >= goal.target) {
       notify({ type: 'goal_reached', data: { goalName: goal.name, amount: goal.target }, settings })
     }
-  }
+  }, [goals, settings])
 
   // ── Investments ────────────────────────────────────────────────────────────
 
-  const addInvestment = (data) =>
-    addDoc(collection(db, COL.investments), base(data))
+  const addInvestment = useCallback((data) =>
+    addDoc(collection(db, COL.investments), base(data)), [base])
 
-  const updateInvestment = (id, data) =>
-    updateDoc(doc(db, COL.investments, id), data)
+  const updateInvestment = useCallback((id, data) =>
+    updateDoc(doc(db, COL.investments, id), data), [])
 
-  const deleteInvestment = (id) =>
-    deleteDoc(doc(db, COL.investments, id))
+  const deleteInvestment = useCallback((id) =>
+    deleteDoc(doc(db, COL.investments, id)), [])
 
   // ── Credit Cards ───────────────────────────────────────────────────────────
 
-  const addCreditCard = (data) =>
-    addDoc(collection(db, COL.creditCards), base(data))
+  const addCreditCard = useCallback((data) =>
+    addDoc(collection(db, COL.creditCards), base(data)), [base])
 
-  const updateCreditCard = (id, data) =>
-    updateDoc(doc(db, COL.creditCards, id), data)
+  const updateCreditCard = useCallback((id, data) =>
+    updateDoc(doc(db, COL.creditCards, id), data), [])
 
-  const deleteCreditCard = (id) =>
-    deleteDoc(doc(db, COL.creditCards, id))
+  const deleteCreditCard = useCallback((id) =>
+    deleteDoc(doc(db, COL.creditCards, id)), [])
 
   // ── Alerts ─────────────────────────────────────────────────────────────────
 
-  const addAlert = (data) =>
-    addDoc(collection(db, COL.alerts), base(data))
+  const addAlert = useCallback((data) =>
+    addDoc(collection(db, COL.alerts), base(data)), [base])
 
-  const updateAlert = (id, data) =>
-    updateDoc(doc(db, COL.alerts, id), data)
+  const updateAlert = useCallback((id, data) =>
+    updateDoc(doc(db, COL.alerts, id), data), [])
 
-  const deleteAlert = (id) =>
-    deleteDoc(doc(db, COL.alerts, id))
+  const deleteAlert = useCallback((id) =>
+    deleteDoc(doc(db, COL.alerts, id)), [])
 
-  const alertsDueCount = alerts.filter(a => {
+  const alertsDueCount = useMemo(() => alerts.filter(a => {
     if (a.paid) return false
     const today = new Date()
     const due = new Date(a.dueDate + 'T12:00:00')
     const diff = (due - today) / (1000 * 60 * 60 * 24)
     return diff <= 3
-  }).length
+  }).length, [alerts])
 
   // ── Export / Import ────────────────────────────────────────────────────────
 
@@ -489,7 +518,7 @@ export function AppProvider({ children }) {
     URL.revokeObjectURL(url)
   }
 
-  const exportJSON = () => {
+  const exportJSON = useCallback(() => {
     const strip = arr => arr.map(({ id, userId, allowedUsers, createdAt, ...rest }) => rest)
     _download(
       JSON.stringify({ version: '1.0', exportedAt: new Date().toISOString(),
@@ -499,9 +528,9 @@ export function AppProvider({ children }) {
       `eazy-backup-${new Date().toISOString().split('T')[0]}.json`,
       'application/json'
     )
-  }
+  }, [transactions, wallets, budgets, goals, investments, creditCards])
 
-  const exportCSV = () => {
+  const exportCSV = useCallback(() => {
     const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
     const header = ['Data','Descrição','Tipo','Categoria','Valor','Status','Carteira','Observações']
     const rows = [...transactions]
@@ -519,27 +548,36 @@ export function AppProvider({ children }) {
       `eazy-transacoes-${new Date().toISOString().split('T')[0]}.csv`,
       'text/csv;charset=utf-8'
     )
-  }
+  }, [transactions, wallets])
 
-  const importJSON = async (file) => {
+  const importJSON = useCallback(async (file) => {
     const text = await file.text()
     const data = JSON.parse(text)
     if (!data.version || !Array.isArray(data.transactions)) throw new Error('Arquivo inválido ou corrompido')
-    const batch = writeBatch(db)
-    const push = (items, col) => items?.forEach(item => batch.set(doc(collection(db, col)), base(item)))
+
+    const entries = []
+    const push = (items, col) => items?.forEach(item => entries.push({ item, col }))
     push(data.transactions, COL.transactions)
     push(data.wallets,      COL.wallets)
     push(data.budgets,      COL.budgets)
     push(data.goals,        COL.goals)
     push(data.investments,  COL.investments)
     push(data.creditCards,  COL.creditCards)
-    await batch.commit()
+
+    // writeBatch tem teto de 500 operações — quebra em chunks pra backups grandes
+    const CHUNK_SIZE = 450
+    for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db)
+      entries.slice(i, i + CHUNK_SIZE).forEach(({ item, col }) => batch.set(doc(collection(db, col)), base(item)))
+      await batch.commit()
+    }
+
     return data.transactions?.length ?? 0
-  }
+  }, [base])
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  const updateSettings = (data) => {
+  const updateSettings = useCallback((data) => {
     setSettings(prev => {
       const next = { ...prev, ...data }
       const { name, email, initials, biometricEnabled, ...prefs } = next
@@ -548,45 +586,64 @@ export function AppProvider({ children }) {
       updateDoc(doc(db, COL.users, user.uid), { prefs }).catch(console.error)
       return next
     })
-  }
+  }, [user])
 
-  const toggleTheme = () =>
-    updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
+  const toggleTheme = useCallback(() =>
+    updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' }),
+  [settings.theme, updateSettings])
 
-  const addCategory = (name) => {
+  const addCategory = useCallback((name) => {
     const trimmed = name.trim()
     if (!trimmed || categories.includes(trimmed)) return
     const next = [...categories, trimmed]
     setCategories(next)
     updateDoc(doc(db, COL.users, user.uid), { categories: next }).catch(console.error)
-  }
+  }, [categories, user])
 
-  const removeCategory = (name) => {
+  const removeCategory = useCallback((name) => {
     const next = categories.filter(c => c !== name)
     setCategories(next)
     updateDoc(doc(db, COL.users, user.uid), { categories: next }).catch(console.error)
-  }
+  }, [categories, user])
 
   // ── Value ──────────────────────────────────────────────────────────────────
 
+  const value = useMemo(() => ({
+    transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
+    settings, categories, dbLoading,
+    totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
+    lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
+    spendingByCategory, monthlyChartData, thisMonth,
+    pctChange, getCardCurrentUsed, formatCurrency, currencySymbol,
+    addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
+    addWallet, updateWallet, deleteWallet,
+    addBudget, updateBudget, deleteBudget,
+    addGoal, updateGoal, deleteGoal, contributeGoal,
+    addInvestment, updateInvestment, deleteInvestment,
+    addCreditCard, updateCreditCard, deleteCreditCard,
+    addAlert, updateAlert, deleteAlert,
+    updateSettings, toggleTheme, addCategory, removeCategory,
+    exportJSON, exportCSV, importJSON,
+  }), [
+    transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
+    settings, categories, dbLoading,
+    totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
+    lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
+    spendingByCategory, monthlyChartData, thisMonth,
+    getCardCurrentUsed, formatCurrency, currencySymbol,
+    addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
+    addWallet, updateWallet, deleteWallet,
+    addBudget, updateBudget, deleteBudget,
+    addGoal, updateGoal, deleteGoal, contributeGoal,
+    addInvestment, updateInvestment, deleteInvestment,
+    addCreditCard, updateCreditCard, deleteCreditCard,
+    addAlert, updateAlert, deleteAlert,
+    updateSettings, toggleTheme, addCategory, removeCategory,
+    exportJSON, exportCSV, importJSON,
+  ])
+
   return (
-    <AppContext.Provider value={{
-      transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
-      settings, categories, dbLoading,
-      totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
-      lastIncome, lastExpenses, lastSavings, pendingCount,
-      spendingByCategory, monthlyChartData, thisMonth,
-      pctChange, getCardCurrentUsed,
-      addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
-      addWallet, updateWallet, deleteWallet,
-      addBudget, updateBudget, deleteBudget,
-      addGoal, updateGoal, deleteGoal, contributeGoal,
-      addInvestment, updateInvestment, deleteInvestment,
-      addCreditCard, updateCreditCard, deleteCreditCard,
-      addAlert, updateAlert, deleteAlert,
-      updateSettings, toggleTheme, addCategory, removeCategory,
-      exportJSON, exportCSV, importJSON,
-    }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   )

@@ -2,7 +2,7 @@ import { getFirebaseMessaging, getToken, onMessage, VAPID_KEY } from './firebase
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const fmt = (n, currency = 'BRL') => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency })
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:5175' : ''
 
@@ -66,6 +66,7 @@ export function listenForegroundMessages(callback) {
 
 export async function notify({ type, data = {}, settings }) {
   const { pushEnabled, emailEnabled, emailAddress } = settings
+  const fmtC = (n) => fmt(n, settings.currency)
 
   const notifMap = {
     transaction:   settings.notifNewTransaction,
@@ -89,7 +90,7 @@ export async function notify({ type, data = {}, settings }) {
   const titles = {
     transaction:   `${data.txType === 'income' ? 'Nova receita' : 'Nova despesa'}: ${data.name}`,
     transaction_pending: `Transação pendente: ${data.name}`,
-    large_expense: `Despesa alta: ${fmt(data.amount)}`,
+    large_expense: `Despesa alta: ${fmtC(data.amount)}`,
     budget_near:   `Orçamento de ${data.category} em ${data.pct}%`,
     budget_over:   `Orçamento de ${data.category} estourado!`,
     card_near:     `Cartão ${data.cardName} em ${data.pct}% do limite`,
@@ -104,16 +105,16 @@ export async function notify({ type, data = {}, settings }) {
   }
 
   const bodies = {
-    transaction:   data.amount ? fmt(data.amount) : '',
-    transaction_pending: `${data.amount ? fmt(data.amount) : ''} aguardando confirmação`,
-    large_expense: `${data.name} — ${fmt(data.amount)}`,
+    transaction:   data.amount ? fmtC(data.amount) : '',
+    transaction_pending: `${data.amount ? fmtC(data.amount) : ''} aguardando confirmação`,
+    large_expense: `${data.name} — ${fmtC(data.amount)}`,
     budget_near:   `Você usou ${data.pct}% do limite de ${data.category}`,
     budget_over:   `Limite de ${data.category} ultrapassado`,
-    card_near:     `Disponível: ${fmt(data.available)}`,
-    card_limit:    `Limite de ${fmt(data.limit)} esgotado`,
-    card_closing:  `Total da fatura: ${fmt(data.amount)}`,
-    card_due:      `Fatura de ${fmt(data.amount)} vence hoje`,
-    goal_reached:  `Meta de ${fmt(data.amount)} atingida`,
+    card_near:     `Disponível: ${fmtC(data.available)}`,
+    card_limit:    `Limite de ${fmtC(data.limit)} esgotado`,
+    card_closing:  `Total da fatura: ${fmtC(data.amount)}`,
+    card_due:      `Fatura de ${fmtC(data.amount)} vence hoje`,
+    goal_reached:  `Meta de ${fmtC(data.amount)} atingida`,
     goal_reminder: `Veja o progresso dos seus objetivos`,
     weekly_report: `Receitas: ${data.income} · Despesas: ${data.expenses}`,
     monthly_report:`Receitas: ${data.income} · Despesas: ${data.expenses}`,

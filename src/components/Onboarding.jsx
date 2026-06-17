@@ -13,7 +13,7 @@ const WALLET_TYPES = [
 const COLORS = ['#0053EF', '#CFF330', '#18A058', '#E8382A', '#F59E0B', '#0A0A0A']
 
 export default function Onboarding() {
-  const { addWallet, addTransaction, categories } = useApp()
+  const { addWallet, addTransaction, categories, currencySymbol } = useApp()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [skipTx, setSkipTx] = useState(false)
@@ -132,7 +132,7 @@ export default function Onboarding() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Saldo inicial (R$)</label>
+              <label className="form-label">Saldo inicial ({currencySymbol})</label>
               <CurrencyInput
                 className="form-input" autoFocus
                 style={{ fontSize: 32, fontWeight: 800, textAlign: 'center', height: 72 }}
@@ -186,7 +186,7 @@ export default function Onboarding() {
                     value={tx.name} onChange={e => setT('name', e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Valor (R$)</label>
+                  <label className="form-label">Valor ({currencySymbol})</label>
                   <CurrencyInput className="form-input" value={tx.amount} onChange={v => setT('amount', v)} />
                 </div>
               </div>
