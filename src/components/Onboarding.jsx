@@ -13,7 +13,7 @@ const WALLET_TYPES = [
 const COLORS = ['#0053EF', '#CFF330', '#18A058', '#E8382A', '#F59E0B', '#0A0A0A']
 
 export default function Onboarding() {
-  const { addWallet, addTransaction, categories, currencySymbol } = useApp()
+  const { addWallet, addTransaction, categories, currencySymbol, wallets, dbError } = useApp()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [skipTx, setSkipTx] = useState(false)
@@ -53,7 +53,7 @@ export default function Onboarding() {
       // wallets.length > 0 now — Dashboard unmounts this automatically
     } catch (err) {
       console.error('[Onboarding]', err)
-      setError('Não foi possível salvar. Verifique sua conexão e tente de novo.')
+      setError(`Falha ao salvar — ${err?.code || err?.message || String(err)}`)
     } finally {
       setLoading(false)
     }
@@ -75,6 +75,15 @@ export default function Onboarding() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 36 }}>
           {[1, 2, 3].map(bar)}
         </div>
+
+        {dbError && (
+          <div style={{
+            padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 20,
+            background: 'rgba(232,56,42,.12)', color: '#E8382A', wordBreak: 'break-word',
+          }}>
+            Erro de conexão com o banco — <strong>{dbError}</strong> (carteiras carregadas: {wallets.length})
+          </div>
+        )}
 
         {/* ── Step 1: Wallet type + name + color ─────────────────────────────── */}
         {step === 1 && (
