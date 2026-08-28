@@ -17,6 +17,7 @@ export default function Onboarding() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [skipTx, setSkipTx] = useState(false)
+  const [error, setError] = useState('')
 
   const [wallet, setWallet] = useState({
     name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON,
@@ -28,21 +29,34 @@ export default function Onboarding() {
   const setW = (k, v) => setWallet(w => ({ ...w, [k]: v }))
   const setT = (k, v) => setTx(t => ({ ...t, [k]: v }))
 
-  const handleFinish = async () => {
+  const txFilled = tx.name.trim() && Number(tx.amount) > 0
+  const txEmpty  = !tx.name.trim() && !Number(tx.amount)
+  // Concluir aceita: transação completa OU nenhum campo preenchido (vira skip).
+  // Só bloqueia no meio-termo (só descrição, ou só valor).
+  const canFinish = !loading && (skipTx || txFilled || txEmpty)
+
+  const handleFinish = async (skip = skipTx) => {
     setLoading(true)
-    const ref = await addWallet({ ...wallet, icon: resolveWalletIcon(wallet.icon, wallet.type) })
-    if (!skipTx && tx.name.trim() && Number(tx.amount) > 0) {
-      await addTransaction({
-        ...tx,
-        amount: Number(tx.amount),
-        walletId: ref.id,
-        date: new Date().toISOString().split('T')[0],
-        status: 'completed',
-        notes: '', tags: [], cardId: '',
-      })
+    setError('')
+    try {
+      const ref = await addWallet({ ...wallet, icon: resolveWalletIcon(wallet.icon, wallet.type) })
+      if (!skip && tx.name.trim() && Number(tx.amount) > 0) {
+        await addTransaction({
+          ...tx,
+          amount: Number(tx.amount),
+          walletId: ref.id,
+          date: new Date().toISOString().split('T')[0],
+          status: 'completed',
+          notes: '', tags: [], cardId: '',
+        })
+      }
+      // wallets.length > 0 now — Dashboard unmounts this automatically
+    } catch (err) {
+      console.error('[Onboarding]', err)
+      setError('Não foi possível salvar. Verifique sua conexão e tente de novo.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-    // wallets.length > 0 now — Dashboard unmounts this automatically
   }
 
   const bar = (n) => (
@@ -199,18 +213,29 @@ export default function Onboarding() {
               </div>
             )}
 
+            {error && (
+              <div style={{
+                padding: '10px 14px', borderRadius: 8, fontSize: 14,
+                background: 'rgba(232,56,42,.12)', color: 'var(--accent-red, #E8382A)',
+              }}>
+                {error}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100 }} onClick={() => setStep(2)}>
+              <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100 }}
+                disabled={loading} onClick={() => setStep(2)}>
                 ← Voltar
               </button>
-              <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100 }}
-                onClick={() => setSkipTx(s => !s)}>
-                {skipTx ? '+ Adicionar' : 'Pular'}
+              <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100, opacity: loading ? .5 : 1 }}
+                disabled={loading}
+                onClick={() => { setSkipTx(true); handleFinish(true) }}>
+                Pular
               </button>
               <button className="btn btn-primary"
-                style={{ flex: 2, padding: 14, fontSize: 16, minWidth: 140 }}
-                disabled={loading || (!skipTx && (!tx.name.trim() || !Number(tx.amount)))}
-                onClick={handleFinish}>
+                style={{ flex: 2, padding: 14, fontSize: 16, minWidth: 140, opacity: canFinish ? 1 : .45, cursor: canFinish ? 'pointer' : 'not-allowed' }}
+                disabled={!canFinish}
+                onClick={() => handleFinish()}>
                 {loading ? 'Salvando...' : 'Concluir ✓'}
               </button>
             </div>
