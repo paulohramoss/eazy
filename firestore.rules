@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Documento pertence ao usuário se o uid está em allowedUsers.
+    // Usado por get, list (a query é where('allowedUsers','array-contains',uid)),
+    // update e delete.
+    function isMember(data) {
+      return signedIn()
+        && data.allowedUsers is list
+        && request.auth.uid in data.allowedUsers;
+    }
+
+    // Na criação o cliente precisa se incluir em allowedUsers e marcar userId,
+    // senão daria pra criar doc órfão ou em nome de outro usuário.
+    function validNewDoc() {
+      return isMember(request.resource.data)
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Preferências e categorias — um doc por usuário, id = uid.
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /transactions/{docId} {
+      allow read:   if isMember(resource.data);
+      allow create: if validNewDoc();
+      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    match /wallets/{docId} {
+      allow read:   if isMember(resource.data);
+      allow create: if validNewDoc();
+      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    match /budgets/{docId} {
+      allow read:   if isMember(resource.data);
+      allow create: if validNewDoc();
+      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    match /goals/{docId} {
+      allow read:   if isMember(resource.data);
+      allow create: if validNewDoc();
+      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    match /investments/{docId} {
+      allow read:   if isMember(resource.data);
+      allow create: if validNewDoc();
+      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    match /creditCards/{docId} {
+      allow read:   if isMember(resource.data);
+      allow create: if validNewDoc();
+      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    match /alerts/{docId} {
+      allow read:   if isMember(resource.data);
+      allow create: if validNewDoc();
+      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    // Nada mais é acessível.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
