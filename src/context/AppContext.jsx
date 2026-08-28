@@ -124,6 +124,7 @@ export function AppProvider({ children }) {
   const [settings,     setSettings]     = useState(PREF_DEFAULTS)
   const [categories,   setCategories]   = useState(CATEGORIES)
   const [dbLoading,    setDbLoading]    = useState(true)
+  const [dbError,      setDbError]      = useState('')
 
   // ── Subscribe to Firestore collections ────────────────────────────────────
 
@@ -137,6 +138,7 @@ export function AppProvider({ children }) {
     }
 
     setDbLoading(true)
+    setDbError('')
     const uid = user.uid
     const userQuery = (col) => query(collection(db, col), where('allowedUsers', 'array-contains', uid))
     const authDisplay = {
@@ -157,6 +159,7 @@ export function AppProvider({ children }) {
     // nunca chega a avaliar. Erro também precisa liberar o "ready".
     const onSnapError = (label) => (err) => {
       console.error(`[Firestore:${label}]`, err)
+      setDbError(`${label}: ${err?.code || err?.message || String(err)}`)
     }
 
     const unsubs = [
@@ -618,7 +621,7 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
-    settings, categories, dbLoading,
+    settings, categories, dbLoading, dbError,
     totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
@@ -634,7 +637,7 @@ export function AppProvider({ children }) {
     exportJSON, exportCSV, importJSON,
   }), [
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
-    settings, categories, dbLoading,
+    settings, categories, dbLoading, dbError,
     totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
