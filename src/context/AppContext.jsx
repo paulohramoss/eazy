@@ -125,6 +125,10 @@ export function AppProvider({ children }) {
   const [categories,   setCategories]   = useState(CATEGORIES)
   const [dbLoading,    setDbLoading]    = useState(true)
   const [dbError,      setDbError]      = useState('')
+  // addWallet confirmado pelo servidor. O gate do Onboarding depende de
+  // wallets.length, alimentado só pelo onSnapshot — se o listener falhar
+  // (regra negada, rede), a tela nunca sairia mesmo com a carteira gravada.
+  const [walletCreated, setWalletCreated] = useState(false)
 
   // ── Subscribe to Firestore collections ────────────────────────────────────
 
@@ -133,6 +137,7 @@ export function AppProvider({ children }) {
       setTransactions([]); setWallets([]); setBudgets([])
       setGoals([]); setInvestments([]); setCreditCards([]); setAlerts([])
       setSettings(PREF_DEFAULTS); setCategories(CATEGORIES)
+      setWalletCreated(false)
       setDbLoading(false)
       return
     }
@@ -439,8 +444,11 @@ export function AppProvider({ children }) {
 
   // ── Wallets ────────────────────────────────────────────────────────────────
 
-  const addWallet = useCallback((data) =>
-    addDoc(collection(db, COL.wallets), base(data)), [base])
+  const addWallet = useCallback(async (data) => {
+    const ref = await addDoc(collection(db, COL.wallets), base(data))
+    setWalletCreated(true)
+    return ref
+  }, [base])
 
   const updateWallet = useCallback((id, data) =>
     updateDoc(doc(db, COL.wallets, id), data), [])
@@ -621,7 +629,7 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
-    settings, categories, dbLoading, dbError,
+    settings, categories, dbLoading, dbError, walletCreated,
     totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
@@ -637,7 +645,7 @@ export function AppProvider({ children }) {
     exportJSON, exportCSV, importJSON,
   }), [
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
-    settings, categories, dbLoading, dbError,
+    settings, categories, dbLoading, dbError, walletCreated,
     totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,

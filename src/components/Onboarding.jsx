@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
@@ -18,6 +18,9 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false)
   const [skipTx, setSkipTx] = useState(false)
   const [error, setError] = useState('')
+  // Cada clique em Pular/Concluir chamava addWallet de novo. Se a tela não
+  // desmontasse (listener negado), cada clique criava uma carteira órfã.
+  const walletRef = useRef(null)
 
   const [wallet, setWallet] = useState({
     name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON,
@@ -39,7 +42,9 @@ export default function Onboarding() {
     setLoading(true)
     setError('')
     try {
-      const ref = await addWallet({ ...wallet, icon: resolveWalletIcon(wallet.icon, wallet.type) })
+      const ref = walletRef.current
+        || await addWallet({ ...wallet, icon: resolveWalletIcon(wallet.icon, wallet.type) })
+      walletRef.current = ref
       if (!skip && tx.name.trim() && Number(tx.amount) > 0) {
         await addTransaction({
           ...tx,

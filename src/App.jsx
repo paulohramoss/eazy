@@ -213,7 +213,7 @@ function Dashboard() {
   const [converterOpen, setConverterOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const {
-    settings, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading,
+    settings, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, walletCreated,
     creditCards, categories, addTransaction, addMultipleTransactions,
   } = useApp()
   const { logOut } = useAuth()
@@ -231,7 +231,9 @@ function Dashboard() {
   const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const { title, sub } = SCREEN_TITLES[screen] || SCREEN_TITLES.overview
 
-  if (!dbLoading && wallets.length === 0) return <Onboarding />
+  // walletCreated cobre o caso em que a carteira foi gravada mas o listener
+  // não conseguiu ler de volta — sem isso o onboarding se repete pra sempre.
+  if (!dbLoading && wallets.length === 0 && !walletCreated) return <Onboarding />
 
   return (
     <div className="dashboard">
