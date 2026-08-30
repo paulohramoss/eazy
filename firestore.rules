@@ -7,13 +7,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Documento pertence ao usuário se o uid está em allowedUsers.
-    // Usado por get, list (a query é where('allowedUsers','array-contains',uid)),
-    // update e delete.
+    // get / update / delete — aqui existe um documento concreto, então dá pra
+    // checar o tipo do campo antes de usá-lo.
     function isMember(data) {
       return signedIn()
         && data.allowedUsers is list
         && request.auth.uid in data.allowedUsers;
+    }
+
+    // list — o Firestore não avalia a regra contra documentos reais: ele tenta
+    // provar que ela é verdadeira para todo documento que a query poderia
+    // retornar, usando só as restrições da query. O `is list` de isMember() não
+    // é dedutível de where('allowedUsers','array-contains',uid), o solver falha
+    // em prová-lo e nega a query inteira — daí o permission-denied em todas as
+    // sete coleções. Aqui fica só a condição que a própria query garante.
+    function canList() {
+      return signedIn() && request.auth.uid in resource.data.allowedUsers;
     }
 
     // Na criação o cliente precisa se incluir em allowedUsers e marcar userId,
@@ -29,49 +38,56 @@ service cloud.firestore {
     }
 
     match /transactions/{docId} {
-      allow read:   if isMember(resource.data);
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
       allow create: if validNewDoc();
       allow update: if isMember(resource.data) && isMember(request.resource.data);
       allow delete: if isMember(resource.data);
     }
 
     match /wallets/{docId} {
-      allow read:   if isMember(resource.data);
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
       allow create: if validNewDoc();
       allow update: if isMember(resource.data) && isMember(request.resource.data);
       allow delete: if isMember(resource.data);
     }
 
     match /budgets/{docId} {
-      allow read:   if isMember(resource.data);
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
       allow create: if validNewDoc();
       allow update: if isMember(resource.data) && isMember(request.resource.data);
       allow delete: if isMember(resource.data);
     }
 
     match /goals/{docId} {
-      allow read:   if isMember(resource.data);
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
       allow create: if validNewDoc();
       allow update: if isMember(resource.data) && isMember(request.resource.data);
       allow delete: if isMember(resource.data);
     }
 
     match /investments/{docId} {
-      allow read:   if isMember(resource.data);
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
       allow create: if validNewDoc();
       allow update: if isMember(resource.data) && isMember(request.resource.data);
       allow delete: if isMember(resource.data);
     }
 
     match /creditCards/{docId} {
-      allow read:   if isMember(resource.data);
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
       allow create: if validNewDoc();
       allow update: if isMember(resource.data) && isMember(request.resource.data);
       allow delete: if isMember(resource.data);
     }
 
     match /alerts/{docId} {
-      allow read:   if isMember(resource.data);
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
       allow create: if validNewDoc();
       allow update: if isMember(resource.data) && isMember(request.resource.data);
       allow delete: if isMember(resource.data);
