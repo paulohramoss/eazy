@@ -58,6 +58,12 @@ const NAV = [
   },
 ]
 
+// No desktop as seções viram accordions na sidebar. No mobile a sidebar vira
+// tab bar e os accordions são escondidos — sem isto estas telas ficariam
+// inalcançáveis no celular. A aba "Mais" abre a folha com todas elas.
+const NAV_SECTIONS = NAV.filter(i => i.section)
+const MORE_SCREENS = NAV_SECTIONS.flatMap(sec => sec.children.map(c => c.screen))
+
 const SCREEN_TITLES = {
   overview: { title: 'Visão Geral', sub: 'Resumo financeiro completo' },
   transactions: { title: 'Transações', sub: 'Histórico de movimentações' },
@@ -128,6 +134,39 @@ function NavAccordion({ item, screen, setScreen, badges = {} }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ─── Folha "Mais" (tab bar do mobile) ────────────────────────────────────────
+
+function MoreSheet({ screen, onNavigate, onClose, badges }) {
+  return createPortal(
+    <div className="more-sheet-backdrop" onClick={onClose}>
+      <div className="more-sheet" onClick={e => e.stopPropagation()}>
+        <div className="more-sheet-handle" />
+        {NAV_SECTIONS.map(sec => (
+          <div key={sec.section} className="more-sheet-group">
+            <div className="more-sheet-title">{sec.section}</div>
+            <div className="more-sheet-items">
+              {sec.children.map(child => (
+                <button
+                  key={child.screen}
+                  className={`more-sheet-item${screen === child.screen ? ' active' : ''}`}
+                  onClick={() => { onNavigate(child.screen); onClose() }}
+                >
+                  <i className={`fi ${child.icon}`} />
+                  <span>{child.label}</span>
+                  {badges[child.screen] > 0 && (
+                    <span className="more-sheet-badge">{badges[child.screen]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>,
+    document.body
   )
 }
 
@@ -212,6 +251,7 @@ function Dashboard() {
   const [calcOpen, setCalcOpen] = useState(false)
   const [converterOpen, setConverterOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const {
     settings, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, walletCreated,
     creditCards, categories, addTransaction, addMultipleTransactions,
@@ -267,9 +307,26 @@ function Dashboard() {
               </div>
             )
           )}
+
+          <div
+            className={`nav-item nav-item--more${MORE_SCREENS.includes(screen) ? ' active' : ''}`}
+            onClick={() => setMoreOpen(true)}
+          >
+            <i className="fi fi-rr-menu-burger nav-icon" />
+            Mais
+          </div>
         </nav>
 
       </aside>
+
+      {moreOpen && (
+        <MoreSheet
+          screen={screen}
+          onNavigate={navigate}
+          onClose={() => setMoreOpen(false)}
+          badges={{ alerts: alertsDueCount, transactions: pendingCount }}
+        />
+      )}
 
       {/* Main */}
       <main className="main">
