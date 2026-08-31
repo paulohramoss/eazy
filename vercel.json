@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/bolsai/:path*", "destination": "/api/bolsai?path=:path*" }
+  ]
+}
