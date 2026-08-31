@@ -2318,6 +2318,46 @@
   padding-bottom: 0;
 }
 
+/* ─── Seletor de tema (Claro / Escuro / Sistema) ─────────── */
+.theme-choice {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.theme-choice-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+
+.theme-choice-btn:hover {
+  color: var(--text-primary);
+}
+
+.theme-choice-btn--active {
+  background: var(--bg-card);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+/* Em tela estreita sobra só o ícone — 3 botões com rótulo não cabem. */
+@media (max-width: 480px) {
+  .theme-choice-btn span { display: none; }
+  .theme-choice-btn { padding: 6px 10px; font-size: 14px; }
+}
+
 .toggle-info {
   flex: 1;
   margin-right: 12px;
