@@ -253,7 +253,7 @@ function Dashboard() {
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const {
-    settings, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, walletCreated,
+    settings, resolvedTheme, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, walletCreated,
     creditCards, categories, addTransaction, addMultipleTransactions,
   } = useApp()
   const { logOut } = useAuth()
@@ -264,13 +264,16 @@ function Dashboard() {
   const navigate = (s) => { setScreen(s); localStorage.setItem('eazy_screen', s) }
 
   useEffect(() => {
-    const theme = settings.theme === 'dark' ? 'dark' : 'light'
-    document.documentElement.setAttribute('data-theme', theme)
-    // Cache lido pelo boot script no index.html — evita o flash de tema errado
-    // enquanto o Firestore ainda não respondeu.
-    try { localStorage.setItem('eazy_theme', theme) } catch { /* modo privado */ }
+    document.documentElement.setAttribute('data-theme', resolvedTheme)
     document.getElementById('meta-theme-color')
-      ?.setAttribute('content', theme === 'dark' ? '#111111' : '#FFF9EF')
+      ?.setAttribute('content', resolvedTheme === 'dark' ? '#111111' : '#FFF9EF')
+  }, [resolvedTheme])
+
+  // Cacheia a preferência, não o tema resolvido: o boot script no index.html
+  // resolve 'system' contra o SO na hora, então trocar o tema do sistema entre
+  // sessões não deixa um valor velho grudado.
+  useEffect(() => {
+    try { localStorage.setItem('eazy_theme', settings.theme) } catch { /* modo privado */ }
   }, [settings.theme])
 
   const now = new Date()
@@ -374,10 +377,10 @@ function Dashboard() {
 
             <button
               className="header-btn theme-toggle"
-              title={settings.theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+              title={resolvedTheme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
               onClick={toggleTheme}
             >
-              <i className={`fi ${settings.theme === 'dark' ? 'fi-rr-sun' : 'fi-rr-moon'}`} />
+              <i className={`fi ${resolvedTheme === 'dark' ? 'fi-rr-sun' : 'fi-rr-moon'}`} />
             </button>
 
             {calcOpen && (

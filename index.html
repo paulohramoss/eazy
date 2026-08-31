@@ -18,17 +18,19 @@
   <div id="root"></div>
   <script>
     (function() {
-      var theme
+      var pref
       try {
         // Cache gravado pelo App a cada troca de tema. As prefs_* sao apagadas
         // apos a migracao pro Firestore, entao sozinhas nao cobrem reloads.
-        theme = localStorage.getItem('eazy_theme')
-        if (!theme) {
+        pref = localStorage.getItem('eazy_theme')
+        if (!pref) {
           var uid = Object.keys(localStorage).find(function(k) { return k.startsWith('prefs_') })
-          if (uid) theme = (JSON.parse(localStorage.getItem(uid)) || {}).theme
+          if (uid) pref = (JSON.parse(localStorage.getItem(uid)) || {}).theme
         }
       } catch (e) {}
-      if (theme !== 'dark' && theme !== 'light') theme = 'light'
+      // Só 'light'/'dark' sao escolha explicita. 'system', ausente ou lixo segue o SO.
+      var theme = (pref === 'dark' || pref === 'light') ? pref
+        : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
       document.documentElement.setAttribute('data-theme', theme)
       document.getElementById('meta-theme-color')
         .setAttribute('content', theme === 'dark' ? '#111111' : '#FFF9EF')

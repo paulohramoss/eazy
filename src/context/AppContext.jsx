@@ -58,7 +58,7 @@ const COL = {
 // ─── Settings helpers ─────────────────────────────────────────────────────────
 
 const PREF_DEFAULTS = {
-  currency: 'BRL', language: 'pt-BR', theme: 'light',
+  currency: 'BRL', language: 'pt-BR', theme: 'system',
   // canais
   pushEnabled: false,
   emailEnabled: false, emailAddress: '',
@@ -122,6 +122,8 @@ export function AppProvider({ children }) {
   const [creditCards,  setCreditCards]  = useState([])
   const [alerts,       setAlerts]       = useState([])
   const [settings,     setSettings]     = useState(PREF_DEFAULTS)
+  const [systemDark,   setSystemDark]   = useState(
+    () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
   const [categories,   setCategories]   = useState(CATEGORIES)
   const [dbLoading,    setDbLoading]    = useState(true)
   const [dbError,      setDbError]      = useState('')
@@ -238,6 +240,14 @@ export function AppProvider({ children }) {
     allowedUsers: [user.uid],
     createdAt:    serverTimestamp(),
   }), [user])
+
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
+    if (!mq) return
+    const onChange = e => setSystemDark(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   // ── Currency (settings.currency é a fonte da verdade — não hardcoded) ───────
 
@@ -615,9 +625,18 @@ export function AppProvider({ children }) {
     })
   }, [user])
 
+  // theme guarda a preferência ('system' | 'light' | 'dark'); resolvedTheme é o
+  // que a UI realmente pinta. Só 'light'/'dark' contam como escolha explícita —
+  // qualquer outro valor (inclusive prefs antigas sem o campo) segue o sistema.
+  const resolvedTheme = settings.theme === 'light' || settings.theme === 'dark'
+    ? settings.theme
+    : (systemDark ? 'dark' : 'light')
+
+  // Alterna a partir do que está na tela, senão sair de 'system' no escuro
+  // acenderia o escuro de novo.
   const toggleTheme = useCallback(() =>
-    updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' }),
-  [settings.theme, updateSettings])
+    updateSettings({ theme: resolvedTheme === 'dark' ? 'light' : 'dark' }),
+  [resolvedTheme, updateSettings])
 
   const addCategory = useCallback((name) => {
     const trimmed = name.trim()
@@ -637,7 +656,7 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
-    settings, categories, dbLoading, dbError, walletCreated,
+    settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
     totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
@@ -653,7 +672,7 @@ export function AppProvider({ children }) {
     exportJSON, exportCSV, importJSON,
   }), [
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
-    settings, categories, dbLoading, dbError, walletCreated,
+    settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
     totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,

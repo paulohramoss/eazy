@@ -2,6 +2,12 @@ import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import Toggle from './Toggle'
 
+const THEME_OPTIONS = [
+  { value: 'light',  label: 'Claro',   icon: 'fi-rr-sun' },
+  { value: 'dark',   label: 'Escuro',  icon: 'fi-rr-moon' },
+  { value: 'system', label: 'Sistema', icon: 'fi-rr-laptop' },
+]
+
 // ─── Section ──────────────────────────────────────────────────────────────────
 
 function Section({ icon, title, children }) {
@@ -19,7 +25,7 @@ function Section({ icon, title, children }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const { settings, updateSettings, toggleTheme, categories, addCategory, removeCategory,
+  const { settings, resolvedTheme, updateSettings, categories, addCategory, removeCategory,
           exportJSON, exportCSV, importJSON } = useApp()
   const [newCat, setNewCat] = useState('')
   const [importStatus, setImportStatus] = useState(null) // null | 'loading' | { ok, msg }
@@ -112,12 +118,34 @@ export default function Settings() {
               <div className="toggle-row">
                 <div className="toggle-info">
                   <div className="toggle-label">
-                    <i className={`fi ${settings.theme === 'dark' ? 'fi-rr-moon' : 'fi-rr-sun'}`} style={{ marginRight: 6 }} />
-                    {settings.theme === 'dark' ? 'Tema Escuro' : 'Tema Claro'}
+                    <i className={`fi ${resolvedTheme === 'dark' ? 'fi-rr-moon' : 'fi-rr-sun'}`} style={{ marginRight: 6 }} />
+                    Aparência
                   </div>
-                  <div className="toggle-desc">Alternar entre modo claro e escuro</div>
+                  <div className="toggle-desc">
+                    {settings.theme === 'light' || settings.theme === 'dark'
+                      ? 'Escolha fixa — ignora o tema do sistema'
+                      : `Seguindo o sistema — ${resolvedTheme === 'dark' ? 'escuro' : 'claro'}`}
+                  </div>
                 </div>
-                <Toggle on={settings.theme === 'dark'} onChange={toggleTheme} />
+                <div className="theme-choice">
+                  {THEME_OPTIONS.map(o => {
+                    const active = o.value === 'system'
+                      ? settings.theme !== 'light' && settings.theme !== 'dark'
+                      : settings.theme === o.value
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        aria-pressed={active}
+                        className={`theme-choice-btn${active ? ' theme-choice-btn--active' : ''}`}
+                        onClick={() => updateSettings({ theme: o.value })}
+                      >
+                        <i className={`fi ${o.icon}`} />
+                        <span>{o.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div className="toggle-row">
                 <div className="toggle-info">
