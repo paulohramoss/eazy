@@ -306,6 +306,20 @@ export function AppProvider({ children }) {
     [walletBalances]
   )
 
+  // Saldo e movimentação de cada carteira acumulados até uma data (inclusive).
+  // Mesma regra do walletBalances acima — validTx, ou seja, ignora as falhadas —
+  // só que com corte por data. Sem cutoff, equivale ao saldo cheio, que inclui
+  // parcelas e recorrências com data futura.
+  // Transação sem data fica de fora: não dá para dizer se entra no corte.
+  const walletStatsAsOf = useCallback((cutoff) => wallets.reduce((acc, w) => {
+    const tx = validTx.filter(t =>
+      t.walletId === w.id && (!cutoff || (t.date && t.date <= cutoff)))
+    const income   = tx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+    const expenses = tx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    acc[w.id] = { balance: (w.balance || 0) + income - expenses, income, expenses }
+    return acc
+  }, {}), [wallets, validTx])
+
   // Saldo no fim do mês anterior: só tx com data < 1º deste mês — exclui tx
   // deste mês e parcelas/recorrências futuras (que já contam em totalBalance,
   // mas não devem contar como "ganho deste mês" na comparação abaixo).
@@ -657,7 +671,7 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
     settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
-    totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
+    totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
     pctChange, getCardCurrentUsed, formatCurrency, currencySymbol,
@@ -673,7 +687,7 @@ export function AppProvider({ children }) {
   }), [
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
     settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
-    totalBalance, walletBalances, monthlyIncome, monthlyExpenses, monthlySavings,
+    totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
     getCardCurrentUsed, formatCurrency, currencySymbol,

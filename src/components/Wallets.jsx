@@ -18,6 +18,13 @@ const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#
 
 const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON }
 
+// toISOString() converte para UTC e à noite devolve o dia seguinte/anterior.
+const isoToday = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const brDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR')
+
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 
 function WalletModal({ initial, onSave, onClose }) {
@@ -157,16 +164,24 @@ function ConfirmModal({ name, count, orphanTx = 0, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Wallets() {
-  const { wallets, transactions, walletBalances, addWallet, updateWallet, deleteWallet, bulkDeleteWallets, totalBalance, formatCurrency: fmt } = useApp()
+  const { wallets, transactions, walletStatsAsOf, addWallet, updateWallet, deleteWallet, bulkDeleteWallets, formatCurrency: fmt } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
   const [activeWallet, setActiveWallet] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
   const [bulkConfirm, setBulkConfirm] = useState(false)
+  const [asOf, setAsOf] = useState(isoToday)
 
+  const isToday = asOf === isoToday()
+  const stats = useMemo(() => walletStatsAsOf(asOf), [walletStatsAsOf, asOf])
+  const totalAsOf = useMemo(
+    () => Object.values(stats).reduce((sum, st) => sum + st.balance, 0),
+    [stats])
+
+  // A lista do card também respeita o corte, senão os números não fecham.
   const walletTx = activeWallet
-    ? transactions.filter(t => t.walletId === activeWallet)
+    ? transactions.filter(t => t.walletId === activeWallet && t.date && t.date <= asOf)
     : []
 
   // Derivar da lista atual descarta ids de carteiras já removidas e mantém a ordem da grid.
@@ -194,12 +209,28 @@ export default function Wallets() {
   return (
     <div className="screen">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="wallets-header">
         <div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Saldo Total</div>
-          <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>{fmt(totalBalance)}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            {isToday ? 'Saldo Total hoje' : `Saldo Total em ${brDate(asOf)}`}
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>{fmt(totalAsOf)}</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setAddModal(true)}>+ Nova Carteira</button>
+        <div className="wallets-header-actions">
+          <label className="wallets-asof">
+            <span>Saldo em</span>
+            <input
+              type="date"
+              className="form-input wallets-asof-input"
+              value={asOf}
+              onChange={e => setAsOf(e.target.value || isoToday())}
+            />
+          </label>
+          {!isToday && (
+            <button className="btn btn-secondary btn-sm" onClick={() => setAsOf(isoToday())}>Hoje</button>
+          )}
+          <button className="btn btn-primary" onClick={() => setAddModal(true)}>+ Nova Carteira</button>
+        </div>
       </div>
 
       {/* Seleção múltipla */}
@@ -238,9 +269,7 @@ export default function Wallets() {
       ) : (
       <div className="wallets-grid">
         {wallets.map(w => {
-          const income = transactions.filter(t => t.walletId === w.id && t.type === 'income' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
-          const expenses = transactions.filter(t => t.walletId === w.id && t.type === 'expense' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
-          const currentBalance = walletBalances?.[w.id] ?? w.balance
+          const { balance: currentBalance, income, expenses } = stats[w.id] ?? { balance: w.balance, income: 0, expenses: 0 }
           const isActive = activeWallet === w.id
           const isChecked = selected.has(w.id)
 
@@ -301,7 +330,9 @@ export default function Wallets() {
               <div className="card-title">
                 Transações — {wallets.find(w => w.id === activeWallet)?.name}
               </div>
-              <div className="card-subtitle">{walletTx.length} movimentação(ões)</div>
+              <div className="card-subtitle">
+                {walletTx.length} movimentação(ões){isToday ? '' : ` até ${brDate(asOf)}`}
+              </div>
             </div>
             <button className="card-action" onClick={() => setActiveWallet(null)}>Fechar</button>
           </div>
