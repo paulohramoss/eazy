@@ -1,10 +1,12 @@
 // Proxy para a API do Bolsai.
 //
-// Antes isto era api/bolsai.js, que no roteamento do Vercel só atende
-// /api/bolsai exatamente. Chamadas como /api/bolsai/stocks/PETR4/stats caíam no
-// 404 HTML do Vercel sem sequer invocar a function, e o front quebrava ao tentar
-// dar res.json() nesse HTML. O nome [...path] é o que faz o Vercel casar os
-// subpaths e entregá-los em req.query.path.
+// O roteamento vem do rewrite em vercel.json, não do nome do arquivo:
+//   /api/bolsai/stocks/PETR4/stats  ->  /api/bolsai?path=stocks/PETR4/stats
+//
+// A versão anterior (api/bolsai.js sem rewrite) só casava /api/bolsai exato, e
+// a tentativa com catch-all (api/bolsai/[...path].js) não foi interpretada como
+// catch-all neste projeto: um segmento chegava sem req.query.path e três ou mais
+// caíam no 404 do próprio Vercel. O rewrite explícito não depende disso.
 const UPSTREAM = 'https://api.usebolsai.com/api/v1'
 
 export default async function handler(req, res) {
@@ -13,13 +15,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: true, message: 'BOLSAI_API_KEY não configurada' })
   }
 
-  const segments = [].concat(req.query.path || [])
+  // :path* chega como string com barras; aceita array por segurança.
+  const raw = req.query?.path
+  const segments = (Array.isArray(raw) ? raw : String(raw || '').split('/'))
+    .filter(Boolean)
+
   if (!segments.length) {
     return res.status(400).json({ error: true, message: 'Missing path' })
   }
 
-  const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
-  const url = `${UPSTREAM}/${segments.map(encodeURIComponent).join('/')}${query}`
+  const url = `${UPSTREAM}/${segments.map(encodeURIComponent).join('/')}`
 
   try {
     const upstream = await fetch(url, { headers: { 'X-API-Key': apiKey } })
