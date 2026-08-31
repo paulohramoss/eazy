@@ -5,6 +5,12 @@
 }
 
 :root {
+  /* Diz ao navegador que a página controla o próprio tema. Sem isto o Chrome
+     pode aplicar o "auto dark mode" por cima do tema claro, deixando os dois
+     temas praticamente idênticos — e os controles nativos (scrollbar, select,
+     date picker) não acompanham o tema escuro. */
+  color-scheme: light;
+
   --bg-primary:    #FFF9EF;
   --bg-secondary:  #FFFFFF;
   --bg-card:       #FFFFFF;
@@ -39,6 +45,8 @@
 
 /* ── Tema Escuro ────────────────────────────────────────── */
 [data-theme="dark"] {
+  color-scheme: dark;
+
   --bg-primary:    #111111;
   --bg-secondary:  #1A1A1A;
   --bg-card:       #1A1A1A;

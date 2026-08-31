@@ -5,8 +5,8 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/logo.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=0" />
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF" />
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111111" />
+  <!-- Segue o tema do app (definido no boot script abaixo), não o do sistema. -->
+  <meta name="theme-color" id="meta-theme-color" content="#FFF9EF" />
   <link rel="apple-touch-icon" href="/logo.png" />
   <title>Eazy — Tranquilidade Financeira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,13 +18,20 @@
   <div id="root"></div>
   <script>
     (function() {
-      const uid = Object.keys(localStorage).find(k => k.startsWith('prefs_'))
-      if (uid) {
-        try {
-          const prefs = JSON.parse(localStorage.getItem(uid))
-          if (prefs && prefs.theme) document.documentElement.setAttribute('data-theme', prefs.theme)
-        } catch(e) {}
-      }
+      var theme
+      try {
+        // Cache gravado pelo App a cada troca de tema. As prefs_* sao apagadas
+        // apos a migracao pro Firestore, entao sozinhas nao cobrem reloads.
+        theme = localStorage.getItem('eazy_theme')
+        if (!theme) {
+          var uid = Object.keys(localStorage).find(function(k) { return k.startsWith('prefs_') })
+          if (uid) theme = (JSON.parse(localStorage.getItem(uid)) || {}).theme
+        }
+      } catch (e) {}
+      if (theme !== 'dark' && theme !== 'light') theme = 'light'
+      document.documentElement.setAttribute('data-theme', theme)
+      document.getElementById('meta-theme-color')
+        .setAttribute('content', theme === 'dark' ? '#111111' : '#FFF9EF')
     })()
   </script>
   <script type="module" src="/src/main.jsx"></script>

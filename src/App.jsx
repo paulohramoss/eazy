@@ -264,7 +264,13 @@ function Dashboard() {
   const navigate = (s) => { setScreen(s); localStorage.setItem('eazy_screen', s) }
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', settings.theme)
+    const theme = settings.theme === 'dark' ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', theme)
+    // Cache lido pelo boot script no index.html — evita o flash de tema errado
+    // enquanto o Firestore ainda não respondeu.
+    try { localStorage.setItem('eazy_theme', theme) } catch { /* modo privado */ }
+    document.getElementById('meta-theme-color')
+      ?.setAttribute('content', theme === 'dark' ? '#111111' : '#FFF9EF')
   }, [settings.theme])
 
   const now = new Date()
