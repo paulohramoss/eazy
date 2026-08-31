@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { CatIcon } from '../context/AppContext'
 import Modal from './Modal'
+import Checkbox from './Checkbox'
 import TransactionModal from './TransactionModal'
 import { resolveWalletIcon } from '../utils/walletIcons'
 
@@ -28,22 +29,6 @@ function ConfirmModal({ name, count, onConfirm, onClose }) {
         }
       </p>
     </Modal>
-  )
-}
-
-// ─── Checkbox ─────────────────────────────────────────────────────────────────
-
-function Checkbox({ checked, indeterminate, onChange }) {
-  return (
-    <label className="tx-checkbox">
-      <input
-        type="checkbox"
-        checked={checked}
-        ref={el => { if (el) el.indeterminate = !!indeterminate }}
-        onChange={onChange}
-      />
-      <span className="tx-checkbox-box" />
-    </label>
   )
 }
 
