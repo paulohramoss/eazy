@@ -20,6 +20,8 @@
   --accent-light:  #3370F5;
   --accent-rgb:    0, 83, 239;
   --btn-text:      #FFFFFF;
+  /* Fundo suave de destaque (foco de campo, chip ativo, ícone de métrica) */
+  --accent-soft:   #EEF3FF;
 
   --accent-green:  #18A058;
   --accent-red:    #E8382A;
@@ -56,6 +58,7 @@
   --accent-light:  #4D84FF;
   --accent-rgb:    0, 83, 239;
   --btn-text:      #FFFFFF;
+  --accent-soft:   rgba(0, 83, 239, 0.18);
 
   --accent-green:  #22C55E;
   --accent-red:    #F87171;

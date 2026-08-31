@@ -464,7 +464,7 @@
 }
 
 .metric-icon.purple {
-  background: #EEF3FF;
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
@@ -1218,12 +1218,30 @@
 .form-select:focus,
 .form-textarea:focus {
   border-color: var(--accent);
-  background: #EEF3FF;
+  background-color: var(--accent-soft);
 }
 
 .form-textarea {
   min-height: 80px;
   resize: vertical;
+}
+
+/* appearance:none remove a seta nativa — sem isto o select fica idêntico a um
+   input de texto. Cor fixa (#888) porque data URI não aceita currentColor. */
+.form-select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23888888' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 11px 8px;
+  padding-right: 38px;
+  cursor: pointer;
+}
+
+/* O popup nativo herda as cores do select. Sem isto, com o select em foco ele
+   herdava --accent-soft e o texto das opções ficava ilegível no tema claro. */
+.form-select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .form-row {
@@ -1693,7 +1711,7 @@
 }
 
 .login-card .form-input:focus {
-  background: #EEF3FF;
+  background: var(--accent-soft);
 }
 
 .login-form {
@@ -3300,7 +3318,7 @@
 
 /* ─── Header btn active state ─────────────────────────────── */
 .header-btn--active {
-  background: #EEF3FF;
+  background: var(--accent-soft);
   color: var(--accent);
   border-color: rgba(var(--accent-rgb), 0.3);
 }
@@ -3465,9 +3483,6 @@
 [data-theme="dark"] .login-card .form-input {
   background: var(--bg-primary);
 }
-[data-theme="dark"] .login-card .form-input:focus {
-  background: rgba(var(--accent-rgb), 0.16);
-}
 [data-theme="dark"] .login-google-btn {
   background: var(--bg-primary);
   border-color: var(--border);
@@ -3591,10 +3606,6 @@
   color: var(--text-primary);
 }
 
-/* Header btn active */
-[data-theme="dark"] .header-btn--active {
-  background: rgba(0, 83, 239, 0.2);
-}
 
 /* ─── Folha "Mais" (só existe no mobile) ─────────────────── */
 .nav-item--more { display: none; }
