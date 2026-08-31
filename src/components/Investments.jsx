@@ -38,14 +38,14 @@ const CRYPTO_IDS = {
 }
 
 const TYPE_MAP  = { 'Ação': 'Ação', 'FII': 'FII/ETF', 'ETF': 'FII/ETF', 'Cripto': 'Cripto' }
-const BOLSAI_BASE    = '/api/bolsai'
-const BOLSAI_HEADERS = {}
+const BOLSAI_BASE = '/api/bolsai'
 const CACHE_TTL = 5 * 60 * 1000
 const marketCache = {}
 
 async function fetchCryptoQuotes(tickers) {
   const ids = tickers.map(t => CRYPTO_IDS[t]).filter(Boolean).join(',')
   const res  = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=brl&include_24hr_change=true`)
+  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
   const json = await res.json()
   return tickers.reduce((acc, ticker) => {
     const data = json[CRYPTO_IDS[ticker]]
@@ -55,17 +55,18 @@ async function fetchCryptoQuotes(tickers) {
 }
 
 async function fetchOneTicker(ticker, tab) {
+  // ETFs (BOVA11, IVVB11...) também vivem em /stocks — só FII usa /fiis.
+  const path = tab === 'FII' ? `/fiis/${ticker}` : `/stocks/${ticker}/stats`
+  const res  = await fetch(`${BOLSAI_BASE}${path}`)
+  if (!res.ok) throw new Error(`${ticker}: HTTP ${res.status}`)
+  const json = await res.json()
+
   if (tab === 'FII') {
-    const res  = await fetch(`${BOLSAI_BASE}/fiis/${ticker}`, { headers: BOLSAI_HEADERS })
-    const json = await res.json()
     if (!json.close_price) return null
     return { ticker: json.ticker, name: json.name || TICKER_NAMES[ticker] || ticker, price: json.close_price, change: null }
-  } else {
-    const res  = await fetch(`${BOLSAI_BASE}/stocks/${ticker}/stats`, { headers: BOLSAI_HEADERS })
-    const json = await res.json()
-    if (!json.close) return null
-    return { ticker: json.ticker, name: TICKER_NAMES[ticker] || ticker, price: json.close, change: json.daily_change_pct ?? null }
   }
+  if (!json.close) return null
+  return { ticker: json.ticker, name: TICKER_NAMES[ticker] || ticker, price: json.close, change: json.daily_change_pct ?? null }
 }
 
 // ─── Market Explorer ──────────────────────────────────────────────────────────
@@ -98,14 +99,17 @@ function MarketExplorer({ onAdd }) {
         Object.assign(result, cryptos)
         setQuotes(cryptos)
       } else {
-        for (const ticker of tickers) {
+        // Em paralelo e tolerante a falha: um ticker fora do ar não derruba a aba.
+        await Promise.allSettled(tickers.map(async ticker => {
           const q = await fetchOneTicker(ticker, t)
           if (q) {
             result[ticker] = q
             setQuotes(prev => ({ ...prev, [ticker]: q }))
           }
-        }
+        }))
       }
+
+      if (!Object.keys(result).length) throw new Error('nenhuma cotação retornada')
       marketCache[t] = { data: result, ts: Date.now() }
     } catch {
       setError('Falha ao buscar dados de mercado.')

@@ -456,6 +456,14 @@ export function AppProvider({ children }) {
   const deleteWallet = useCallback((id) =>
     deleteDoc(doc(db, COL.wallets, id)), [])
 
+  // Não faz cascata nas transações — igual ao deleteWallet. A tela avisa quantas
+  // transações ficarão sem carteira antes de confirmar.
+  const bulkDeleteWallets = useCallback(async (ids) => {
+    const batch = writeBatch(db)
+    ids.forEach(id => batch.delete(doc(db, COL.wallets, id)))
+    await batch.commit()
+  }, [])
+
   // ── Budgets ────────────────────────────────────────────────────────────────
 
   const addBudget = useCallback((data) =>
@@ -635,7 +643,7 @@ export function AppProvider({ children }) {
     spendingByCategory, monthlyChartData, thisMonth,
     pctChange, getCardCurrentUsed, formatCurrency, currencySymbol,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
-    addWallet, updateWallet, deleteWallet,
+    addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
     addGoal, updateGoal, deleteGoal, contributeGoal,
     addInvestment, updateInvestment, deleteInvestment,
@@ -651,7 +659,7 @@ export function AppProvider({ children }) {
     spendingByCategory, monthlyChartData, thisMonth,
     getCardCurrentUsed, formatCurrency, currencySymbol,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
-    addWallet, updateWallet, deleteWallet,
+    addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
     addGoal, updateGoal, deleteGoal, contributeGoal,
     addInvestment, updateInvestment, deleteInvestment,

@@ -2141,6 +2141,31 @@
   background: rgba(var(--accent-rgb), 0.05);
 }
 
+/* ─── Wallets multi-select ──────────────────────────────── */
+.wallets-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.wallets-toolbar-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Seleção para exclusão — distinta do .wallet-card-selected, que só abre as
+   transações do card. */
+.wallet-card--checked {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.18);
+}
+
 .wallet-card-accent {
   position: absolute;
   top: 0;
