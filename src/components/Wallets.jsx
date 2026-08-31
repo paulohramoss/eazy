@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
+import Checkbox from './Checkbox'
 import CurrencyInput from './CurrencyInput'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
@@ -124,10 +125,11 @@ function WalletModal({ initial, onSave, onClose }) {
   )
 }
 
-function ConfirmModal({ name, onConfirm, onClose }) {
+function ConfirmModal({ name, count, orphanTx = 0, onConfirm, onClose }) {
+  const plural = count > 1
   return (
     <Modal
-      title="Excluir Carteira"
+      title={count ? 'Excluir Carteiras' : 'Excluir Carteira'}
       onClose={onClose}
       footer={
         <>
@@ -137,8 +139,17 @@ function ConfirmModal({ name, onConfirm, onClose }) {
       }
     >
       <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-        Deseja excluir a carteira <strong style={{ color: 'var(--text-primary)' }}>{name}</strong>?
+        {count
+          ? <>Deseja excluir <strong style={{ color: 'var(--text-primary)' }}>{count} carteira{plural ? 's' : ''}</strong> selecionada{plural ? 's' : ''}? Esta ação não pode ser desfeita.</>
+          : <>Deseja excluir a carteira <strong style={{ color: 'var(--text-primary)' }}>{name}</strong>?</>
+        }
       </p>
+      {orphanTx > 0 && (
+        <p style={{ color: 'var(--accent-yellow)', fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>
+          <i className="fi fi-rr-exclamation" style={{ marginRight: 6 }} />
+          {orphanTx} transaç{orphanTx > 1 ? 'ões vinculadas continuarão' : 'ão vinculada continuará'} cadastrad{orphanTx > 1 ? 'as' : 'a'}, sem carteira.
+        </p>
+      )}
     </Modal>
   )
 }
@@ -146,15 +157,39 @@ function ConfirmModal({ name, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Wallets() {
-  const { wallets, transactions, walletBalances, addWallet, updateWallet, deleteWallet, totalBalance, formatCurrency: fmt } = useApp()
+  const { wallets, transactions, walletBalances, addWallet, updateWallet, deleteWallet, bulkDeleteWallets, totalBalance, formatCurrency: fmt } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
   const [activeWallet, setActiveWallet] = useState(null)
+  const [selected, setSelected] = useState(() => new Set())
+  const [bulkConfirm, setBulkConfirm] = useState(false)
 
   const walletTx = activeWallet
     ? transactions.filter(t => t.walletId === activeWallet)
     : []
+
+  // Derivar da lista atual descarta ids de carteiras já removidas e mantém a ordem da grid.
+  const selectedIds = useMemo(() => wallets.filter(w => selected.has(w.id)).map(w => w.id), [wallets, selected])
+  const allSelected = wallets.length > 0 && selectedIds.length === wallets.length
+  const someSelected = selectedIds.length > 0 && !allSelected
+
+  const countTx = (ids) => transactions.filter(t => ids.includes(t.walletId)).length
+
+  const toggleOne = (id) => setSelected(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(wallets.map(w => w.id)))
+  const clearSelection = () => setSelected(new Set())
+
+  const handleBulkDelete = async () => {
+    const ids = selectedIds
+    if (ids.includes(activeWallet)) setActiveWallet(null)
+    clearSelection()
+    await bulkDeleteWallets(ids)
+  }
 
   return (
     <div className="screen">
@@ -166,6 +201,32 @@ export default function Wallets() {
         </div>
         <button className="btn btn-primary" onClick={() => setAddModal(true)}>+ Nova Carteira</button>
       </div>
+
+      {/* Seleção múltipla */}
+      {wallets.length > 0 && (
+        <div className="wallets-toolbar">
+          <Checkbox
+            checked={allSelected}
+            indeterminate={someSelected}
+            onChange={toggleAll}
+            label="Selecionar todas as carteiras"
+          />
+          <span className="wallets-toolbar-label">
+            {selectedIds.length > 0
+              ? `${selectedIds.length} de ${wallets.length} selecionada${selectedIds.length > 1 ? 's' : ''}`
+              : 'Selecionar carteiras'}
+          </span>
+          {selectedIds.length > 0 && (
+            <div className="tx-bulk-bar">
+              <button className="btn btn-secondary btn-sm" onClick={clearSelection}>Limpar</button>
+              <button className="btn btn-danger btn-sm" onClick={() => setBulkConfirm(true)}>
+                <i className="fi fi-rr-trash" style={{ marginRight: 6 }} />
+                Excluir selecionadas
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Wallet Cards */}
       {wallets.length === 0 ? (
@@ -181,11 +242,12 @@ export default function Wallets() {
           const expenses = transactions.filter(t => t.walletId === w.id && t.type === 'expense' && t.status !== 'failed').reduce((s, t) => s + t.amount, 0)
           const currentBalance = walletBalances?.[w.id] ?? w.balance
           const isActive = activeWallet === w.id
+          const isChecked = selected.has(w.id)
 
           return (
             <div
               key={w.id}
-              className={`wallet-card${isActive ? ' wallet-card-selected' : ''}`}
+              className={`wallet-card${isActive ? ' wallet-card-selected' : ''}${isChecked ? ' wallet-card--checked' : ''}`}
               onClick={() => setActiveWallet(isActive ? null : w.id)}
             >
               <div className="wallet-card-accent" style={{ background: w.color }} />
@@ -193,7 +255,15 @@ export default function Wallets() {
                 <span style={{ fontSize: 25, color: w.color }}>
                   <i className={`fi ${resolveWalletIcon(w.icon, w.type)}`} />
                 </span>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {/* stopPropagation: senão o clique também abre/fecha as transações do card */}
+                  <span onClick={e => e.stopPropagation()} style={{ display: 'flex', marginRight: 2 }}>
+                    <Checkbox
+                      checked={isChecked}
+                      onChange={() => toggleOne(w.id)}
+                      label={`Selecionar ${w.name}`}
+                    />
+                  </span>
                   <button
                     className="btn-icon"
                     title="Editar"
@@ -283,8 +353,20 @@ export default function Wallets() {
       {delItem && (
         <ConfirmModal
           name={delItem.name}
-          onConfirm={() => deleteWallet(delItem.id)}
+          orphanTx={countTx([delItem.id])}
+          onConfirm={() => {
+            if (activeWallet === delItem.id) setActiveWallet(null)
+            deleteWallet(delItem.id)
+          }}
           onClose={() => setDelItem(null)}
+        />
+      )}
+      {bulkConfirm && (
+        <ConfirmModal
+          count={selectedIds.length}
+          orphanTx={countTx(selectedIds)}
+          onConfirm={handleBulkDelete}
+          onClose={() => setBulkConfirm(false)}
         />
       )}
     </div>
