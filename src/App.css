@@ -2141,6 +2141,48 @@
   background: rgba(var(--accent-rgb), 0.05);
 }
 
+/* ─── Wallets: cabeçalho e corte por data ───────────────── */
+.wallets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wallets-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wallets-asof {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* .form-input é width:100% — aqui precisa acompanhar o conteúdo. */
+.wallets-asof-input {
+  width: auto;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .wallets-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .wallets-asof { flex: 1; }
+  .wallets-asof-input { flex: 1; min-width: 0; }
+}
+
 /* ─── Wallets multi-select ──────────────────────────────── */
 .wallets-toolbar {
   display: flex;
