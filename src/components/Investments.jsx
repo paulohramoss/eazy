@@ -38,6 +38,8 @@ const CRYPTO_IDS = {
 }
 
 const TYPE_MAP  = { 'Ação': 'Ação', 'FII': 'FII/ETF', 'ETF': 'FII/ETF', 'Cripto': 'Cripto' }
+// Renda F. e Outro não têm cotação de mercado — ficam de fora da reprecificação.
+const PRICEABLE = ['Ação', 'FII/ETF', 'Cripto']
 const BOLSAI_BASE = '/api/bolsai'
 const CACHE_TTL = 5 * 60 * 1000
 const marketCache = {}
@@ -67,6 +69,24 @@ async function fetchOneTicker(ticker, tab) {
   }
   if (!json.close) return null
   return { ticker: json.ticker, name: TICKER_NAMES[ticker] || ticker, price: json.close, change: json.daily_change_pct ?? null }
+}
+
+// Cotação de um ativo da carteira. /stocks/{t}/stats cobre ação, ETF e também
+// FII (HGLG11 responde ali com o mesmo close do /fiis), então um endpoint só
+// resolve tudo que não é cripto.
+async function fetchQuoteFor(inv) {
+  const ticker = (inv.ticker || '').trim().toUpperCase()
+  if (!ticker || !PRICEABLE.includes(inv.type)) return null
+
+  if (inv.type === 'Cripto') {
+    const quotes = await fetchCryptoQuotes([ticker])
+    return quotes[ticker]?.price ?? null
+  }
+
+  const res = await fetch(`${BOLSAI_BASE}/stocks/${ticker}/stats`)
+  if (!res.ok) throw new Error(`${ticker}: HTTP ${res.status}`)
+  const json = await res.json()
+  return json.close ?? null
 }
 
 // ─── Market Explorer ──────────────────────────────────────────────────────────
@@ -385,6 +405,53 @@ export default function Investments() {
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
   const [presetItem, setPresetItem] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState(null)
+
+  const priceable = investments.filter(i => i.ticker && PRICEABLE.includes(i.type))
+
+  // currentPrice era só um campo digitado à mão: depois do cadastro a carteira
+  // congelava e o retorno virava ficção. Aqui ela é reprecificada de verdade.
+  const refreshPrices = async () => {
+    if (!priceable.length) {
+      setRefreshMsg({ error: true, text: 'Nenhum ativo com cotação de mercado na carteira.' })
+      return
+    }
+    setRefreshing(true)
+    setRefreshMsg(null)
+
+    const failed = []
+    let updated = 0
+    // Em paralelo e tolerante a falha: um ticker fora do ar não impede os outros.
+    await Promise.allSettled(priceable.map(async inv => {
+      try {
+        const price = await fetchQuoteFor(inv)
+        if (price == null) { failed.push(inv.ticker); return }
+        await updateInvestment(inv.id, { currentPrice: price, priceUpdatedAt: new Date().toISOString() })
+        updated++
+      } catch {
+        failed.push(inv.ticker)
+      }
+    }))
+
+    setRefreshing(false)
+    setRefreshMsg(
+      updated === 0
+        ? { error: true, text: `Não foi possível atualizar: ${failed.join(', ')}` }
+        : {
+            error: false,
+            text: `${updated} ativo${updated > 1 ? 's' : ''} atualizado${updated > 1 ? 's' : ''}`
+              + (failed.length ? ` · falhou: ${failed.join(', ')}` : ''),
+          }
+    )
+  }
+
+  // Cotação mais recente da carteira — serve de "atualizado em".
+  const lastPricedAt = investments
+    .map(i => i.priceUpdatedAt)
+    .filter(Boolean)
+    .sort()
+    .pop()
 
   const enriched = investments.map(inv => {
     const totalInvested = inv.quantity * inv.avgPrice
@@ -489,8 +556,30 @@ export default function Investments() {
       {/* Portfolio table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Minha Carteira ({investments.length})</span>
-          <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Novo Ativo</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Minha Carteira ({investments.length})</span>
+            {refreshMsg ? (
+              <span style={{ fontSize: 11, color: refreshMsg.error ? 'var(--accent-red)' : 'var(--text-muted)' }}>
+                {refreshMsg.text}
+              </span>
+            ) : lastPricedAt && (
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Cotações de {new Date(lastPricedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={refreshPrices}
+              disabled={refreshing || !priceable.length}
+              title={priceable.length ? 'Buscar cotações atuais' : 'Nenhum ativo com cotação de mercado'}
+            >
+              <i className={`fi fi-rr-refresh${refreshing ? ' spinning' : ''}`} style={{ marginRight: 6 }} />
+              {refreshing ? 'Atualizando…' : 'Atualizar cotações'}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Novo Ativo</button>
+          </div>
         </div>
         {enriched.length === 0 ? (
           <div className="empty-state">
