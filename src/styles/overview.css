@@ -1,0 +1,517 @@
+/* overview — Tela inicial: cartões de métrica, gráficos e o widget "posso gastar?".
+   Extraído de App.css (linhas 392-906 do arquivo original). */
+
+/* ─── Metric Cards ───────────────────────────────────────── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  cursor: default;
+}
+
+.metric-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Metric card: dark "highlight" (Saldo Total) ── */
+.metric-card--purple {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+.metric-card--purple:hover {
+  border-color: var(--border-light);
+}
+.metric-card--purple .metric-label {
+  color: var(--text-secondary);
+}
+.metric-card--purple .metric-value {
+  color: var(--text-primary);
+}
+.metric-card--purple .metric-footer {
+  color: var(--text-secondary);
+}
+.metric-card--purple .metric-change.up {
+  color: var(--accent-green);
+  background: rgba(var(--green-rgb), 0.15);
+}
+.metric-card--purple .metric-period {
+  color: var(--text-muted);
+}
+
+.metric-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.metric-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.metric-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.metric-icon.purple {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.metric-icon.green {
+  background: #E6F6EE;
+  color: var(--accent-green);
+}
+
+.metric-icon.red {
+  background: #FDECEA;
+  color: var(--accent-red);
+}
+
+.metric-icon.yellow {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--accent-yellow);
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.metric-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.metric-change {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.metric-change.up {
+  color: var(--accent-green);
+  background: rgba(var(--green-rgb), 0.1);
+}
+
+.metric-change.down {
+  color: var(--accent-red);
+  background: rgba(var(--red-rgb), 0.1);
+}
+
+.metric-period {
+  color: var(--text-muted);
+}
+
+/* ─── Charts Row ─────────────────────────────────────────── */
+.charts-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  transition: border-color var(--transition);
+}
+
+.card:hover {
+  border-color: var(--border-light);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.card-action {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  transition: background var(--transition);
+}
+
+.card-action:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+/* Bar Chart */
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 120px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chart-bar-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  flex: 1;
+}
+
+.chart-bar {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.chart-bar:hover {
+  opacity: 0.75;
+}
+
+.chart-bar.income {
+  background: var(--accent);
+}
+
+.chart-bar.expenses {
+  background: #CFF330;
+}
+
+.chart-labels {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chart-label {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Donut Chart */
+.donut-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.donut-chart {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.donut-svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-center-value {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.donut-center-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.donut-legend {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.donut-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.donut-legend-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.donut-legend-name {
+  color: var(--text-secondary);
+}
+
+.donut-legend-pct {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ─── Bottom Row ─────────────────────────────────────────── */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+}
+
+/* ─── Overview layout ────────────────────────────────────── */
+.overview-bottom-row {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Can I Spend Widget ─────────────────────────────────── */
+.can-spend-card {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  padding: 22px;
+}
+.can-spend-card .card-title { color: var(--text-primary); }
+.can-spend-card .card-subtitle { color: var(--text-muted); }
+
+.can-spend-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.can-spend-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+}
+
+.can-spend-balance-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.can-spend-balance-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.can-spend-input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+
+.can-spend-input-wrap:focus-within {
+  border-color: var(--accent);
+}
+
+.can-spend-prefix {
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border);
+  background: var(--bg-primary);
+  height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+.can-spend-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 700;
+  padding: 0 16px;
+  height: 48px;
+  outline: none;
+  font-family: inherit;
+}
+
+.can-spend-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.can-spend-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.can-spend-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.can-spend-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.can-spend-fill.ok {
+  background: var(--accent-green);
+}
+
+.can-spend-fill.over {
+  background: var(--accent-red);
+}
+
+.can-spend-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.can-spend-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  border: 1px solid;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.can-spend-result .fi {
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.can-spend-result.idle {
+  background: var(--bg-secondary);
+  border-color: var(--border);
+  color: var(--text-muted);
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.can-spend-result.ok {
+  background: rgba(var(--green-rgb), 0.08);
+  border-color: rgba(var(--green-rgb), 0.2);
+  color: var(--accent-green);
+}
+
+.can-spend-result.over {
+  background: rgba(var(--red-rgb), 0.08);
+  border-color: rgba(var(--red-rgb), 0.25);
+  color: var(--accent-red);
+}
+
+.can-spend-result-main {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.can-spend-result-sub {
+  font-size: 13px;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+.can-spend-result-sub strong {
+  font-weight: 700;
+}

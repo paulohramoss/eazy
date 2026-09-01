@@ -1,0 +1,243 @@
+/* responsive — Adaptações para telas pequenas e a tab bar do mobile.
+   Extraído de App.css (linhas 4046-4286 do arquivo original). */
+
+/* ─── PWA Mobile First & Bottom Tab Bar ──────────────────── */
+@media (max-width: 768px) {
+  .dashboard {
+    flex-direction: column;
+  }
+
+  .main {
+    margin-left: 0;
+    padding-bottom: calc(64px + var(--safe-bottom));
+  }
+
+  /* ── Header ───────────────────────────────────────────────
+     Altura fixa de 60px + conteúdo que não encolhe fazia o título
+     quebrar em 3 linhas e vazar por cima dos cards, e empurrava o
+     perfil para fora da tela. */
+  .header {
+    height: auto;
+    min-height: calc(52px + var(--safe-top));
+    padding: 8px 12px;
+    padding-top: calc(8px + var(--safe-top));
+    gap: 8px;
+  }
+
+  .header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-left h1 {
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* subtítulo + pílula de data não cabem ao lado dos 4 botões */
+  .header-left p { display: none; }
+
+  .header-right {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .header-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .header-profile {
+    padding: 3px;
+    gap: 0;
+  }
+
+  .header-profile-info,
+  .header-profile > .fi { display: none; }
+
+  /* ── Tab bar ──────────────────────────────────────────── */
+  .sidebar {
+    width: 100%;
+    height: calc(64px + var(--safe-bottom));
+    top: auto;
+    bottom: 0;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    padding: 0;
+    padding-bottom: var(--safe-bottom);
+    background: var(--bg-card);
+    z-index: 999;
+  }
+
+  .sidebar-logo {
+    display: none;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0;
+    width: 100%;
+    overflow-y: visible;
+  }
+
+  .nav-accordion {
+    display: none; /* Hide complex sub-menus in tab bar */
+  }
+
+  .nav-item {
+    flex-direction: column;
+    padding: 8px 4px;
+    gap: 4px;
+    font-size: 10px;
+    justify-content: center;
+    background: transparent !important;
+    color: var(--text-muted);
+  }
+
+  .nav-item:hover {
+    color: var(--text-secondary);
+  }
+
+  .nav-item.active {
+    color: var(--accent) !important;
+  }
+
+  /* dá acesso às telas que os accordions escondem no mobile */
+  .nav-item--more { display: flex; }
+
+  .nav-icon {
+    font-size: 20px;
+  }
+
+  .nav-item.active .nav-icon {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease;
+  }
+
+  .nav-badge {
+    position: absolute;
+    top: 4px;
+    right: 50%;
+    transform: translateX(12px);
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+
+  /* ── Conteúdo e grids ─────────────────────────────────────
+     `1fr` é minmax(auto, 1fr): o conteúdo define o mínimo, então
+     valores longos estouravam a coluna e o .content (overflow-y:auto
+     implica overflow-x:auto) rolava lateralmente. minmax(0, 1fr)
+     deixa a coluna encolher e o texto quebrar. */
+  .content {
+    padding: 16px 12px;
+    overflow-x: hidden;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .metric-card { padding: 16px; }
+  .metric-value { font-size: 20px; overflow-wrap: anywhere; }
+  .metric-label { font-size: 12px; }
+
+  .charts-row, .bottom-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .summary-stat { padding: 12px 10px; }
+  .summary-stat-label { font-size: 11px; }
+  .summary-stat-value { font-size: 16px; overflow-wrap: anywhere; }
+
+  .wallets-grid,
+  .goals-grid,
+  .settings-grid,
+  .moovia-goals-grid,
+  .form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* ── Tables → card-list swap ─────────────────────────────── */
+  .transactions-table,
+  .investments-table { display: none; }
+
+  .tx-card-list,
+  .inv-card-list { display: flex; flex-direction: column; }
+
+  /* hide bulk-bar controls that don't fit */
+  .tx-table-header { padding: 12px 16px; }
+  .filter-bar { flex-wrap: wrap; gap: 6px; }
+  .filter-bar .search-box { width: 100%; }
+  /* .search-input tem width: 220px fixo (260px no focus) — estoura a barra */
+  .filter-bar .search-input,
+  .filter-bar .search-input:focus { width: 100%; }
+  .filter-bar .filter-select { flex: 1 1 45%; min-width: 0; }
+
+  /* ── Calendário ───────────────────────────────────────────
+     7 colunas em ~366px dão ~52px por célula: só cabe o número do
+     dia e um ponto por transação. O detalhe abre no modal do dia. */
+  .cal-header-row,
+  .cal-week-row {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .cal-cell {
+    min-height: 58px;
+    padding: 5px 2px;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .cal-day-num {
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+  }
+
+  .cal-tx-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  .cal-tx-amt { display: none; }
+  .cal-tx-more { font-size: 9px; }
+  .cal-dow-cell { font-size: 10px; padding: 8px 0; letter-spacing: 0; }
+
+  /* ── Modais ───────────────────────────────────────────────── */
+  .modal-overlay { padding: 12px; align-items: flex-end; }
+  .modal {
+    max-height: 88vh;
+    margin-bottom: var(--safe-bottom);
+  }
+  .modal-header { padding: 18px 18px 14px; }
+  .modal-title { font-size: 16px; }
+
+  /* ── FAB ─────────────────────────────────────────────────── */
+  .fab { bottom: calc(72px + var(--safe-bottom) + 12px); }
+}
+
+/* ─── Telas estreitas (≤ 420px) ──────────────────────────── */
+@media (max-width: 420px) {
+  /* 4 botões + avatar não deixam espaço para o título */
+  .header-right .header-btn.theme-toggle { display: none; }
+  .header-right { gap: 4px; }
+
+  .metrics-grid { gap: 10px; }
+  .summary-strip { gap: 6px; }
+  .summary-stat-value { font-size: 15px; }
+  .more-sheet-items { grid-template-columns: minmax(0, 1fr); }
+}

@@ -6,7 +6,7 @@ import CurrencyInput from './CurrencyInput'
 // ─── Budget Modal ─────────────────────────────────────────────────────────────
 
 function BudgetModal({ initial, taken = [], onSave, onClose }) {
-  const { categories, currencySymbol } = useApp()
+  const { categories, currencySymbol, t } = useApp()
 
   // Categorias de receita não fazem sentido como teto de gasto.
   const available = categories.filter(c =>
@@ -28,28 +28,28 @@ function BudgetModal({ initial, taken = [], onSave, onClose }) {
 
   return (
     <Modal
-      title={initial ? 'Editar Orçamento' : 'Novo Orçamento'}
+      title={t(initial ? 'budget.editTitle' : 'budget.newTitle')}
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Salvar</button>
+          <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn btn-primary" onClick={handleSave}>{t('action.save')}</button>
         </>
       }
     >
       <div className="form-group">
-        <label className="form-label">Categoria</label>
+        <label className="form-label">{t('budget.category')}</label>
         <select className="form-select" value={form.category} onChange={e => set('category', e.target.value)}>
           {available.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         {available.length === 0 && (
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Todas as categorias de despesa já têm orçamento.
+            {t('budget.allTaken')}
           </span>
         )}
       </div>
       <div className="form-group">
-        <label className="form-label">Limite Mensal ({currencySymbol})</label>
+        <label className="form-label">{t('budget.monthlyLimit', { symbol: currencySymbol })}</label>
         <CurrencyInput className="form-input" value={form.limit} onChange={v => set('limit', v)} />
       </div>
     </Modal>
@@ -59,7 +59,7 @@ function BudgetModal({ initial, taken = [], onSave, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Budget() {
-  const { budgets, spendingByCategory, transactions, addBudget, updateBudget, deleteBudget, formatCurrency: fmt } = useApp()
+  const { budgets, spendingByCategory, transactions, addBudget, updateBudget, deleteBudget, formatCurrency: fmt, t } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem,  setDelItem]  = useState(null)
@@ -71,8 +71,8 @@ export default function Budget() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })()
   const spendingLast = transactions
-    .filter(t => t.status !== 'failed' && t.type === 'expense' && t.date?.startsWith(lastMonthKey))
-    .reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + t.amount; return acc }, {})
+    .filter(tx => tx.status !== 'failed' && tx.type === 'expense' && tx.date?.startsWith(lastMonthKey))
+    .reduce((acc, tx) => { acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc }, {})
 
   // Ritmo: quanto do mês já passou. Serve para dizer se o gasto está adiantado.
   const daysInMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
@@ -86,11 +86,11 @@ export default function Budget() {
       {/* Page header */}
       <div className="moovia-page-header">
         <div>
-          <h2 className="moovia-page-title">Orçamentos</h2>
-          <p className="moovia-page-sub">Gerencie seus limites de gastos mensais.</p>
+          <h2 className="moovia-page-title">{t('budget.pageTitle')}</h2>
+          <p className="moovia-page-sub">{t('budget.pageSub')}</p>
         </div>
         <button className="btn btn-primary" onClick={() => setAddModal(true)}>
-          + Adicionar Orçamento
+          {t('budget.add')}
         </button>
       </div>
 
@@ -106,21 +106,21 @@ export default function Budget() {
         return (
           <div className="cal-month-summary">
             <div>
-              <span className="cal-summary-label">Orçado</span>
+              <span className="cal-summary-label">{t('budget.budgeted')}</span>
               <span className="cal-summary-value">{fmt(totalLimit)}</span>
             </div>
             <div>
-              <span className="cal-summary-label">Gasto</span>
+              <span className="cal-summary-label">{t('budget.spent')}</span>
               <span className="cal-summary-value">{fmt(totalSpent)}</span>
             </div>
             <div>
-              <span className="cal-summary-label">Disponível</span>
+              <span className="cal-summary-label">{t('budget.available')}</span>
               <span className={`cal-summary-value ${left < 0 ? 'negative-text' : 'positive-text'}`}>
                 {fmt(left)}
               </span>
             </div>
             <div className="cal-summary-warn" style={{ background: 'none', color: 'var(--text-muted)' }}>
-              Dia {dayOfMonth} de {daysInMonth} · {Math.round(monthElapsed * 100)}% do mês
+              {t('budget.dayProgress', { day: dayOfMonth, total: daysInMonth, pct: Math.round(monthElapsed * 100) })}
             </div>
           </div>
         )
@@ -130,8 +130,8 @@ export default function Budget() {
       {budgets.length === 0 ? (
         <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <i className="fi fi-rr-piggy-bank" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Nenhum orçamento definido</p>
-          <button className="btn btn-primary" onClick={() => setAddModal(true)}>Criar primeiro orçamento</button>
+          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{t('budget.empty')}</p>
+          <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('budget.createFirst')}</button>
         </div>
       ) : (
         <div className="moovia-list">
@@ -160,10 +160,10 @@ export default function Budget() {
                 <div className="moovia-budget-top">
                   <span className="moovia-budget-name">{b.category}</span>
                   <div className="moovia-budget-actions">
-                    <button className="moovia-icon-btn" title="Editar" onClick={() => setEditItem(b)}>
+                    <button className="moovia-icon-btn" title={t('action.edit')} onClick={() => setEditItem(b)}>
                       <i className="fi fi-rr-pencil" />
                     </button>
-                    <button className="moovia-icon-btn danger" title="Remover" onClick={() => setDelItem(b)}>
+                    <button className="moovia-icon-btn danger" title={t('budget.remove')} onClick={() => setDelItem(b)}>
                       <i className="fi fi-rr-trash" />
                     </button>
                   </div>
@@ -171,7 +171,7 @@ export default function Budget() {
 
                 <div className="moovia-budget-amounts">
                   <span className={over ? 'moovia-amount-over' : ''}>{fmt(Math.max(remaining, 0))}</span>
-                  {' '}restantes de{' '}
+                  {' '}{t('budget.remainingOf')}{' '}
                   <span style={{ fontWeight: 700 }}>{fmt(effectiveLimit)}</span>
                 </div>
 
@@ -184,11 +184,11 @@ export default function Budget() {
 
                 <div className="moovia-budget-footer">
                   <span className={over ? 'moovia-amount-over' : 'moovia-pct-label'}>
-                    {pctSpent}% {over ? 'acima do limite' : 'Gasto'}
+                    {pctSpent}% {over ? t('budget.overLimit') : t('budget.spent')}
                   </span>
                   {rollover > 0 && (
                     <span className="moovia-rollover">
-                      ({fmt(b.limit)} + {fmt(rollover)} de sobra do mês passado)
+                      {t('budget.rollover', { limit: fmt(b.limit), rollover: fmt(rollover) })}
                     </span>
                   )}
                 </div>
@@ -196,7 +196,7 @@ export default function Budget() {
                 {aheadOfPace && (
                   <div className="moovia-budget-pace">
                     <i className="fi fi-rr-exclamation" />
-                    Dia {dayOfMonth} de {daysInMonth} · nesse ritmo fecha em {fmt(projected)}
+                    {t('budget.pace', { day: dayOfMonth, total: daysInMonth, projected: fmt(projected) })}
                   </div>
                 )}
               </div>
@@ -216,17 +216,17 @@ export default function Budget() {
       )}
       {delItem && (
         <Modal
-          title="Remover Orçamento"
+          title={t('budget.removeTitle')}
           onClose={() => setDelItem(null)}
           footer={
             <>
-              <button className="btn btn-secondary" onClick={() => setDelItem(null)}>Cancelar</button>
-              <button className="btn btn-danger" onClick={() => { deleteBudget(delItem.id); setDelItem(null) }}>Remover</button>
+              <button className="btn btn-secondary" onClick={() => setDelItem(null)}>{t('action.cancel')}</button>
+              <button className="btn btn-danger" onClick={() => { deleteBudget(delItem.id); setDelItem(null) }}>{t('budget.remove')}</button>
             </>
           }
         >
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-            Deseja remover o orçamento de <strong style={{ color: 'var(--text-primary)' }}>{delItem.category}</strong>?
+            {t('budget.removeConfirm', { category: delItem.category })}
           </p>
         </Modal>
       )}

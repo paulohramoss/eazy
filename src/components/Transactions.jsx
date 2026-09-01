@@ -6,26 +6,28 @@ import Checkbox from './Checkbox'
 import TransactionModal from './TransactionModal'
 import { resolveWalletIcon } from '../utils/walletIcons'
 
-const STATUS_LABEL = { completed: '● Concluído', pending: '◌ Pendente' }
+const STATUS_LABEL = { completed: '●', pending: '◌' }
+const STATUS_KEY = { completed: 'tx.completed', pending: 'tx.pending' }
 
 // ─── Delete Confirm ───────────────────────────────────────────────────────────
 
 function ConfirmModal({ name, count, onConfirm, onClose }) {
+  const { t } = useApp()
   return (
     <Modal
-      title={count ? 'Excluir Transações' : 'Excluir Transação'}
+      title={t(count ? 'tx.deleteMany' : 'tx.deleteOne')}
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-danger" onClick={() => { onConfirm(); onClose() }}>Excluir</button>
+          <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn btn-danger" onClick={() => { onConfirm(); onClose() }}>{t('action.delete')}</button>
         </>
       }
     >
       <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
         {count
-          ? <>Deseja excluir <strong style={{ color: 'var(--text-primary)' }}>{count} transações</strong> selecionadas? Esta ação não pode ser desfeita.</>
-          : <>Deseja excluir <strong style={{ color: 'var(--text-primary)' }}>{name}</strong>? Esta ação não pode ser desfeita.</>
+          ? t('tx.deleteManyConfirm', { count })
+          : t('tx.deleteOneConfirm', { name })
         }
       </p>
     </Modal>
@@ -35,7 +37,7 @@ function ConfirmModal({ name, count, onConfirm, onClose }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, monthlyIncome, monthlyExpenses, categories, thisMonth, formatCurrency: fmt } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, categories, formatCurrency: fmt, formatDate, t } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')
@@ -59,16 +61,16 @@ export default function Transactions() {
   const [bulkConfirm, setBulkConfirm] = useState(false)
   const [selected, setSelected] = useState(new Set())
 
-  const filtered = transactions.filter(t => {
-    if (filterType !== 'all' && t.type !== filterType) return false
-    if (filterCat !== 'all' && t.category !== filterCat) return false
-    if (filterStatus !== 'all' && t.status !== filterStatus) return false
+  const filtered = transactions.filter(tx => {
+    if (filterType !== 'all' && tx.type !== filterType) return false
+    if (filterCat !== 'all' && tx.category !== filterCat) return false
+    if (filterStatus !== 'all' && tx.status !== filterStatus) return false
     
-    if (filterStart && t.date && t.date < filterStart) return false
-    if (filterEnd && t.date && t.date > filterEnd) return false
+    if (filterStart && tx.date && tx.date < filterStart) return false
+    if (filterEnd && tx.date && tx.date > filterEnd) return false
 
-    if (search && !t.name.toLowerCase().includes(search.toLowerCase()) &&
-      !t.category.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !tx.name.toLowerCase().includes(search.toLowerCase()) &&
+      !tx.category.toLowerCase().includes(search.toLowerCase())) return false
     return true
   }).sort((a, b) => {
     if (sortConfig.key === 'date') {
@@ -91,13 +93,13 @@ export default function Transactions() {
     return 0
   })
 
-  const viewIncome = filtered.filter(t => t.type === 'income' && t.status !== 'failed').reduce((s, t) => s + (t.amount || 0), 0)
-  const viewExpenses = filtered.filter(t => t.type === 'expense' && t.status !== 'failed').reduce((s, t) => s + (t.amount || 0), 0)
+  const viewIncome = filtered.filter(tx => tx.type === 'income' && tx.status !== 'failed').reduce((s, tx) => s + (tx.amount || 0), 0)
+  const viewExpenses = filtered.filter(tx => tx.type === 'expense' && tx.status !== 'failed').reduce((s, tx) => s + (tx.amount || 0), 0)
   const viewNet = viewIncome - viewExpenses
 
-  const usedCategories = [...new Set(transactions.map(t => t.category))].sort()
+  const usedCategories = [...new Set(transactions.map(tx => tx.category))].sort()
 
-  const filteredIds = filtered.map(t => t.id)
+  const filteredIds = filtered.map(tx => tx.id)
   const allSelected = filteredIds.length > 0 && filteredIds.every(id => selected.has(id))
   const someSelected = filteredIds.some(id => selected.has(id)) && !allSelected
   const selectedCount = filteredIds.filter(id => selected.has(id)).length
@@ -145,15 +147,15 @@ export default function Transactions() {
       {/* Summary */}
       <div className="summary-strip">
         <div className="summary-stat">
-          <div className="summary-stat-label">Receitas (filtro)</div>
+          <div className="summary-stat-label">{t('tx.filteredIncome')}</div>
           <div className="summary-stat-value positive-text">{fmt(viewIncome)}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Despesas (filtro)</div>
+          <div className="summary-stat-label">{t('tx.filteredExpenses')}</div>
           <div className="summary-stat-value negative-text">{fmt(viewExpenses)}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Saldo (filtro)</div>
+          <div className="summary-stat-label">{t('tx.filteredNet')}</div>
           <div className={`summary-stat-value ${viewNet >= 0 ? 'positive-text' : 'negative-text'}`}>{fmt(viewNet)}</div>
         </div>
       </div>
@@ -164,7 +166,7 @@ export default function Transactions() {
           <i className="fi fi-rr-search search-icon" />
           <input
             className="search-input"
-            placeholder="Buscar transações..."
+            placeholder={t('tx.search')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -175,30 +177,30 @@ export default function Transactions() {
             className="filter-select" 
             value={filterStart} 
             onChange={e => setFilterStart(e.target.value)} 
-            title="Data inicial"
+            title={t('tx.dateFrom')}
           />
-          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>até</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('tx.until')}</span>
           <input 
             type="date" 
             className="filter-select" 
             value={filterEnd} 
             onChange={e => setFilterEnd(e.target.value)} 
-            title="Data final"
+            title={t('tx.dateTo')}
           />
         </div>
         <select className="filter-select" value={filterType} onChange={e => setType(e.target.value)}>
-          <option value="all">Todos os tipos</option>
-          <option value="income">Receitas</option>
-          <option value="expense">Despesas</option>
+          <option value="all">{t('tx.allTypes')}</option>
+          <option value="income">{t('tx.income')}</option>
+          <option value="expense">{t('tx.expenses')}</option>
         </select>
         <select className="filter-select" value={filterCat} onChange={e => setCat(e.target.value)}>
-          <option value="all">Todas as categorias</option>
+          <option value="all">{t('tx.allCategories')}</option>
           {usedCategories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <select className="filter-select" value={filterStatus} onChange={e => setStatus(e.target.value)}>
-          <option value="all">Todos os status</option>
-          <option value="completed">Concluído</option>
-          <option value="pending">Pendente</option>
+          <option value="all">{t('tx.allStatuses')}</option>
+          <option value="completed">{t('tx.completed')}</option>
+          <option value="pending">{t('tx.pending')}</option>
         </select>
         <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setAddModal(true)}>
           <i className="fi fi-rr-plus" /> Nova Transação
@@ -228,8 +230,8 @@ export default function Transactions() {
         {filtered.length === 0 ? (
           <div className="empty-state">
             <i className="fi fi-rr-search" style={{ fontSize: 30, color: 'var(--text-muted)' }} />
-            <p>Nenhuma transação encontrada</p>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Tente ajustar os filtros</span>
+            <p>{t('tx.none')}</p>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('tx.adjustFilters')}</span>
           </div>
         ) : (<>
           {/* ── Desktop table ── */}
@@ -240,18 +242,18 @@ export default function Transactions() {
                   <Checkbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} />
                 </th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('name')}>
-                  Descrição {renderSortIcon('name')}
+                  {t('tx.description')} {renderSortIcon('name')}
                 </th>
-                <th style={{ textAlign: 'center' }}>Categoria</th>
-                <th style={{ textAlign: 'center' }}>Carteira</th>
+                <th style={{ textAlign: 'center' }}>{t('tx.category')}</th>
+                <th style={{ textAlign: 'center' }}>{t('tx.wallet')}</th>
                 <th style={{ textAlign: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('date')}>
-                  Data {renderSortIcon('date')}
+                  {t('tx.date')} {renderSortIcon('date')}
                 </th>
                 <th style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('amount')}>
-                  Valor {renderSortIcon('amount')}
+                  {t('tx.amount')} {renderSortIcon('amount')}
                 </th>
-                <th style={{ textAlign: 'center' }}>Status</th>
-                <th style={{ textAlign: 'center' }}>Ações</th>
+                <th style={{ textAlign: 'center' }}>{t('tx.status')}</th>
+                <th style={{ textAlign: 'center' }}>{t('tx.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -292,17 +294,17 @@ export default function Transactions() {
                         </span>
                       ) : '—'}
                     </td>
-                    <td className="tx-date" style={{ textAlign: 'center' }}>{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                    <td className="tx-date" style={{ textAlign: 'center' }}>{formatDate(tx.date)}</td>
                     <td className={`tx-amount ${tx.type === 'income' ? 'positive' : 'negative'}`}>
                       {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                     </td>
                     <td className="tx-status">
-                      <span className={`status-badge ${tx.status}`}>{STATUS_LABEL[tx.status]}</span>
+                      <span className={`status-badge ${tx.status}`}>{STATUS_LABEL[tx.status]} {t(STATUS_KEY[tx.status])}</span>
                     </td>
                     <td>
                       <div className="table-actions" style={{ justifyContent: 'center' }}>
-                        <button className="btn-icon" title="Editar" onClick={() => setEditItem(tx)}><i className="fi fi-rr-pencil" /></button>
-                        <button className="btn-icon danger" title="Excluir" onClick={() => setDelItem(tx)}><i className="fi fi-rr-trash" /></button>
+                        <button className="btn-icon" title={t('action.edit')} onClick={() => setEditItem(tx)}><i className="fi fi-rr-pencil" /></button>
+                        <button className="btn-icon danger" title={t('action.delete')} onClick={() => setDelItem(tx)}><i className="fi fi-rr-trash" /></button>
                       </div>
                     </td>
                   </tr>
@@ -334,8 +336,8 @@ export default function Transactions() {
                       {wallet && <span className="tx-card-wallet">{wallet.name}</span>}
                     </div>
                     <div className="tx-card-bottom">
-                      <span className="tx-date">{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                      <span className={`status-badge ${tx.status}`}>{STATUS_LABEL[tx.status]}</span>
+                      <span className="tx-date">{formatDate(tx.date)}</span>
+                      <span className={`status-badge ${tx.status}`}>{STATUS_LABEL[tx.status]} {t(STATUS_KEY[tx.status])}</span>
                       <div className="table-actions" style={{ marginLeft: 'auto' }}
                         onClick={e => e.stopPropagation()}>
                         <button className="btn-icon" onClick={() => setEditItem(tx)}><i className="fi fi-rr-pencil" /></button>
@@ -352,8 +354,9 @@ export default function Transactions() {
 
       {addModal && (
         <TransactionModal wallets={wallets} creditCards={creditCards} categories={categories}
-          onSave={(data, mode, count) => {
+          onSave={(data, mode, count, frequency) => {
             if (mode === 'unique') addTransaction(data)
+            else if (mode === 'recurring') createRecurringSeries(data, frequency, count)
             else addMultipleTransactions(data, mode, count)
           }}
           onClose={() => setAddModal(false)} />

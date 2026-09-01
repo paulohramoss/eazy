@@ -15,3 +15,32 @@ export const addDays = (iso, n) => {
   const [y, m, d] = iso.split('-').map(Number)
   return isoDate(new Date(y, m - 1, d + n))
 }
+
+// Soma meses preservando o dia, encolhendo quando o mês de destino é mais curto:
+// 31/jan + 1 mês = 28/fev (e não 03/mar, que é o que o overflow do Date daria).
+export const addMonths = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  const lastDay = new Date(y, m - 1 + n + 1, 0).getDate()
+  return isoDate(new Date(y, m - 1 + n, Math.min(d, lastDay)))
+}
+
+// 29/fev num ano não bissexto vira 28/fev.
+export const addYears = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  const lastDay = new Date(y + n, m, 0).getDate()
+  return isoDate(new Date(y + n, m - 1, Math.min(d, lastDay)))
+}
+
+export const FREQUENCIES = [
+  { value: 'weekly',  labelKey: 'freq.weekly' },
+  { value: 'monthly', labelKey: 'freq.monthly' },
+  { value: 'yearly',  labelKey: 'freq.yearly' },
+]
+
+// Próxima ocorrência de uma recorrência. Espelha advanceISO em api/_lib/dates.js
+// — o cron usa a versão do servidor, a UI usa esta para prever a próxima data.
+export const advance = (iso, frequency, times = 1) => {
+  if (frequency === 'weekly') return addDays(iso, 7 * times)
+  if (frequency === 'yearly') return addYears(iso, times)
+  return addMonths(iso, times)
+}

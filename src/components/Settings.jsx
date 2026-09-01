@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import Toggle from './Toggle'
+import { useToast } from './Toast'
+import { LANGUAGES } from '../i18n'
 
 const THEME_OPTIONS = [
   { value: 'light',  label: 'Claro',   icon: 'fi-rr-sun' },
@@ -26,22 +28,46 @@ function Section({ icon, title, children }) {
 
 export default function Settings() {
   const { settings, resolvedTheme, updateSettings, categories, addCategory, removeCategory,
-          exportJSON, exportCSV, importJSON } = useApp()
+          exportJSON, exportCSV, importJSON, importCSV, wallets, t } = useApp()
   const [newCat, setNewCat] = useState('')
+  const toast = useToast()
   const [importStatus, setImportStatus] = useState(null) // null | 'loading' | { ok, msg }
   const importRef = useRef(null)
 
-  const handleImport = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const [skipDuplicates, setSkipDuplicates] = useState(true)
+  const [csvWallet, setCsvWallet] = useState('')
+  const csvRef = useRef(null)
+
+  // Importar o mesmo arquivo duas vezes duplicava tudo em silêncio. Agora as
+  // repetições são detectadas por data+tipo+valor+descrição e o resultado diz
+  // quantas entraram e quantas foram puladas.
+  const runImport = async (file, importer, extra = {}) => {
     setImportStatus('loading')
     try {
-      const count = await importJSON(file)
-      setImportStatus({ ok: true, msg: `${count} transações importadas com sucesso.` })
+      const stats = await importer(file, { skipDuplicates, ...extra })
+      const parts = [`${stats.imported} transação(ões) importada(s)`]
+      if (stats.skipped) parts.push(`${stats.skipped} duplicada(s) ignorada(s)`)
+      if (stats.invalid) parts.push(`${stats.invalid} linha(s) inválida(s)`)
+      setImportStatus({ ok: true, msg: `${parts.join(' · ')}.` })
+      toast.success('Importação concluída.')
     } catch (err) {
       setImportStatus({ ok: false, msg: err.message })
+      toast.error(`Falha ao importar: ${err.message}`)
     }
+  }
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
     e.target.value = ''
+    if (!file) return
+    await runImport(file, importJSON)
+  }
+
+  const handleImportCSV = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    await runImport(file, importCSV, { walletId: csvWallet })
   }
 
   const handleAddCategory = () => {
@@ -55,22 +81,17 @@ export default function Settings() {
     { value: 'EUR', label: 'Euro (€)' },
   ]
 
-  const LANGUAGES = [
-    { value: 'pt-BR', label: 'Português (Brasil)' },
-    { value: 'en-US', label: 'English (US)' },
-    { value: 'es', label: 'Español' },
-  ]
-
   return (
     <div className="screen">
       <div className="settings-grid">
 
         {/* Preferences */}
-        <Section icon={<i className="fi fi-rr-settings-sliders" />} title="Preferências">
+        <Section icon={<i className="fi fi-rr-settings-sliders" />} title={t('settings.preferences')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="form-group">
-              <label className="form-label">Moeda</label>
+              <label className="form-label" htmlFor="settings-currency">{t('settings.currency')}</label>
               <select
+                id="settings-currency"
                 className="form-select"
                 value={settings.currency}
                 onChange={e => updateSettings({ currency: e.target.value })}
@@ -79,24 +100,16 @@ export default function Settings() {
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                Idioma
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-                  background: 'var(--bg-hover)', color: 'var(--text-muted)',
-                  textTransform: 'uppercase', letterSpacing: '0.5px',
-                }}>em breve</span>
-              </label>
+              <label className="form-label" htmlFor="settings-language">{t('settings.language')}</label>
               <select
+                id="settings-language"
                 className="form-select"
                 value={settings.language}
                 onChange={e => updateSettings({ language: e.target.value })}
-                disabled
-                title="Tradução da interface ainda não implementada"
-                style={{ opacity: 0.6, cursor: 'not-allowed' }}
               >
                 {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
               </select>
+              <div className="form-hint">{t('settings.languageHint')}</div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -153,7 +166,7 @@ export default function Settings() {
                     <i className="fi fi-rr-fingerprint" style={{ marginRight: 6 }} />
                     Trava por Biometria
                   </div>
-                  <div className="toggle-desc">Exigir Face ID/Touch ID para abrir o app</div>
+                  <div className="toggle-desc">{t('settings.biometricDesc')}</div>
                 </div>
                 <Toggle
                   on={settings.biometricEnabled}
@@ -180,11 +193,11 @@ export default function Settings() {
                         if (cred) {
                           localStorage.setItem('eazy_biometric_id', btoa(String.fromCharCode.apply(null, new Uint8Array(cred.rawId))));
                           updateSettings({ biometricEnabled: true });
-                          alert('Biometria habilitada com sucesso!');
+                          toast.success('Biometria habilitada neste dispositivo.');
                         }
                       } catch (e) {
                         console.error(e);
-                        alert('Não foi possível ativar a biometria: ' + e.message);
+                        toast.error('Não foi possível ativar a biometria: ' + e.message);
                       }
                     } else {
                       updateSettings({ biometricEnabled: false });
@@ -210,7 +223,7 @@ export default function Settings() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <input
               className="form-input"
-              placeholder="Nome da nova categoria..."
+              placeholder={t('settings.newCategory')}
               value={newCat}
               onChange={e => setNewCat(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
@@ -252,7 +265,7 @@ export default function Settings() {
                     color: 'var(--text-muted)', display: 'flex', alignItems: 'center',
                     borderRadius: 4, flexShrink: 0,
                   }}
-                  title="Remover categoria"
+                  title={t('settings.removeCategory')}
                 >
                   <i className="fi fi-rr-trash" style={{ fontSize: 13 }} />
                 </button>
@@ -262,11 +275,13 @@ export default function Settings() {
         </div>
 
         {/* Data */}
-        <Section icon={<i className="fi fi-rr-database" />} title="Dados">
+        <Section icon={<i className="fi fi-rr-database" />} title={t('settings.data')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               Dados sincronizados na nuvem via Firestore. Exporte como JSON (backup completo) ou CSV (só transações, abre no Excel).
-              Importe um JSON gerado por este app para restaurar ou mesclar dados.
+              Na importação, o JSON restaura um backup do próprio app e o CSV traz o extrato do banco —
+              são aceitos os cabeçalhos Data, Descrição, Valor, Tipo e Categoria, com valores em
+              formato brasileiro ou americano.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -277,16 +292,55 @@ export default function Settings() {
                   <i className="fi fi-rr-file-spreadsheet" /> Exportar CSV
                 </button>
               </div>
-              <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
-              <button
-                className="btn btn-secondary"
-                style={{ width: '100%' }}
-                disabled={importStatus === 'loading'}
-                onClick={() => { setImportStatus(null); importRef.current?.click() }}
-              >
-                <i className="fi fi-rr-upload" />
-                {importStatus === 'loading' ? 'Importando...' : 'Importar JSON'}
-              </button>
+              <input ref={importRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={handleImport} />
+              <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleImportCSV} />
+
+              <div className="toggle-row" style={{ padding: '10px 0' }}>
+                <div className="toggle-info">
+                  <div className="toggle-label">{t('settings.skipDuplicates')}</div>
+                  <div className="toggle-desc">
+                    Pula transações com a mesma data, valor, tipo e descrição das que já existem.
+                  </div>
+                </div>
+                <Toggle on={skipDuplicates} onChange={setSkipDuplicates} />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="csv-wallet">{t('settings.csvWallet')}</label>
+                <select
+                  id="csv-wallet"
+                  className="form-select"
+                  value={csvWallet}
+                  onChange={e => setCsvWallet(e.target.value)}
+                >
+                  <option value="">{t('settings.noWallet')}</option>
+                  {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+                <div className="form-hint">
+                  O CSV de banco não traz a conta; escolha aqui para os saldos ficarem certos.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-secondary"
+                  style={{ flex: 1 }}
+                  disabled={importStatus === 'loading'}
+                  onClick={() => { setImportStatus(null); importRef.current?.click() }}
+                >
+                  <i className="fi fi-rr-upload" />
+                  {importStatus === 'loading' ? 'Importando...' : 'Importar JSON'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ flex: 1 }}
+                  disabled={importStatus === 'loading'}
+                  onClick={() => { setImportStatus(null); csvRef.current?.click() }}
+                >
+                  <i className="fi fi-rr-file-spreadsheet" />
+                  Importar CSV
+                </button>
+              </div>
               {importStatus && importStatus !== 'loading' && (
                 <div style={{
                   padding: '10px 14px', borderRadius: 8, fontSize: 13,
@@ -303,7 +357,7 @@ export default function Settings() {
         </Section>
 
         {/* About */}
-        <Section icon={<i className="fi fi-rr-info" />} title="Sobre">
+        <Section icon={<i className="fi fi-rr-info" />} title={t('settings.about')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
             {[
               { label: 'Aplicação', value: 'EazyFinance' },

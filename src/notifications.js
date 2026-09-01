@@ -1,23 +1,18 @@
 import { getFirebaseMessaging, getToken, onMessage, VAPID_KEY } from './firebase'
+import { apiPost } from './utils/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmt = (n, currency = 'BRL') => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency })
-
-const API_BASE = import.meta.env.DEV ? 'http://localhost:5175' : ''
+const fmt = (n, currency = 'BRL', locale = 'pt-BR') =>
+  (Number(n) || 0).toLocaleString(locale, { style: 'currency', currency })
 
 // ─── Email via Vercel function ────────────────────────────────────────────────
 
 export async function sendEmail({ to, type, data = {} }) {
   if (!to) return { ok: false, error: 'Sem e-mail destinatário' }
   try {
-    const res = await fetch(`${API_BASE}/api/send-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, type, data }),
-    })
-    const json = await res.json()
-    return res.ok ? { ok: true } : { ok: false, error: json.error }
+    await apiPost('/api/send-email', { to, type, data })
+    return { ok: true }
   } catch (err) {
     return { ok: false, error: err.message }
   }
@@ -66,7 +61,7 @@ export function listenForegroundMessages(callback) {
 
 export async function notify({ type, data = {}, settings }) {
   const { pushEnabled, emailEnabled, emailAddress } = settings
-  const fmtC = (n) => fmt(n, settings.currency)
+  const fmtC = (n) => fmt(n, settings.currency, settings.language)
 
   const notifMap = {
     transaction:   settings.notifNewTransaction,

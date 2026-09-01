@@ -38,7 +38,7 @@ function resizeImage(file, maxSize = 400) {
 }
 
 export default function Profile() {
-  const { settings, updateSettings } = useApp()
+  const { settings, updateSettings, t } = useApp()
   const { user } = useAuth()
 
   const [profile, setProfile] = useState({
@@ -65,7 +65,7 @@ export default function Profile() {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.type.startsWith('image/')) { setUploadError('Selecione uma imagem válida (JPG, PNG, etc.)'); return }
+    if (!file.type.startsWith('image/')) { setUploadError(t('profile.invalidImage')); return }
 
     setUploadError(null)
     setUploading(true)
@@ -78,7 +78,7 @@ export default function Profile() {
       setPhotoPreview(url)
       updateSettings({ photoURL: url })
     } catch (err) {
-      setUploadError('Erro ao enviar a foto. Tente novamente.')
+      setUploadError(t('profile.uploadFailed'))
       console.error(err)
     } finally {
       setUploading(false)
@@ -124,7 +124,7 @@ export default function Profile() {
       <div className="settings-grid">
 
         {/* ── Prévia do perfil ─────────────────────────────── */}
-        <Section icon={<i className="fi fi-rr-id-badge" />} title="Prévia do Perfil" style={{ display: 'flex', flexDirection: 'column' }}>
+        <Section icon={<i className="fi fi-rr-id-badge" />} title={t('profile.previewTitle')} style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1, justifyContent: 'center', padding: '24px 0' }}>
 
             {/* Avatar com overlay de edição */}
@@ -148,7 +148,7 @@ export default function Profile() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                title="Alterar foto"
+                title={t('profile.changePhoto')}
                 style={{
                   position: 'absolute', bottom: 2, right: 2,
                   width: 28, height: 28, borderRadius: '50%',
@@ -200,12 +200,12 @@ export default function Profile() {
         </Section>
 
         {/* ── Formulário de edição ─────────────────────────── */}
-        <Section icon={<i className="fi fi-rr-edit" />} title="Editar Informações">
+        <Section icon={<i className="fi fi-rr-edit" />} title={t('profile.editTitle')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Foto de perfil */}
             <div className="form-group">
-              <label className="form-label">Foto de perfil</label>
+              <label className="form-label">{t('profile.photo')}</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
 
                 {/* Mini preview */}
@@ -230,7 +230,7 @@ export default function Profile() {
                     style={{ justifyContent: 'center', fontSize: 13 }}
                   >
                     <i className={`fi ${uploading ? 'fi-rr-spinner' : 'fi-rr-upload'}`} />
-                    {uploading ? 'Enviando...' : hasPhoto ? 'Alterar foto' : 'Enviar foto'}
+                    {t(uploading ? 'profile.uploading' : hasPhoto ? 'profile.changePhoto' : 'profile.uploadPhoto')}
                   </button>
 
                   {hasPhoto && (
@@ -239,7 +239,7 @@ export default function Profile() {
                       onClick={handleRemovePhoto}
                       style={{ justifyContent: 'center', fontSize: 13, color: 'var(--accent-red)' }}
                     >
-                      <i className="fi fi-rr-trash" /> Remover foto
+                      <i className="fi fi-rr-trash" /> {t('profile.removePhoto')}
                     </button>
                   )}
                 </div>
@@ -256,24 +256,24 @@ export default function Profile() {
               )}
 
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                JPG, PNG ou WEBP · Máx. 10 MB · A imagem será redimensionada automaticamente
+                {t('profile.photoHint')}
               </p>
             </div>
 
             {/* Nome */}
             <div className="form-group">
-              <label className="form-label">Nome</label>
+              <label className="form-label">{t('profile.name')}</label>
               <input
                 className="form-input"
                 value={profile.name}
                 onChange={e => set('name', e.target.value)}
-                placeholder="Seu nome completo"
+                placeholder={t('profile.namePlaceholder')}
               />
             </div>
 
             {/* E-mail */}
             <div className="form-group">
-              <label className="form-label">E-mail</label>
+              <label className="form-label">{t('profile.email')}</label>
               <input
                 className="form-input"
                 type="email"
@@ -285,7 +285,7 @@ export default function Profile() {
 
             {/* Celular */}
             <div className="form-group">
-              <label className="form-label">Celular</label>
+              <label className="form-label">{t('profile.phone')}</label>
               <div style={{ position: 'relative' }}>
                 <i className="fi fi-rr-smartphone" style={{
                   position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
@@ -317,7 +317,7 @@ export default function Profile() {
 
             {/* Iniciais */}
             <div className="form-group">
-              <label className="form-label">Iniciais (avatar)</label>
+              <label className="form-label">{t('profile.initials')}</label>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
                 Exibidas quando não há foto de perfil — até 2 letras.
               </p>
@@ -346,7 +346,7 @@ export default function Profile() {
               </div>
               {hasPhoto && (
                 <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
-                  As iniciais ficam ocultas enquanto há uma foto de perfil.
+                  {t('profile.initialsHidden')}
                 </p>
               )}
             </div>
@@ -354,8 +354,8 @@ export default function Profile() {
             <div style={{ marginTop: 4 }}>
               <button className="btn btn-primary" onClick={saveProfile}>
                 {saved
-                  ? <><i className="fi fi-rr-check" /> Salvo!</>
-                  : <><i className="fi fi-rr-disk" /> Salvar alterações</>
+                  ? <><i className="fi fi-rr-check" /> {t('profile.saved')}</>
+                  : <><i className="fi fi-rr-disk" /> {t('profile.save')}</>
                 }
               </button>
             </div>

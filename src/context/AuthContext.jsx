@@ -8,6 +8,8 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
+  sendPasswordResetEmail,
+  sendEmailVerification,
 } from 'firebase/auth'
 
 const AuthContext = createContext(null)
@@ -30,9 +32,22 @@ export function AuthProvider({ children }) {
   const signUp = async (email, password, name) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName: name })
+    // Verificação de e-mail: sem isto não havia como distinguir uma conta com
+    // endereço real de uma digitada errado, e a recuperação de senha nunca
+    // chegaria ao dono. Falhar aqui não deve impedir o cadastro.
+    sendEmailVerification(cred.user).catch(err => console.error('[verify email]', err))
     // Refresh user so displayName is available
     setUser({ ...cred.user, displayName: name })
     return cred
+  }
+
+  // Recuperação de senha. Antes, quem esquecia a senha ficava permanentemente
+  // sem acesso à conta — não havia caminho nenhum na interface.
+  const resetPassword = (email) => sendPasswordResetEmail(auth, email)
+
+  const resendVerification = () => {
+    if (!auth.currentUser) throw new Error('Nenhum usuário autenticado')
+    return sendEmailVerification(auth.currentUser)
   }
 
   const signInGoogle = () =>
@@ -43,7 +58,7 @@ export function AuthProvider({ children }) {
   if (loading) return null   // Aguarda resolução do estado de auth
 
   return (
-    <AuthContext.Provider value={{ user, signIn, signUp, signInGoogle, logOut }}>
+    <AuthContext.Provider value={{ user, signIn, signUp, signInGoogle, logOut, resetPassword, resendVerification }}>
       {children}
     </AuthContext.Provider>
   )

@@ -11,6 +11,23 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // Comprovantes: receipts/{uid}/{transactionId}/{arquivo}
+    //
+    // Ao contrário dos avatares, a LEITURA é restrita ao dono: um comprovante
+    // mostra valor, estabelecimento e às vezes dados de cartão. Liberar para
+    // qualquer usuário autenticado (como nos avatares) vazaria isso.
+    match /receipts/{userId}/{transactionId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType == 'application/pdf');
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

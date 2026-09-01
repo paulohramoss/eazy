@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { createTranslator, detectLanguage } from '../i18n'
 
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
 
 export default function Modal({ title, onClose, children, footer, size = 'md' }) {
+  const t = useMemo(() => createTranslator(detectLanguage()), [])
   const modalRef = useRef(null)
   const previouslyFocused = useRef(null)
 
@@ -52,7 +54,7 @@ export default function Modal({ title, onClose, children, footer, size = 'md' })
       >
         <div className="modal-header">
           <span className="modal-title">{title}</span>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose} aria-label={t('action.close')}>✕</button>
         </div>
         <div className="modal-body">
           {children}

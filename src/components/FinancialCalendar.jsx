@@ -18,7 +18,7 @@ const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 
 export default function FinancialCalendar() {
-  const { transactions, wallets, formatCurrency: fmt, currencySymbol } = useApp()
+  const { transactions, wallets, formatCurrency: fmt, currencySymbol, locale, t } = useApp()
   const now   = new Date()
   const todayKey = isoDate(now)
 
@@ -27,10 +27,10 @@ export default function FinancialCalendar() {
   const [selectedDay, setSelectedDay] = useState(null)
 
   const validTx = useMemo(
-    () => transactions.filter(t => t.status !== 'failed' && t.date), [transactions])
+    () => transactions.filter(tx => tx.status !== 'failed' && tx.date), [transactions])
 
-  const txByDate = useMemo(() => validTx.reduce((acc, t) => {
-    (acc[t.date] ||= []).push(t)
+  const txByDate = useMemo(() => validTx.reduce((acc, tx) => {
+    (acc[tx.date] ||= []).push(tx)
     return acc
   }, {}), [validTx])
 
@@ -88,9 +88,9 @@ export default function FinancialCalendar() {
   // Totais do mês visível (só os dias do próprio mês, sem o preenchimento).
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
   const monthTotals = useMemo(() => {
-    const inMonth = validTx.filter(t => t.date.startsWith(monthPrefix))
-    const income   = inMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const expenses = inMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    const inMonth = validTx.filter(tx => tx.date.startsWith(monthPrefix))
+    const income   = inMonth.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
+    const expenses = inMonth.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
     return { income, expenses, net: income - expenses }
   }, [validTx, monthPrefix])
 
@@ -107,8 +107,8 @@ export default function FinancialCalendar() {
       {/* Page header */}
       <div className="moovia-page-header">
         <div>
-          <h2 className="moovia-page-title">Calendário Financeiro</h2>
-          <p className="moovia-page-sub">Visualize suas receitas e despesas por data.</p>
+          <h2 className="moovia-page-title">{t('cal.title')}</h2>
+          <p className="moovia-page-sub">{t('cal.sub')}</p>
         </div>
         <div className="cal-nav-controls">
           <button className="cal-nav-btn" onClick={prevMonth}>
@@ -119,7 +119,7 @@ export default function FinancialCalendar() {
             <i className="fi fi-rr-angle-right" />
           </button>
           {!onCurrentMonth && (
-            <button className="btn btn-secondary btn-sm" onClick={goToday}>Hoje</button>
+            <button className="btn btn-secondary btn-sm" onClick={goToday}>{t('cal.today')}</button>
           )}
         </div>
       </div>
@@ -127,21 +127,21 @@ export default function FinancialCalendar() {
       {/* Totais do mês visível */}
       <div className="cal-month-summary">
         <div>
-          <span className="cal-summary-label">Receitas</span>
+          <span className="cal-summary-label">{t('tx.income')}</span>
           <span className="cal-summary-value positive-text">+{fmt(monthTotals.income)}</span>
         </div>
         <div>
-          <span className="cal-summary-label">Despesas</span>
+          <span className="cal-summary-label">{t('tx.expenses')}</span>
           <span className="cal-summary-value negative-text">−{fmt(monthTotals.expenses)}</span>
         </div>
         <div>
-          <span className="cal-summary-label">Resultado</span>
+          <span className="cal-summary-label">{t('cal.result')}</span>
           <span className={`cal-summary-value ${monthTotals.net >= 0 ? 'positive-text' : 'negative-text'}`}>
             {monthTotals.net >= 0 ? '+' : '−'}{fmt(Math.abs(monthTotals.net))}
           </span>
         </div>
         <div>
-          <span className="cal-summary-label">Saldo no fim do mês</span>
+          <span className="cal-summary-label">{t('cal.endOfMonthBalance')}</span>
           <span className={`cal-summary-value ${endOfMonthBalance < 0 ? 'negative-text' : ''}`}>
             {fmt(endOfMonthBalance)}
           </span>
@@ -191,10 +191,10 @@ export default function FinancialCalendar() {
 
                   {txs.length > 0 && (
                     <div className="cal-tx-list">
-                      {txs.slice(0, 2).map((t, i) => (
-                        <div key={i} className={`cal-tx-pill cal-tx-${t.type}`}>
+                      {txs.slice(0, 2).map((tx, i) => (
+                        <div key={i} className={`cal-tx-pill cal-tx-${tx.type}`}>
                           <span className="cal-tx-dot" />
-                          <span className="cal-tx-amt">{fmtShort(t.amount, currencySymbol)}</span>
+                          <span className="cal-tx-amt">{fmtShort(tx.amount, currencySymbol)}</span>
                         </div>
                       ))}
                       {txs.length > 2 && (
@@ -219,7 +219,7 @@ export default function FinancialCalendar() {
       {/* Selected day detail panel */}
       {selectedDay && (
         <Modal
-          title={new Date(selectedDay + 'T12:00').toLocaleDateString('pt-BR', {
+          title={new Date(selectedDay + 'T12:00').toLocaleDateString(locale, {
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
           })}
           onClose={() => setSelectedDay(null)}
@@ -230,17 +230,17 @@ export default function FinancialCalendar() {
             </p>
           ) : (
             <div className="cal-detail-list">
-              {selectedTxs.map(t => (
-                <div key={t.id} className="cal-detail-item">
+              {selectedTxs.map(tx => (
+                <div key={tx.id} className="cal-detail-item">
                   <div className="cal-detail-left">
-                    <div className={`cal-detail-dot cal-tx-${t.type}`} />
+                    <div className={`cal-detail-dot cal-tx-${tx.type}`} />
                     <div>
-                      <div className="cal-detail-name">{t.name}</div>
-                      <div className="cal-detail-cat">{t.category}</div>
+                      <div className="cal-detail-name">{tx.name}</div>
+                      <div className="cal-detail-cat">{tx.category}</div>
                     </div>
                   </div>
-                  <div className={`cal-detail-amount ${t.type === 'income' ? 'positive-text' : 'negative-text'}`}>
-                    {t.type === 'expense' ? '−' : '+'}{fmt(t.amount)}
+                  <div className={`cal-detail-amount ${tx.type === 'income' ? 'positive-text' : 'negative-text'}`}>
+                    {tx.type === 'expense' ? '−' : '+'}{fmt(tx.amount)}
                   </div>
                 </div>
               ))}
@@ -248,7 +248,7 @@ export default function FinancialCalendar() {
           )}
 
           <div className="cal-detail-balance">
-            <span>Saldo projetado no fim do dia</span>
+            <span>{t('cal.projectedEndOfDay')}</span>
             <strong className={(balanceByDay[selectedDay] ?? 0) < 0 ? 'negative-text' : ''}>
               {fmt(balanceByDay[selectedDay] ?? 0)}
             </strong>
@@ -256,8 +256,8 @@ export default function FinancialCalendar() {
 
           {/* Day totals */}
           {selectedTxs.length > 0 && (() => {
-            const inc = selectedTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-            const exp = selectedTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+            const inc = selectedTxs.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
+            const exp = selectedTxs.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
             return (
               <div className="cal-detail-totals">
                 {inc > 0 && <span className="positive-text">+{fmt(inc)} receitas</span>}

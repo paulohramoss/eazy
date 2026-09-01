@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { createTranslator, detectLanguage } from '../i18n'
 
 const ERR = {
   'auth/user-not-found':           'E-mail não encontrado.',
@@ -14,19 +15,26 @@ const ERR = {
   'auth/operation-not-allowed':    'Login com Google não está ativado. Ative no Firebase Console.',
   'auth/unauthorized-domain':      'Domínio não autorizado no Firebase Console.',
   'auth/network-request-failed':   'Erro de rede. Verifique sua conexão.',
+  'auth/too-many-requests':        'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
+  'auth/missing-email':            'Informe o e-mail.',
 }
 
 export default function Login() {
-  const { signIn, signUp, signInGoogle } = useAuth()
-  const [tab, setTab]       = useState('login')   // 'login' | 'register'
+  const { signIn, signUp, signInGoogle, resetPassword } = useAuth()
+  // A tela roda antes de existir usuário, então o idioma vem do cache local /
+  // do navegador em vez das preferências do Firestore.
+  const t = useMemo(() => createTranslator(detectLanguage()), [])
+  const [tab, setTab]       = useState('login')   // 'login' | 'register' | 'reset'
   const [name, setName]     = useState('')
   const [email, setEmail]   = useState('')
   const [password, setPass] = useState('')
   const [error, setError]   = useState('')
   const [loading, setLoad]  = useState(false)
+  const [notice, setNotice] = useState('')
   const isRegister = tab === 'register'
+  const isReset    = tab === 'reset'
 
-  const clearErr = () => setError('')
+  const clearErr = () => { setError(''); setNotice('') }
 
   const switchTab = (nextTab) => {
     setTab(nextTab)
@@ -40,10 +48,31 @@ export default function Login() {
       await fn()
     } catch (e) {
       console.error('[Auth error]', e.code, e.message)
-      setError(ERR[e.code] || `Erro inesperado. (${e.code ?? e.message})`)
+      setError(ERR[e.code] || t('login.unexpected', { code: e.code ?? e.message }))
     } finally {
       setLoad(false)
     }
+  }
+
+  // Sempre confirma o envio, mesmo quando o e-mail não existe: responder
+  // "e-mail não encontrado" transformaria a tela num verificador de contas
+  // cadastradas para quem estivesse sondando.
+  const handleReset = async (e) => {
+    e.preventDefault()
+    if (!email.trim()) { setError(t('login.enterEmail')); return }
+    setLoad(true); setError(''); setNotice('')
+    try {
+      await resetPassword(email.trim())
+    } catch (err) {
+      if (err.code !== 'auth/user-not-found' && err.code !== 'auth/invalid-credential') {
+        console.error('[reset password]', err.code, err.message)
+        setError(ERR[err.code] || t('login.resetFailed'))
+        setLoad(false)
+        return
+      }
+    }
+    setNotice(t('login.resetSent', { email: email.trim() }))
+    setLoad(false)
   }
 
   const handleSubmit = (e) => {
@@ -51,7 +80,7 @@ export default function Login() {
     if (tab === 'login') {
       handle(() => signIn(email, password))
     } else {
-      if (!name.trim()) { setError('Informe seu nome.'); return }
+      if (!name.trim()) { setError(t('login.enterName')); return }
       handle(() => signUp(email, password, name.trim()))
     }
   }
@@ -69,7 +98,7 @@ export default function Login() {
         <path fill="#4CAF50" d="M24 43.5c5.2 0 9.9-1.9 13.5-5.1l-6.2-5.2C29.4 34.9 26.8 36 24 36c-5.2 0-9.6-3-11.4-7.2l-6.5 5C9.5 39.1 16.3 43.5 24 43.5z"/>
         <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.2 5.2c3.7-3.4 6.3-8.5 6.3-14.9 0-1.2-.1-2.3-.4-3.5z" />
       </svg>
-      Continuar com Google
+      {t('login.google')}
     </button>
   )
 
@@ -80,7 +109,7 @@ export default function Login() {
       </div>
       <div>
         <div className="login-app-name">Eazy<em>Finance</em></div>
-        <div className="login-app-sub">Seu dinheiro em 5 segundos</div>
+        <div className="login-app-sub">{t('login.tagline')}</div>
       </div>
     </div>
   )
@@ -94,14 +123,14 @@ export default function Login() {
           <div className="login-hero-icon">
             <i className="fi fi-rr-user-add" />
           </div>
-          <h2>Novo por aqui?</h2>
-          <p>Crie sua conta e acompanhe seu dinheiro com a mesma clareza do dashboard.</p>
+          <h2>{t('login.newHere')}</h2>
+          <p>{t('login.newHereSub')}</p>
           <button
             className="login-hero-action"
             onClick={() => switchTab('register')}
             type="button"
           >
-            Criar conta
+            {t('login.createAccount')}
           </button>
         </section>
 
@@ -109,90 +138,156 @@ export default function Login() {
           <div className="login-hero-icon">
             <i className="fi fi-rr-sign-in-alt" />
           </div>
-          <h2>Bem-vindo de volta!</h2>
-          <p>Entre para continuar de onde parou e manter suas finanças em movimento.</p>
+          <h2>{t('login.welcomeBack')}</h2>
+          <p>{t('login.welcomeBackSub')}</p>
           <button
             className="login-hero-action"
             onClick={() => switchTab('login')}
             type="button"
           >
-            Entrar
+            {t('login.signIn')}
           </button>
         </section>
 
         <section className="login-form-panel login-form-signin" aria-hidden={isRegister}>
           <Brand />
 
-          <div className="login-form-header">
-            <h1>Entrar</h1>
-            <p>Acesse sua conta para continuar.</p>
-          </div>
-
-          <form className="login-form" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label">E-mail</label>
-              <input
-                className="form-input"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={e => { setEmail(e.target.value); clearErr() }}
-                autoComplete="email"
-                autoFocus={!isRegister}
-                disabled={isRegister}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Senha</label>
-              <input
-                className="form-input"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => { setPass(e.target.value); clearErr() }}
-                autoComplete="current-password"
-                disabled={isRegister}
-              />
-            </div>
-
-            {error && !isRegister && (
-              <div className="login-error">
-                <i className="fi fi-rr-exclamation" />
-                {error}
+          {/* A redefinição de senha reaproveita este painel em vez de virar um
+              terceiro card: a animação do login depende de haver exatamente
+              dois painéis deslizando. */}
+          {isReset ? (
+            <>
+              <div className="login-form-header">
+                <h1>{t('login.resetTitle')}</h1>
+                <p>{t('login.resetSub')}</p>
               </div>
-            )}
 
-            <button
-              className="btn btn-primary login-btn-submit"
-              type="submit"
-              disabled={loading || isRegister}
-            >
-              {loading && !isRegister
-                ? <><i className="fi fi-rr-spinner" /> Aguarde...</>
-                : 'Entrar'
-              }
-            </button>
-          </form>
+              <form className="login-form" onSubmit={handleReset}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="reset-email">{t('login.email')}</label>
+                  <input
+                    id="reset-email"
+                    className="form-input"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={e => { setEmail(e.target.value); clearErr() }}
+                    autoComplete="email"
+                    autoFocus
+                  />
+                </div>
 
-          <div className="login-divider"><span>ou continue com</span></div>
-          <GoogleButton />
+                {error && (
+                  <div className="login-error" role="alert">
+                    <i className="fi fi-rr-exclamation" />
+                    {error}
+                  </div>
+                )}
+
+                {notice && (
+                  <div className="login-notice" role="status">
+                    <i className="fi fi-rr-envelope" />
+                    {notice}
+                  </div>
+                )}
+
+                <button className="btn btn-primary login-btn-submit" type="submit" disabled={loading}>
+                  {loading
+                    ? <><i className="fi fi-rr-spinner" /> {t('login.sending')}</>
+                    : t('login.resetSubmit')
+                  }
+                </button>
+              </form>
+
+              <button className="login-link-btn" type="button" onClick={() => switchTab('login')}>
+                <i className="fi fi-rr-arrow-small-left" /> {t('login.backToLogin')}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="login-form-header">
+                <h1>{t('login.signIn')}</h1>
+                <p>{t('login.signInSub')}</p>
+              </div>
+
+              <form className="login-form" onSubmit={handleSubmit}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="login-email">{t('login.email')}</label>
+                  <input
+                    id="login-email"
+                    className="form-input"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={e => { setEmail(e.target.value); clearErr() }}
+                    autoComplete="email"
+                    autoFocus={!isRegister}
+                    disabled={isRegister}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="login-password">{t('login.password')}</label>
+                  <input
+                    id="login-password"
+                    className="form-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={e => { setPass(e.target.value); clearErr() }}
+                    autoComplete="current-password"
+                    disabled={isRegister}
+                  />
+                </div>
+
+                <button
+                  className="login-link-btn login-link-btn--right"
+                  type="button"
+                  onClick={() => switchTab('reset')}
+                  disabled={isRegister}
+                >
+                  {t('login.forgot')}
+                </button>
+
+                {error && !isRegister && (
+                  <div className="login-error" role="alert">
+                    <i className="fi fi-rr-exclamation" />
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  className="btn btn-primary login-btn-submit"
+                  type="submit"
+                  disabled={loading || isRegister}
+                >
+                  {loading && !isRegister
+                    ? <><i className="fi fi-rr-spinner" /> {t('login.wait')}</>
+                    : t('login.signIn')
+                  }
+                </button>
+              </form>
+
+              <div className="login-divider"><span>{t('login.orContinue')}</span></div>
+              <GoogleButton />
+            </>
+          )}
         </section>
 
         <section className="login-form-panel login-form-signup" aria-hidden={!isRegister}>
           <Brand />
 
           <div className="login-form-header">
-            <h1>Criar conta</h1>
-            <p>Comece seu controle financeiro hoje.</p>
+            <h1>{t('login.createAccount')}</h1>
+            <p>{t('login.createAccountSub')}</p>
           </div>
 
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">Nome</label>
+              <label className="form-label">{t('login.name')}</label>
               <input
                 className="form-input"
-                placeholder="Seu nome"
+                placeholder={t('login.namePlaceholder')}
                 value={name}
                 onChange={e => { setName(e.target.value); clearErr() }}
                 autoComplete="name"
@@ -202,7 +297,7 @@ export default function Login() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">E-mail</label>
+              <label className="form-label">{t('login.email')}</label>
               <input
                 className="form-input"
                 type="email"
@@ -215,11 +310,11 @@ export default function Login() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Senha</label>
+              <label className="form-label">{t('login.password')}</label>
               <input
                 className="form-input"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder={t('login.passwordPlaceholder')}
                 value={password}
                 onChange={e => { setPass(e.target.value); clearErr() }}
                 autoComplete="new-password"
@@ -240,13 +335,13 @@ export default function Login() {
               disabled={loading || !isRegister}
             >
               {loading && isRegister
-                ? <><i className="fi fi-rr-spinner" /> Aguarde...</>
-                : 'Criar conta'
+                ? <><i className="fi fi-rr-spinner" /> {t('login.wait')}</>
+                : t('login.createAccount')
               }
             </button>
           </form>
 
-          <div className="login-divider"><span>ou continue com</span></div>
+          <div className="login-divider"><span>{t('login.orContinue')}</span></div>
           <GoogleButton />
         </section>
       </div>

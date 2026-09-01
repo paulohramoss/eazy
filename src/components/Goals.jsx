@@ -3,14 +3,14 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import confetti from 'canvas-confetti'
-import { isoDate, brDate } from '../utils/date'
+import { isoDate } from '../utils/date'
 
 const EMPTY_FORM = { name: '', target: '', current: '0', deadline: '' }
 
 // ─── Goal Modal ───────────────────────────────────────────────────────────────
 
 function GoalModal({ initial, onSave, onClose }) {
-  const { currencySymbol } = useApp()
+  const { currencySymbol, t } = useApp()
   const [form, setForm] = useState(
     initial
       ? { ...initial, target: String(initial.target), current: String(initial.current) }
@@ -26,20 +26,20 @@ function GoalModal({ initial, onSave, onClose }) {
 
   return (
     <Modal
-      title={initial ? 'Editar Objetivo' : 'Novo Objetivo'}
+      title={t(initial ? 'goal.editTitle' : 'goal.newTitle')}
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Salvar</button>
+          <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn btn-primary" onClick={handleSave}>{t('action.save')}</button>
         </>
       }
     >
       <div className="form-group">
-        <label className="form-label">Nome do Objetivo</label>
+        <label className="form-label">{t('goal.name')}</label>
         <input
           className="form-input"
-          placeholder="Ex: Viagem, Reserva, Carro..."
+          placeholder={t('goal.namePlaceholder')}
           value={form.name}
           onChange={e => set('name', e.target.value)}
           autoFocus
@@ -47,16 +47,16 @@ function GoalModal({ initial, onSave, onClose }) {
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Valor Alvo ({currencySymbol})</label>
+          <label className="form-label">{t('goal.targetAmount', { symbol: currencySymbol })}</label>
           <CurrencyInput className="form-input" value={form.target} onChange={v => set('target', v)} />
         </div>
         <div className="form-group">
-          <label className="form-label">Valor Atual ({currencySymbol})</label>
+          <label className="form-label">{t('goal.currentAmount', { symbol: currencySymbol })}</label>
           <CurrencyInput className="form-input" value={form.current} onChange={v => set('current', v)} />
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">Prazo</label>
+        <label className="form-label">{t('goal.deadline')}</label>
         <input className="form-input" type="date" min={isoDate()} value={form.deadline} onChange={e => set('deadline', e.target.value)} />
       </div>
     </Modal>
@@ -66,7 +66,7 @@ function GoalModal({ initial, onSave, onClose }) {
 // ─── Alocar Fundos Modal ──────────────────────────────────────────────────────
 
 function AlocarModal({ goal, onSave, onUndo, onClose }) {
-  const { wallets, walletBalances, transactions, formatCurrency: fmt, currencySymbol } = useApp()
+  const { wallets, walletBalances, transactions, formatCurrency: fmt, currencySymbol, t, formatDate } = useApp()
   const [amount, setAmount] = useState(0)
   const [walletId, setWalletId] = useState(wallets[0]?.id || '')
   const remaining = goal.target - goal.current
@@ -75,7 +75,7 @@ function AlocarModal({ goal, onSave, onUndo, onClose }) {
   const insufficient = amount > 0 && amount > available
 
   const contributions = transactions
-    .filter(t => t.goalId === goal.id)
+    .filter(tx => tx.goalId === goal.id)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
   const handleSave = () => {
@@ -88,22 +88,22 @@ function AlocarModal({ goal, onSave, onUndo, onClose }) {
 
   return (
     <Modal
-      title={`Alocar Fundos — ${goal.name}`}
+      title={t('goal.allocateTitle', { name: goal.name })}
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
           <button
             className="btn btn-primary"
             onClick={handleSave}
             disabled={!amount || amount <= 0 || !walletId}
-          >Alocar</button>
+          >{t('goal.allocate')}</button>
         </>
       }
     >
       <div className="moovia-alocar-info">
         <div className="moovia-alocar-row">
-          <span>Progresso atual</span>
+          <span>{t('goal.currentProgress')}</span>
           <strong>{fmt(goal.current)} / {fmt(goal.target)}</strong>
         </div>
         <div className="moovia-progress-wrap" style={{ marginTop: 8 }}>
@@ -112,13 +112,13 @@ function AlocarModal({ goal, onSave, onUndo, onClose }) {
             style={{ width: `${Math.min((goal.current / goal.target) * 100, 100)}%` }}
           />
         </div>
-        <div className="moovia-alocar-remaining">Faltam {fmt(remaining)} para concluir</div>
+        <div className="moovia-alocar-remaining">{t('goal.remainingToFinish', { amount: fmt(remaining) })}</div>
       </div>
 
       <div className="form-group">
-        <label className="form-label">Sai da carteira</label>
+        <label className="form-label">{t('goal.fromWallet')}</label>
         <select className="form-select" value={walletId} onChange={e => setWalletId(e.target.value)}>
-          {wallets.length === 0 && <option value="">Nenhuma carteira cadastrada</option>}
+          {wallets.length === 0 && <option value="">{t('goal.noWallets')}</option>}
           {wallets.map(w => (
             <option key={w.id} value={w.id}>
               {w.name} — {fmt(walletBalances?.[w.id] ?? 0)}
@@ -149,15 +149,15 @@ function AlocarModal({ goal, onSave, onUndo, onClose }) {
 
       {contributions.length > 0 && (
         <div className="goal-contribs">
-          <div className="form-label" style={{ marginBottom: 4 }}>Aportes</div>
-          {contributions.map(t => (
-            <div key={t.id} className="goal-contrib-row">
-              <span>{t.date ? brDate(t.date) : '—'}</span>
-              <strong>{fmt(t.amount)}</strong>
+          <div className="form-label" style={{ marginBottom: 4 }}>{t('goal.contributions')}</div>
+          {contributions.map(c => (
+            <div key={c.id} className="goal-contrib-row">
+              <span>{c.date ? formatDate(c.date) : '—'}</span>
+              <strong>{fmt(c.amount)}</strong>
               <button
                 className="moovia-icon-btn danger"
-                title="Desfazer aporte — devolve o valor à carteira"
-                onClick={() => onUndo(t)}
+                title={t('goal.undoContribution')}
+                onClick={() => onUndo(c)}
               ><i className="fi fi-rr-trash" /></button>
             </div>
           ))}
@@ -170,7 +170,7 @@ function AlocarModal({ goal, onSave, onUndo, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Goals() {
-  const { goals, addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution, formatCurrency: fmt } = useApp()
+  const { goals, addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution, formatCurrency: fmt, t, formatDate } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [alocarItem, setAlocarItem] = useState(null)
@@ -195,11 +195,11 @@ export default function Goals() {
       {/* Page header */}
       <div className="moovia-page-header">
         <div>
-          <h2 className="moovia-page-title">Objetivos</h2>
-          <p className="moovia-page-sub">Acompanhe o progresso dos seus objetivos.</p>
+          <h2 className="moovia-page-title">{t('goal.pageTitle')}</h2>
+          <p className="moovia-page-sub">{t('goal.pageSub')}</p>
         </div>
         <button className="btn btn-primary" onClick={() => setAddModal(true)}>
-          + Adicionar Objetivo
+          {t('goal.add')}
         </button>
       </div>
 
@@ -207,8 +207,8 @@ export default function Goals() {
       {goals.length === 0 ? (
         <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <i className="fi fi-rr-star" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Nenhum objetivo definido</p>
-          <button className="btn btn-primary" onClick={() => setAddModal(true)}>Criar primeiro objetivo</button>
+          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{t('goal.empty')}</p>
+          <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('goal.createFirst')}</button>
         </div>
       ) : (
         <div className="moovia-goals-grid">
@@ -216,7 +216,7 @@ export default function Goals() {
             const pct  = Math.min(Math.round((goal.current / goal.target) * 100), 100)
             const done = goal.current >= goal.target
 
-            const deadlineFmt = goal.deadline ? brDate(goal.deadline) : null
+            const deadlineFmt = goal.deadline ? formatDate(goal.deadline) : null
 
             // Meses cheios até o prazo — arredonda pra cima para nunca subestimar.
             const monthsLeft = goal.deadline
@@ -236,7 +236,7 @@ export default function Goals() {
                   <span className="moovia-goal-name">{goal.name}</span>
                   <button
                     className={`moovia-star-btn${goal.starred ? ' moovia-star-active' : ''}`}
-                    title={goal.starred ? 'Remover destaque' : 'Destacar'}
+                    title={t(goal.starred ? 'goal.unstar' : 'goal.star')}
                     onClick={() => toggleStar(goal)}
                   >
                     <i className={`fi ${goal.starred ? 'fi-rr-star' : 'fi-rr-star'}`} />
@@ -246,7 +246,7 @@ export default function Goals() {
                 {/* Amounts */}
                 <div className="moovia-goal-amounts">
                   <span style={{ fontWeight: 700 }}>{fmt(goal.current)}</span>
-                  <span className="moovia-goal-amounts-sub"> acumulados de </span>
+                  <span className="moovia-goal-amounts-sub">{t('goal.accumulatedOf')}</span>
                   <span style={{ fontWeight: 700 }}>{fmt(goal.target)}</span>
                   <span className="moovia-goal-pct"> ({pct}%)</span>
                 </div>
@@ -263,12 +263,12 @@ export default function Goals() {
                 {deadlineFmt && (
                   <div className={`moovia-goal-deadline${overdue ? ' goal-deadline-late' : ''}`}>
                     {overdue
-                      ? `Prazo vencido em ${deadlineFmt}`
+                      ? t('goal.overdue', { date: deadlineFmt })
                       : done
                         ? deadlineFmt
                         : perMonth
-                          ? `${deadlineFmt} · guarde ${fmt(perMonth)}/mês`
-                          : `${deadlineFmt} · falta ${fmt(goal.target - goal.current)}`}
+                          ? t('goal.savePerMonth', { date: deadlineFmt, amount: fmt(perMonth) })
+                          : t('goal.missing', { date: deadlineFmt, amount: fmt(goal.target - goal.current) })}
                   </div>
                 )}
 
@@ -277,19 +277,19 @@ export default function Goals() {
                   {!done && (
                     <button className="btn moovia-alocar-btn" onClick={() => setAlocarItem(goal)}>
                       <i className="fi fi-rr-bank" />
-                      Alocar Fundos
+                      {t('goal.allocateFunds')}
                     </button>
                   )}
                   {done && (
                     <span className="moovia-done-badge">
-                      <i className="fi fi-rr-check" /> Concluído
+                      <i className="fi fi-rr-check" /> {t('goal.done')}
                     </span>
                   )}
                   <div className="moovia-goal-btns">
-                    <button className="moovia-icon-btn" title="Editar" onClick={() => setEditItem(goal)}>
+                    <button className="moovia-icon-btn" title={t('action.edit')} onClick={() => setEditItem(goal)}>
                       <i className="fi fi-rr-pencil" />
                     </button>
-                    <button className="moovia-icon-btn danger" title="Excluir" onClick={() => setDelItem(goal)}>
+                    <button className="moovia-icon-btn danger" title={t('action.delete')} onClick={() => setDelItem(goal)}>
                       <i className="fi fi-rr-trash" />
                     </button>
                   </div>
@@ -318,17 +318,17 @@ export default function Goals() {
       )}
       {delItem && (
         <Modal
-          title="Excluir Objetivo"
+          title={t('goal.deleteTitle')}
           onClose={() => setDelItem(null)}
           footer={
             <>
-              <button className="btn btn-secondary" onClick={() => setDelItem(null)}>Cancelar</button>
-              <button className="btn btn-danger" onClick={() => { deleteGoal(delItem.id); setDelItem(null) }}>Excluir</button>
+              <button className="btn btn-secondary" onClick={() => setDelItem(null)}>{t('action.cancel')}</button>
+              <button className="btn btn-danger" onClick={() => { deleteGoal(delItem.id); setDelItem(null) }}>{t('action.delete')}</button>
             </>
           }
         >
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-            Deseja excluir o objetivo <strong style={{ color: 'var(--text-primary)' }}>{delItem.name}</strong>?
+            {t('goal.deleteConfirm', { name: delItem.name })}
           </p>
         </Modal>
       )}
