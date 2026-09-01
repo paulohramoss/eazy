@@ -2221,6 +2221,33 @@
   .cal-summary-warn { margin-left: 0; }
 }
 
+/* Histórico de aportes dentro do modal de alocar. */
+.goal-contribs {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.goal-contrib-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.goal-contrib-row:last-child { border-bottom: none; }
+
+.goal-deadline-late {
+  color: var(--accent-red) !important;
+  font-weight: 600;
+}
+
 /* Aviso de gasto adiantado no card de orçamento. */
 .moovia-budget-pace {
   display: flex;

@@ -3,8 +3,7 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import confetti from 'canvas-confetti'
-
-const today = new Date().toISOString().split('T')[0]
+import { isoDate, brDate } from '../utils/date'
 
 const EMPTY_FORM = { name: '', target: '', current: '0', deadline: '' }
 
@@ -58,7 +57,7 @@ function GoalModal({ initial, onSave, onClose }) {
       </div>
       <div className="form-group">
         <label className="form-label">Prazo</label>
-        <input className="form-input" type="date" min={today} value={form.deadline} onChange={e => set('deadline', e.target.value)} />
+        <input className="form-input" type="date" min={isoDate()} value={form.deadline} onChange={e => set('deadline', e.target.value)} />
       </div>
     </Modal>
   )
@@ -66,14 +65,22 @@ function GoalModal({ initial, onSave, onClose }) {
 
 // ─── Alocar Fundos Modal ──────────────────────────────────────────────────────
 
-function AlocarModal({ goal, onSave, onClose }) {
-  const { formatCurrency: fmt, currencySymbol } = useApp()
+function AlocarModal({ goal, onSave, onUndo, onClose }) {
+  const { wallets, walletBalances, transactions, formatCurrency: fmt, currencySymbol } = useApp()
   const [amount, setAmount] = useState(0)
+  const [walletId, setWalletId] = useState(wallets[0]?.id || '')
   const remaining = goal.target - goal.current
 
+  const available = walletBalances?.[walletId] ?? 0
+  const insufficient = amount > 0 && amount > available
+
+  const contributions = transactions
+    .filter(t => t.goalId === goal.id)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+
   const handleSave = () => {
-    if (!amount || amount <= 0) return
-    onSave(amount)
+    if (!amount || amount <= 0 || !walletId) return
+    onSave(amount, walletId)
     onClose()
   }
 
@@ -86,7 +93,11 @@ function AlocarModal({ goal, onSave, onClose }) {
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Alocar</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={!amount || amount <= 0 || !walletId}
+          >Alocar</button>
         </>
       }
     >
@@ -105,8 +116,25 @@ function AlocarModal({ goal, onSave, onClose }) {
       </div>
 
       <div className="form-group">
+        <label className="form-label">Sai da carteira</label>
+        <select className="form-select" value={walletId} onChange={e => setWalletId(e.target.value)}>
+          {wallets.length === 0 && <option value="">Nenhuma carteira cadastrada</option>}
+          {wallets.map(w => (
+            <option key={w.id} value={w.id}>
+              {w.name} — {fmt(walletBalances?.[w.id] ?? 0)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="form-group">
         <label className="form-label">Valor a alocar ({currencySymbol})</label>
         <CurrencyInput className="form-input" value={amount} onChange={setAmount} autoFocus />
+        {insufficient && (
+          <span style={{ fontSize: 12, color: 'var(--accent-yellow)' }}>
+            Acima do saldo da carteira ({fmt(available)}). O saldo vai ficar negativo.
+          </span>
+        )}
       </div>
 
       {shortcuts.length > 0 && (
@@ -118,6 +146,23 @@ function AlocarModal({ goal, onSave, onClose }) {
           ))}
         </div>
       )}
+
+      {contributions.length > 0 && (
+        <div className="goal-contribs">
+          <div className="form-label" style={{ marginBottom: 4 }}>Aportes</div>
+          {contributions.map(t => (
+            <div key={t.id} className="goal-contrib-row">
+              <span>{t.date ? brDate(t.date) : '—'}</span>
+              <strong>{fmt(t.amount)}</strong>
+              <button
+                className="moovia-icon-btn danger"
+                title="Desfazer aporte — devolve o valor à carteira"
+                onClick={() => onUndo(t)}
+              ><i className="fi fi-rr-trash" /></button>
+            </div>
+          ))}
+        </div>
+      )}
     </Modal>
   )
 }
@@ -125,25 +170,18 @@ function AlocarModal({ goal, onSave, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Goals() {
-  const { goals, addGoal, updateGoal, deleteGoal, contributeGoal, formatCurrency: fmt } = useApp()
+  const { goals, addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution, formatCurrency: fmt } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [alocarItem, setAlocarItem] = useState(null)
   const [delItem,  setDelItem]  = useState(null)
 
-  const handleContribute = (goalId, amount) => {
+  const handleContribute = (goalId, amount, walletId) => {
     const goal = goals.find(g => g.id === goalId)
-    if (goal) {
-      if (goal.current < goal.target && goal.current + amount >= goal.target) {
-        confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
-          zIndex: 9999
-        })
-      }
+    if (goal && goal.current < goal.target && goal.current + amount >= goal.target) {
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, zIndex: 9999 })
     }
-    contributeGoal(goalId, amount)
+    contributeGoal(goalId, amount, walletId)
   }
 
   const toggleStar = (goal) =>
@@ -178,8 +216,17 @@ export default function Goals() {
             const pct  = Math.min(Math.round((goal.current / goal.target) * 100), 100)
             const done = goal.current >= goal.target
 
-            const deadlineFmt = goal.deadline
-              ? new Date(goal.deadline + 'T12:00').toLocaleDateString('pt-BR')
+            const deadlineFmt = goal.deadline ? brDate(goal.deadline) : null
+
+            // Meses cheios até o prazo — arredonda pra cima para nunca subestimar.
+            const monthsLeft = goal.deadline
+              ? Math.max(0, Math.ceil(
+                  (new Date(`${goal.deadline}T12:00:00`) - new Date(`${isoDate()}T12:00:00`))
+                  / (1000 * 60 * 60 * 24 * 30.44)))
+              : null
+            const overdue = !done && goal.deadline && goal.deadline < isoDate()
+            const perMonth = !done && monthsLeft > 0
+              ? (goal.target - goal.current) / monthsLeft
               : null
 
             return (
@@ -214,7 +261,15 @@ export default function Goals() {
 
                 {/* Deadline */}
                 {deadlineFmt && (
-                  <div className="moovia-goal-deadline">{deadlineFmt}</div>
+                  <div className={`moovia-goal-deadline${overdue ? ' goal-deadline-late' : ''}`}>
+                    {overdue
+                      ? `Prazo vencido em ${deadlineFmt}`
+                      : done
+                        ? deadlineFmt
+                        : perMonth
+                          ? `${deadlineFmt} · guarde ${fmt(perMonth)}/mês`
+                          : `${deadlineFmt} · falta ${fmt(goal.target - goal.current)}`}
+                  </div>
                 )}
 
                 {/* Actions */}
@@ -255,8 +310,9 @@ export default function Goals() {
       )}
       {alocarItem && (
         <AlocarModal
-          goal={alocarItem}
-          onSave={amount => handleContribute(alocarItem.id, amount)}
+          goal={goals.find(g => g.id === alocarItem.id) || alocarItem}
+          onSave={(amount, walletId) => handleContribute(alocarItem.id, amount, walletId)}
+          onUndo={undoContribution}
           onClose={() => setAlocarItem(null)}
         />
       )}

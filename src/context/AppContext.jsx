@@ -12,10 +12,14 @@ import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
 
 // ─── Static config ────────────────────────────────────────────────────────────
 
+// Categoria usada pelos aportes em objetivos. Quem já tem categorias salvas no
+// Firestore não recebe a lista nova, então contributeGoal garante a inclusão.
+export const GOAL_CATEGORY = 'Objetivos'
+
 export const CATEGORIES = [
   'Salário', 'Freelance', 'Investimentos', 'Outros Rendimentos',
   'Alimentação', 'Moradia', 'Transporte', 'Saúde', 'Lazer',
-  'Educação', 'Vestuário', 'Tecnologia', 'Outros',
+  'Educação', 'Vestuário', 'Tecnologia', GOAL_CATEGORY, 'Outros',
 ]
 
 export const CATEGORY_ICONS = {
@@ -31,6 +35,7 @@ export const CATEGORY_ICONS = {
   'Educação':          'fi-rr-book',
   'Vestuário':         'fi-rr-shopping-bag',
   'Tecnologia':        'fi-rr-mobile',
+  'Objetivos':         'fi-rr-bullseye',
   'Outros':            'fi-rr-box',
 }
 
@@ -501,15 +506,57 @@ export function AppProvider({ children }) {
   const deleteGoal = useCallback((id) =>
     deleteDoc(doc(db, COL.goals, id)), [])
 
-  const contributeGoal = useCallback(async (id, amount) => {
+  // O aporte move dinheiro de verdade: sai da carteira escolhida como despesa.
+  // Antes isto só incrementava um contador, então dava para "guardar" um valor
+  // que não existia em carteira nenhuma. Em batch para não sobrar uma despesa
+  // lançada sem o progresso correspondente.
+  const contributeGoal = useCallback(async (id, amount, walletId) => {
     const goal = goals.find(g => g.id === id)
-    if (!goal) return
-    const newCurrent = Math.min(goal.current + Number(amount), goal.target)
-    await updateDoc(doc(db, COL.goals, id), { current: newCurrent })
+    const value = Number(amount)
+    if (!goal || !(value > 0) || !walletId) return
+
+    const newCurrent = Math.min(goal.current + value, goal.target)
+    const batch = writeBatch(db)
+
+    const txRef = doc(collection(db, COL.transactions))
+    batch.set(txRef, base({
+      name: `Aporte: ${goal.name}`,
+      amount: value,
+      type: 'expense',
+      category: GOAL_CATEGORY,
+      walletId,
+      goalId: id,
+      date: isoDate(),
+      status: 'completed',
+    }))
+    batch.update(doc(db, COL.goals, id), { current: newCurrent })
+    await batch.commit()
+
+    // addCategory é declarado mais abaixo — não dá para referenciar aqui sem
+    // estourar TDZ na lista de dependências, então grava direto.
+    if (!categories.includes(GOAL_CATEGORY)) {
+      const next = [...categories, GOAL_CATEGORY]
+      setCategories(next)
+      updateDoc(doc(db, COL.users, user.uid), { categories: next }).catch(console.error)
+    }
+
     if (newCurrent >= goal.target) {
       notify({ type: 'goal_reached', data: { goalName: goal.name, amount: goal.target }, settings })
     }
-  }, [goals, settings])
+  }, [goals, settings, base, categories, user])
+
+  // Desfaz um aporte: apaga a despesa e devolve o valor ao progresso.
+  const undoContribution = useCallback(async (tx) => {
+    const goal = goals.find(g => g.id === tx.goalId)
+    const batch = writeBatch(db)
+    batch.delete(doc(db, COL.transactions, tx.id))
+    if (goal) {
+      batch.update(doc(db, COL.goals, goal.id), {
+        current: Math.max(0, goal.current - (tx.amount || 0)),
+      })
+    }
+    await batch.commit()
+  }, [goals])
 
   // ── Investments ────────────────────────────────────────────────────────────
 
@@ -669,7 +716,7 @@ export function AppProvider({ children }) {
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
-    addGoal, updateGoal, deleteGoal, contributeGoal,
+    addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution,
     addInvestment, updateInvestment, deleteInvestment,
     addCreditCard, updateCreditCard, deleteCreditCard,
     addAlert, updateAlert, deleteAlert,
@@ -685,7 +732,7 @@ export function AppProvider({ children }) {
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
-    addGoal, updateGoal, deleteGoal, contributeGoal,
+    addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution,
     addInvestment, updateInvestment, deleteInvestment,
     addCreditCard, updateCreditCard, deleteCreditCard,
     addAlert, updateAlert, deleteAlert,
