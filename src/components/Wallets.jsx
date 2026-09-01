@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import Checkbox from './Checkbox'
+import { isoDate, brDate } from '../utils/date'
 import CurrencyInput from './CurrencyInput'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
@@ -18,12 +19,6 @@ const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#
 
 const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON }
 
-// toISOString() converte para UTC e à noite devolve o dia seguinte/anterior.
-const isoToday = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-const brDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR')
 
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 
@@ -171,9 +166,9 @@ export default function Wallets() {
   const [activeWallet, setActiveWallet] = useState(null)
   const [selected, setSelected] = useState(() => new Set())
   const [bulkConfirm, setBulkConfirm] = useState(false)
-  const [asOf, setAsOf] = useState(isoToday)
+  const [asOf, setAsOf] = useState(isoDate)
 
-  const isToday = asOf === isoToday()
+  const isToday = asOf === isoDate()
   const stats = useMemo(() => walletStatsAsOf(asOf), [walletStatsAsOf, asOf])
   const totalAsOf = useMemo(
     () => Object.values(stats).reduce((sum, st) => sum + st.balance, 0),
@@ -223,11 +218,11 @@ export default function Wallets() {
               type="date"
               className="form-input wallets-asof-input"
               value={asOf}
-              onChange={e => setAsOf(e.target.value || isoToday())}
+              onChange={e => setAsOf(e.target.value || isoDate())}
             />
           </label>
           {!isToday && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setAsOf(isoToday())}>Hoje</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setAsOf(isoDate())}>Hoje</button>
           )}
           <button className="btn btn-primary" onClick={() => setAddModal(true)}>+ Nova Carteira</button>
         </div>
