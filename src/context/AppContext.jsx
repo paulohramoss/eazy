@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from './AuthContext'
+import { isoDate } from '../utils/date'
+import { walletStats } from '../utils/balances'
 import { db } from '../firebase'
 import {
   collection, query, where, onSnapshot,
@@ -263,6 +265,7 @@ export function AppProvider({ children }) {
   // ── Computed ───────────────────────────────────────────────────────────────
 
   const now   = new Date()
+  const today = isoDate(now)
   const thisMonth = fmt(now)
   const lastMonth = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1))
 
@@ -293,36 +296,24 @@ export function AppProvider({ children }) {
   const lastSavings     = lastIncome - lastExpenses
   const pendingCount    = useMemo(() => transactions.filter(t => t.status === 'pending').length, [transactions])
 
-  // Saldo real = saldo inicial + receitas − despesas de cada carteira
-  const walletBalances = useMemo(() => wallets.reduce((acc, w) => {
-    const income   = validTx.filter(t => t.walletId === w.id && t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const expenses = validTx.filter(t => t.walletId === w.id && t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-    acc[w.id] = (w.balance || 0) + income - expenses
-    return acc
-  }, {}), [wallets, validTx])
+  const walletStatsAsOf = useCallback(
+    (cutoff) => walletStats(wallets, validTx, cutoff), [wallets, validTx])
+
+  // Saldo de hoje — não conta parcela nem recorrência com data futura. Para ver
+  // a projeção, a tela de Carteiras aceita uma data futura no corte.
+  const walletBalances = useMemo(() => {
+    const stats = walletStatsAsOf(today)
+    return Object.fromEntries(Object.entries(stats).map(([id, st]) => [id, st.balance]))
+  }, [walletStatsAsOf, today])
 
   const totalBalance = useMemo(
     () => Object.values(walletBalances).reduce((s, b) => s + b, 0),
     [walletBalances]
   )
 
-  // Saldo e movimentação de cada carteira acumulados até uma data (inclusive).
-  // Mesma regra do walletBalances acima — validTx, ou seja, ignora as falhadas —
-  // só que com corte por data. Sem cutoff, equivale ao saldo cheio, que inclui
-  // parcelas e recorrências com data futura.
-  // Transação sem data fica de fora: não dá para dizer se entra no corte.
-  const walletStatsAsOf = useCallback((cutoff) => wallets.reduce((acc, w) => {
-    const tx = validTx.filter(t =>
-      t.walletId === w.id && (!cutoff || (t.date && t.date <= cutoff)))
-    const income   = tx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const expenses = tx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-    acc[w.id] = { balance: (w.balance || 0) + income - expenses, income, expenses }
-    return acc
-  }, {}), [wallets, validTx])
 
-  // Saldo no fim do mês anterior: só tx com data < 1º deste mês — exclui tx
-  // deste mês e parcelas/recorrências futuras (que já contam em totalBalance,
-  // mas não devem contar como "ganho deste mês" na comparação abaixo).
+  // Saldo no fim do mês anterior: só tx com data < 1º deste mês. Comparável
+  // direto com totalBalance, que também para no dia de hoje.
   const lastBalance = useMemo(() => wallets.reduce((sum, w) => {
     const txsUpToLastMonth = validTx.filter(t => t.walletId === w.id && t.date && t.date < `${thisMonth}-01`)
     const income   = txsUpToLastMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
