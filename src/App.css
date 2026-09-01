@@ -2221,6 +2221,17 @@
   .cal-summary-warn { margin-left: 0; }
 }
 
+/* Aviso de gasto adiantado no card de orçamento. */
+.moovia-budget-pace {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-yellow);
+}
+
 /* Ícone girando enquanto uma ação assíncrona roda. */
 @keyframes spin { to { transform: rotate(360deg); } }
 
