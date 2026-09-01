@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react'
 import logoImg from './assets/image.png'
 import { createPortal } from 'react-dom'
 import Calculator from './components/Calculator'
@@ -9,6 +9,11 @@ import './App.css'
 import { useAuth } from './context/AuthContext'
 import { AppProvider, useApp } from './context/AppContext'
 import Login from './components/Login'
+import ErrorBoundary from './components/ErrorBoundary'
+import VerifyEmailBanner from './components/VerifyEmailBanner'
+import CommandPalette from './components/CommandPalette'
+import { navigate as routerNavigate, routeFromHash, useHashRoute } from './utils/router'
+import { createTranslator, detectLanguage } from './i18n'
 
 const Overview          = lazy(() => import('./components/Overview'))
 const Transactions      = lazy(() => import('./components/Transactions'))
@@ -22,38 +27,40 @@ const Profile           = lazy(() => import('./components/Profile'))
 const CreditCards       = lazy(() => import('./components/CreditCards'))
 const Alerts            = lazy(() => import('./components/Alerts'))
 const FinancialCalendar = lazy(() => import('./components/FinancialCalendar'))
+const Recurrences       = lazy(() => import('./components/Recurrences'))
 
 // ─── Navigation Config ────────────────────────────────────────────────────────
 
 const NAV = [
-  { icon: 'fi-rr-dashboard', label: 'Visão Geral', screen: 'overview' },
-  { icon: 'fi-rr-exchange', label: 'Transações', screen: 'transactions' },
+  { icon: 'fi-rr-dashboard', labelKey: 'nav.overview', screen: 'overview' },
+  { icon: 'fi-rr-exchange', labelKey: 'nav.transactions', screen: 'transactions' },
   {
-    section: 'Carteiras',
+    sectionKey: 'nav.wallets_section',
     icon: 'fi-rr-wallet',
     children: [
-      { icon: 'fi-rr-bank', label: 'Minhas Contas', screen: 'wallets' },
-      { icon: 'fi-rr-credit-card', label: 'Cartões de Crédito', screen: 'creditcards' },
+      { icon: 'fi-rr-bank', labelKey: 'nav.wallets', screen: 'wallets' },
+      { icon: 'fi-rr-credit-card', labelKey: 'nav.creditcards', screen: 'creditcards' },
     ],
   },
   {
-    section: 'Planejamento',
+    sectionKey: 'nav.planning',
     icon: 'fi-rr-layers',
     children: [
-      { icon: 'fi-rr-piggy-bank', label: 'Orçamento', screen: 'budget' },
-      { icon: 'fi-rr-star', label: 'Objetivos', screen: 'goals' },
-      { icon: 'fi-rr-chart-line-up', label: 'Investimentos', screen: 'investments' },
-      { icon: 'fi-rr-calendar', label: 'Calendário', screen: 'calendar' },
+      { icon: 'fi-rr-piggy-bank', labelKey: 'nav.budget', screen: 'budget' },
+      { icon: 'fi-rr-star', labelKey: 'nav.goals', screen: 'goals' },
+      { icon: 'fi-rr-chart-line-up', labelKey: 'nav.investments', screen: 'investments' },
+      { icon: 'fi-rr-calendar', labelKey: 'nav.calendar', screen: 'calendar' },
+      { icon: 'fi-rr-refresh', labelKey: 'nav.recurrences', screen: 'recurrences' },
     ],
   },
-  { icon: 'fi-rr-chart-pie', label: 'Análise', screen: 'analysis' },
+  { icon: 'fi-rr-chart-pie', labelKey: 'nav.analysis', screen: 'analysis' },
   {
-    section: 'Sistema',
+    sectionKey: 'nav.system',
     icon: 'fi-rr-settings',
     children: [
-      { icon: 'fi-rr-bell', label: 'Alertas', screen: 'alerts' },
-      { icon: 'fi-rr-user', label: 'Meu Perfil', screen: 'profile' },
-      { icon: 'fi-rr-settings-sliders', label: 'Configurações', screen: 'settings' },
+      { icon: 'fi-rr-bell', labelKey: 'nav.alerts', screen: 'alerts' },
+      { icon: 'fi-rr-user', labelKey: 'nav.profile', screen: 'profile' },
+      { icon: 'fi-rr-settings-sliders', labelKey: 'nav.settings', screen: 'settings' },
     ],
   },
 ]
@@ -61,23 +68,25 @@ const NAV = [
 // No desktop as seções viram accordions na sidebar. No mobile a sidebar vira
 // tab bar e os accordions são escondidos — sem isto estas telas ficariam
 // inalcançáveis no celular. A aba "Mais" abre a folha com todas elas.
-const NAV_SECTIONS = NAV.filter(i => i.section)
+const NAV_SECTIONS = NAV.filter(i => i.sectionKey)
 const MORE_SCREENS = NAV_SECTIONS.flatMap(sec => sec.children.map(c => c.screen))
 
-const SCREEN_TITLES = {
-  overview: { title: 'Visão Geral', sub: 'Resumo financeiro completo' },
-  transactions: { title: 'Transações', sub: 'Histórico de movimentações' },
-  analysis: { title: 'Análise', sub: 'Tendências e insights' },
-  wallets: { title: 'Minhas Contas', sub: 'Saldos e carteiras' },
-  budget: { title: 'Orçamento', sub: 'Limites por categoria' },
-  goals: { title: 'Objetivos', sub: 'Acompanhe o progresso dos seus objetivos' },
-  investments: { title: 'Investimentos', sub: 'Carteira de ativos' },
-  calendar: { title: 'Calendário Financeiro', sub: 'Visualize receitas e despesas por data' },
-  creditcards: { title: 'Cartões de Crédito', sub: 'Gerencie seus cartões e faturas' },
-  alerts: { title: 'Notificações', sub: 'Canais e preferências de notificação' },
-  profile: { title: 'Meu Perfil', sub: 'Informações pessoais da conta' },
-  settings: { title: 'Configurações', sub: 'Preferências do sistema' },
-}
+// Só as chaves: os textos vêm do dicionário, então trocar de idioma muda o
+// cabeçalho junto com o resto da interface.
+const SCREEN_KEYS = [
+  'overview', 'transactions', 'analysis', 'wallets', 'budget', 'goals',
+  'investments', 'calendar', 'recurrences', 'creditcards', 'alerts',
+  'profile', 'settings',
+]
+
+const SCREEN_TITLES = Object.fromEntries(SCREEN_KEYS.map(k => [k, true]))
+
+// Telas navegáveis pela busca, derivadas da própria NAV para não haver duas
+// listas para manter em sincronia.
+const FLAT_SCREENS = NAV.flatMap(item =>
+  item.sectionKey
+    ? item.children.map(c => ({ screen: c.screen, labelKey: c.labelKey, icon: c.icon }))
+    : [{ screen: item.screen, labelKey: item.labelKey, icon: item.icon }])
 
 const SCREENS = {
   overview: (nav) => <Overview onNavigate={nav} />,
@@ -88,6 +97,7 @@ const SCREENS = {
   goals: () => <Goals />,
   investments: () => <Investments />,
   calendar: () => <FinancialCalendar />,
+  recurrences: () => <Recurrences />,
   creditcards: () => <CreditCards />,
   alerts: () => <Alerts />,
   profile: () => <Profile />,
@@ -96,7 +106,7 @@ const SCREENS = {
 
 // ─── NavAccordion (inline expandable group) ───────────────────────────────────
 
-function NavAccordion({ item, screen, setScreen, badges = {} }) {
+function NavAccordion({ item, screen, setScreen, badges = {}, t }) {
   const hasActive = item.children.some(c => c.screen === screen)
   const [prevHasActive, setPrevHasActive] = useState(hasActive)
   const [open, setOpen] = useState(hasActive)
@@ -108,28 +118,32 @@ function NavAccordion({ item, screen, setScreen, badges = {} }) {
 
   return (
     <div className="nav-accordion">
-      <div
+      <button
+        type="button"
         className={`nav-item nav-accordion-trigger${hasActive ? ' active' : ''}`}
         onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
       >
-        <i className={`fi ${item.icon} nav-icon`} />
-        <span>{item.section}</span>
-        <i className={`fi fi-rr-angle-small-down nav-accordion-arrow${open ? ' open' : ''}`} />
-      </div>
+        <i className={`fi ${item.icon} nav-icon`} aria-hidden="true" />
+        <span>{t(item.sectionKey)}</span>
+        <i className={`fi fi-rr-angle-small-down nav-accordion-arrow${open ? ' open' : ''}`} aria-hidden="true" />
+      </button>
       {open && (
         <div className="nav-accordion-children">
           {item.children.map(child => (
-            <div
+            <button
               key={child.screen}
+              type="button"
               className={`nav-item nav-item--child${screen === child.screen ? ' active' : ''}`}
               onClick={() => setScreen(child.screen)}
+              aria-current={screen === child.screen ? 'page' : undefined}
             >
-              <i className={`fi ${child.icon} nav-icon`} />
-              {child.label}
+              <i className={`fi ${child.icon} nav-icon`} aria-hidden="true" />
+              {t(child.labelKey)}
               {badges[child.screen] > 0 && (
                 <span className="nav-badge" style={{ background: 'var(--accent-red)' }}>{badges[child.screen]}</span>
               )}
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -139,14 +153,14 @@ function NavAccordion({ item, screen, setScreen, badges = {} }) {
 
 // ─── Folha "Mais" (tab bar do mobile) ────────────────────────────────────────
 
-function MoreSheet({ screen, onNavigate, onClose, badges }) {
+function MoreSheet({ screen, onNavigate, onClose, badges, t }) {
   return createPortal(
     <div className="more-sheet-backdrop" onClick={onClose}>
       <div className="more-sheet" onClick={e => e.stopPropagation()}>
         <div className="more-sheet-handle" />
         {NAV_SECTIONS.map(sec => (
-          <div key={sec.section} className="more-sheet-group">
-            <div className="more-sheet-title">{sec.section}</div>
+          <div key={sec.sectionKey} className="more-sheet-group">
+            <div className="more-sheet-title">{t(sec.sectionKey)}</div>
             <div className="more-sheet-items">
               {sec.children.map(child => (
                 <button
@@ -155,7 +169,7 @@ function MoreSheet({ screen, onNavigate, onClose, badges }) {
                   onClick={() => { onNavigate(child.screen); onClose() }}
                 >
                   <i className={`fi ${child.icon}`} />
-                  <span>{child.label}</span>
+                  <span>{t(child.labelKey)}</span>
                   {badges[child.screen] > 0 && (
                     <span className="more-sheet-badge">{badges[child.screen]}</span>
                   )}
@@ -172,7 +186,7 @@ function MoreSheet({ screen, onNavigate, onClose, badges }) {
 
 // ─── Profile Dropdown ─────────────────────────────────────────────────────────
 
-function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
+function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut, t }) {
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const onCloseRef = useRef(onClose)
   const dropdownRef = useRef(null)
@@ -203,6 +217,7 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
       ref={dropdownRef}
       className="profile-dropdown"
       style={{ top: pos.top, right: pos.right }}
+      role="menu"
     >
       {/* Header */}
       <div className="profile-dropdown-header">
@@ -220,21 +235,21 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
 
       <div className="profile-dropdown-divider" />
 
-      <div className="profile-dropdown-item" onClick={() => go('profile')}>
+      <button type="button" role="menuitem" className="profile-dropdown-item" onClick={() => go('profile')}>
         <i className="fi fi-rr-user" />
-        Meu perfil
-      </div>
-      <div className="profile-dropdown-item" onClick={() => go('settings')}>
+        {t('profile.myProfile')}
+      </button>
+      <button type="button" role="menuitem" className="profile-dropdown-item" onClick={() => go('settings')}>
         <i className="fi fi-rr-settings-sliders" />
-        Configurações da conta
-      </div>
+        {t('profile.accountSettings')}
+      </button>
 
       <div className="profile-dropdown-divider" />
 
-      <div className="profile-dropdown-item profile-dropdown-item--danger" onClick={logOut}>
+      <button type="button" role="menuitem" className="profile-dropdown-item profile-dropdown-item--danger" onClick={logOut}>
         <i className="fi fi-rr-sign-out-alt" />
-        Sair
-      </div>
+        {t('profile.signOut')}
+      </button>
     </div>,
     document.body
   )
@@ -242,26 +257,66 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut }) {
 
 // ─── Dashboard (requer auth + AppContext) ────────────────────────────────────
 
-function Dashboard() {
-  const [screen, setScreen] = useState(() => {
+const isKnownScreen = (s) => !!SCREEN_TITLES[s]
+
+// Sem hash na URL, retoma a última tela aberta; senão a Visão Geral.
+const initialScreen = (() => {
+  if (window.location.hash) return routeFromHash('overview')
+  try {
     const saved = localStorage.getItem('eazy_screen')
-    return (saved && SCREEN_TITLES[saved]) ? saved : 'overview'
-  })
+    if (saved && isKnownScreen(saved)) return saved
+  } catch { /* modo privado */ }
+  return 'overview'
+})()
+
+function Dashboard() {
+  // A URL é a fonte da verdade da tela. localStorage sobrou só como "última
+  // tela visitada", usada quando se abre o app sem hash nenhum.
+  const screen = useHashRoute(initialScreen, isKnownScreen)
   const [profileOpen, setProfileOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
   const [converterOpen, setConverterOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const {
     settings, resolvedTheme, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, walletCreated,
-    creditCards, categories, addTransaction, addMultipleTransactions,
+    creditCards, categories, addTransaction, addMultipleTransactions, createRecurringSeries,
+    t, formatLongDate, locale,
   } = useApp()
   const { logOut } = useAuth()
   const userCardRef = useRef(null)
   const calcBtnRef = useRef(null)
   const converterBtnRef = useRef(null)
 
-  const navigate = (s) => { setScreen(s); localStorage.setItem('eazy_screen', s) }
+  const navigate = (s) => { routerNavigate(s) }
+
+  useEffect(() => {
+    try { localStorage.setItem('eazy_screen', screen) } catch { /* modo privado */ }
+  }, [screen])
+
+  // Ctrl/⌘+K abre a busca. O preventDefault evita o "buscar no site" do Firefox.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen(o => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const paletteScreens = useMemo(
+    () => FLAT_SCREENS.map(s => ({ ...s, label: t(s.labelKey) })),
+    [t])
+
+  // O <html lang> vinha fixo em "en" do index.html. Além de ser lido por
+  // leitores de tela para escolher a voz, ele afeta hifenização e a sugestão de
+  // tradução do navegador.
+  useEffect(() => {
+    document.documentElement.setAttribute('lang', locale)
+  }, [locale])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolvedTheme)
@@ -277,8 +332,10 @@ function Dashboard() {
   }, [settings.theme])
 
   const now = new Date()
-  const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  const { title, sub } = SCREEN_TITLES[screen] || SCREEN_TITLES.overview
+  const dateStr = formatLongDate(now)
+  const active = SCREEN_TITLES[screen] ? screen : 'overview'
+  const title = t(`screen.${active}.title`)
+  const sub   = t(`screen.${active}.sub`)
 
   // walletCreated cobre o caso em que a carteira foi gravada mas o listener
   // não conseguiu ler de volta — sem isso o onboarding se repete pra sempre.
@@ -286,44 +343,50 @@ function Dashboard() {
 
   return (
     <div className="dashboard">
+      <a className="skip-link" href="#conteudo">{t('a11y.skipToContent')}</a>
+
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label={t('nav.more')}>
         <div className="sidebar-logo">
           <div className="sidebar-logo-wrap">
             <img src={logoImg} alt="Eazy" />
           </div>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label={t('a11y.mainNav')}>
           {NAV.map((item, i) =>
-            item.section ? (
-              <NavAccordion key={i} item={item} screen={screen} setScreen={navigate}
+            item.sectionKey ? (
+              <NavAccordion key={i} item={item} screen={screen} setScreen={navigate} t={t}
                 badges={{ alerts: alertsDueCount, transactions: pendingCount }} />
             ) : (
-              <div
+              <button
                 key={item.screen}
+                type="button"
                 className={`nav-item${screen === item.screen ? ' active' : ''}`}
                 onClick={() => navigate(item.screen)}
+                aria-current={screen === item.screen ? 'page' : undefined}
               >
-                <i className={`fi ${item.icon} nav-icon`} />
-                {item.label}
+                <i className={`fi ${item.icon} nav-icon`} aria-hidden="true" />
+                {t(item.labelKey)}
                 {item.screen === 'transactions' && pendingCount > 0 && (
                   <span className="nav-badge">{pendingCount}</span>
                 )}
                 {item.screen === 'alerts' && alertsDueCount > 0 && (
                   <span className="nav-badge" style={{ background: 'var(--accent-red)' }}>{alertsDueCount}</span>
                 )}
-              </div>
+              </button>
             )
           )}
 
-          <div
+          <button
+            type="button"
             className={`nav-item nav-item--more${MORE_SCREENS.includes(screen) ? ' active' : ''}`}
             onClick={() => setMoreOpen(true)}
+            aria-haspopup="dialog"
           >
-            <i className="fi fi-rr-menu-burger nav-icon" />
-            Mais
-          </div>
+            <i className="fi fi-rr-menu-burger nav-icon" aria-hidden="true" />
+            {t('nav.more')}
+          </button>
         </nav>
 
       </aside>
@@ -334,6 +397,7 @@ function Dashboard() {
           onNavigate={navigate}
           onClose={() => setMoreOpen(false)}
           badges={{ alerts: alertsDueCount, transactions: pendingCount }}
+          t={t}
         />
       )}
 
@@ -349,9 +413,19 @@ function Dashboard() {
           </div>
           <div className="header-right">
             <button
+              className="header-search"
+              onClick={() => setPaletteOpen(true)}
+              aria-label={t('palette.open')}
+            >
+              <i className="fi fi-rr-search" aria-hidden="true" />
+              <span>{t('palette.open')}</span>
+              <kbd className="palette-kbd">⌘K</kbd>
+            </button>
+
+            <button
               ref={calcBtnRef}
               className={`header-btn${calcOpen ? ' header-btn--active' : ''}`}
-              title="Calculadora"
+              title={t('header.calculator')}
               onClick={() => { setCalcOpen(o => !o); setConverterOpen(false) }}
             >
               <i className="fi fi-rr-calculator" />
@@ -360,7 +434,7 @@ function Dashboard() {
             <button
               ref={converterBtnRef}
               className={`header-btn${converterOpen ? ' header-btn--active' : ''}`}
-              title="Conversor de moeda"
+              title={t('header.converter')}
               onClick={() => { setConverterOpen(o => !o); setCalcOpen(false) }}
             >
               <i className="fi fi-rr-exchange" />
@@ -368,7 +442,7 @@ function Dashboard() {
 
             <button
               className="header-btn"
-              title="Alertas"
+              title={t('header.alerts')}
               onClick={() => navigate('alerts')}
             >
               <i className="fi fi-rr-bell" />
@@ -377,7 +451,7 @@ function Dashboard() {
 
             <button
               className="header-btn theme-toggle"
-              title={resolvedTheme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+              title={t(resolvedTheme === 'dark' ? 'header.theme.toLight' : 'header.theme.toDark')}
               onClick={toggleTheme}
             >
               <i className={`fi ${resolvedTheme === 'dark' ? 'fi-rr-sun' : 'fi-rr-moon'}`} />
@@ -391,10 +465,13 @@ function Dashboard() {
             )}
 
             {/* Profile trigger */}
-            <div
+            <button
+              type="button"
               ref={userCardRef}
               className={`header-profile${profileOpen ? ' header-profile--open' : ''}`}
               onClick={() => setProfileOpen(o => !o)}
+              aria-haspopup="menu"
+              aria-expanded={profileOpen}
             >
               <div className="header-profile-avatar" style={{ overflow: 'hidden', padding: 0 }}>
                 {settings.photoURL
@@ -404,13 +481,14 @@ function Dashboard() {
               </div>
               <div className="header-profile-info">
                 <div className="header-profile-name">{settings.name}</div>
-                <div className="header-profile-role">Conta Pessoal</div>
+                <div className="header-profile-role">{t('header.personalAccount')}</div>
               </div>
               <i
                 className="fi fi-rr-angle-small-down"
                 style={{ fontSize: 13, color: 'var(--text-muted)', transition: 'transform .2s', transform: profileOpen ? 'rotate(180deg)' : 'none' }}
+                aria-hidden="true"
               />
-            </div>
+            </button>
 
             {profileOpen && (
               <ProfileDropdown
@@ -419,27 +497,39 @@ function Dashboard() {
                 onClose={() => setProfileOpen(false)}
                 anchorRef={userCardRef}
                 logOut={logOut}
+                t={t}
               />
             )}
           </div>
         </header>
 
-        <div className="content">
-          <Suspense fallback={<div className="empty-state"><p>Carregando...</p></div>}>
-            {(SCREENS[screen] || SCREENS.overview)(navigate)}
-          </Suspense>
+        <div className="content" id="conteudo" tabIndex={-1}>
+          <VerifyEmailBanner />
+          <ErrorBoundary resetKey={screen} t={t}>
+            <Suspense fallback={<div className="empty-state"><p>{t('action.loading')}</p></div>}>
+              {(SCREENS[screen] || SCREENS.overview)(navigate)}
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
 
-      <button className="fab" title="Nova Transação" onClick={() => setQuickAddOpen(true)}>
+      <button className="fab" title={t('action.newTransaction')} onClick={() => setQuickAddOpen(true)}>
         <i className="fi fi-rr-plus" />
       </button>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onNavigate={navigate}
+        screens={paletteScreens}
+      />
 
       {quickAddOpen && (
         <TransactionModal
           wallets={wallets} creditCards={creditCards} categories={categories}
-          onSave={(data, mode, count) => {
+          onSave={(data, mode, count, frequency) => {
             if (mode === 'unique') addTransaction(data)
+            else if (mode === 'recurring') createRecurringSeries(data, frequency, count)
             else addMultipleTransactions(data, mode, count)
           }}
           onClose={() => setQuickAddOpen(false)}
@@ -451,19 +541,40 @@ function Dashboard() {
 
 // ─── Biometric Lock Screen ────────────────────────────────────────────────────
 
-function LockScreen({ onUnlock, onLogOut }) {
+function LockScreen({ onUnlock, onLogOut, error, busy }) {
+  // O gate biométrico roda antes do AppProvider, então o idioma vem do cache
+  // local em vez das preferências do Firestore.
+  const t = useMemo(() => createTranslator(detectLanguage()), [])
+
   return (
     <div className="login-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-primary)' }}>
       <div style={{ textAlign: 'center', padding: 40, background: 'var(--bg-card)', borderRadius: 24, boxShadow: 'var(--shadow)', maxWidth: 400, width: '90%' }}>
         <i className="fi fi-rr-fingerprint" style={{ fontSize: 64, color: 'var(--accent)', marginBottom: 24, display: 'block' }} />
-        <h2 style={{ marginBottom: 12, fontSize: 24 }}>App Bloqueado</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 32, fontSize: 15, lineHeight: 1.5 }}>Use sua biometria (Face ID / Touch ID) para acessar suas finanças com segurança.</p>
-        <button className="btn btn-primary" onClick={onUnlock} style={{ width: '100%', padding: '14px', fontSize: 16 }}>
-          Desbloquear App
+        <h2 style={{ marginBottom: 12, fontSize: 24 }}>{t('lock.title')}</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 32, fontSize: 15, lineHeight: 1.5 }}>
+          {t('lock.body')}
+        </p>
+
+        {error && (
+          <div role="alert" style={{
+            marginBottom: 16, padding: '10px 14px', borderRadius: 10, fontSize: 13,
+            background: 'var(--accent-red-soft, rgba(220,38,38,.1))', color: 'var(--accent-red)',
+          }}>{error}</div>
+        )}
+
+        <button className="btn btn-primary" onClick={onUnlock} disabled={busy} style={{ width: '100%', padding: '14px', fontSize: 16 }}>
+          {t(busy ? 'lock.waiting' : 'lock.unlock')}
         </button>
         <button className="btn btn-secondary" onClick={onLogOut} style={{ width: '100%', padding: '14px', fontSize: 16, marginTop: 12 }}>
-          Sair da conta
+          {t('lock.signOut')}
         </button>
+
+        {/* O cadeado é uma trava de conveniência no dispositivo, não uma camada
+            de segurança: quem controla o navegador consegue contorná-la. Quem
+            protege os dados de verdade são o login e as regras do Firestore. */}
+        <p style={{ marginTop: 20, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {t('lock.disclaimer')}
+        </p>
       </div>
     </div>
   )
@@ -480,43 +591,56 @@ function AuthedApp({ user }) {
   const [isLocked, setIsLocked] = useState(() =>
     !!(JSON.parse(localStorage.getItem(`bio_${user.uid}`) || 'false'))
   )
+  const [bioError, setBioError] = useState('')
+  const [bioBusy, setBioBusy] = useState(false)
 
-  const handleBiometricUnlock = async () => {
+  const handleBiometricUnlock = useCallback(async () => {
+    setBioError('')
+    setBioBusy(true)
     try {
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-      const rawIdStr = localStorage.getItem('eazy_biometric_id');
+      const challenge = new Uint8Array(32)
+      window.crypto.getRandomValues(challenge)
+      const rawIdStr = localStorage.getItem('eazy_biometric_id')
       const allowCredentials = rawIdStr ? [{
         type: 'public-key',
-        id: Uint8Array.from(atob(rawIdStr), c => c.charCodeAt(0))
-      }] : [];
+        id: Uint8Array.from(atob(rawIdStr), c => c.charCodeAt(0)),
+      }] : []
 
       await navigator.credentials.get({
-        publicKey: {
-          challenge,
-          allowCredentials,
-          userVerification: "required",
-          timeout: 60000
-        }
-      });
-      setIsLocked(false);
+        publicKey: { challenge, allowCredentials, userVerification: 'required', timeout: 60000 },
+      })
+      setIsLocked(false)
     } catch (e) {
-      console.error(e);
-      alert('Falha na autenticação biométrica. Tente novamente.');
+      // alert() bloqueava a thread e destoava do resto do app; o erro agora
+      // aparece na própria tela, com o botão continuando disponível.
+      console.error('[biometric]', e)
+      const t = createTranslator(detectLanguage())
+      setBioError(t(e?.name === 'NotAllowedError' ? 'lock.cancelled' : 'lock.failed'))
+    } finally {
+      setBioBusy(false)
     }
-  }
+  }, [])
 
-  // Auto-prompt on mount (and if isLocked flips back to true in the future).
+  // Pede a biometria assim que a tela de cadeado aparece.
   useEffect(() => {
     if (isLocked) handleBiometricUnlock()
-  }, [isLocked])
+  }, [isLocked, handleBiometricUnlock])
 
   if (isLocked) {
-    return <LockScreen onUnlock={handleBiometricUnlock} onLogOut={logOut} />
+    return (
+      <LockScreen
+        onUnlock={handleBiometricUnlock}
+        onLogOut={logOut}
+        error={bioError}
+        busy={bioBusy}
+      />
+    )
   }
 
+  // key={user.uid}: trocar de conta desmonta o provider inteiro, garantindo que
+  // nenhum dado da conta anterior sobreviva em memória.
   return (
-    <AppProvider>
+    <AppProvider key={user.uid}>
       <Dashboard />
     </AppProvider>
   )

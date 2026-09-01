@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Testes
+        run: npm test
+
+      # O build roda sem .env: os fallbacks em src/firebase.js cobrem a config
+      # pública, e as chaves secretas só são lidas em runtime pelas funções
+      # serverless — nenhuma delas participa do bundle.
+      - name: Build
+        run: npm run build
+
+  # As regras são a única barreira entre os dados de um usuário e qualquer
+  # outro. O emulador exige Java, que já vem no runner do GitHub — por isso o
+  # job é separado do `npm test`, que roda em qualquer máquina.
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - run: npm ci
+
+      - name: Regras do Firestore
+        run: npm run test:rules
+
+  # Falha o CI se uma credencial voltar a ser commitada. As que existiam neste
+  # repositório (senha do Gmail em api/send-email.js, chave da Bolsai no
+  # vite.config.js) saíram para variáveis de ambiente.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Procurar segredos no código
+        run: |
+          set -euo pipefail
+          patterns='SMTP_PASS *= *["'"'"'][^"'"'"']|createTransport\([^)]*pass: *["'"'"']|X-API-Key.{0,4}: *["'"'"']sk_|private_key.{0,4}: *["'"'"']-----BEGIN'
+          if grep -rInE "$patterns" --include='*.js' --include='*.jsx' --include='*.json' \
+               --exclude-dir=node_modules --exclude-dir=dist --exclude='*.example' . ; then
+            echo "::error::Credencial encontrada no código. Use variáveis de ambiente (veja .env.example)."
+            exit 1
+          fi
+          echo "Nenhuma credencial encontrada."

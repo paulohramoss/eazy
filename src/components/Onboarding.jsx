@@ -4,16 +4,16 @@ import CurrencyInput from './CurrencyInput'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const WALLET_TYPES = [
-  { value: 'checking',   label: 'Conta Corrente',  icon: 'fi-rr-bank' },
-  { value: 'savings',    label: 'Poupança',         icon: 'fi-rr-piggy-bank' },
-  { value: 'investment', label: 'Investimentos',    icon: 'fi-rr-chart-line-up' },
-  { value: 'cash',       label: 'Dinheiro Físico',  icon: 'fi-rr-money-bill-wave' },
+  { value: 'checking',   labelKey: 'wallet.type.checking',   icon: 'fi-rr-bank' },
+  { value: 'savings',    labelKey: 'wallet.type.savings',    icon: 'fi-rr-piggy-bank' },
+  { value: 'investment', labelKey: 'wallet.type.investment', icon: 'fi-rr-chart-line-up' },
+  { value: 'cash',       labelKey: 'wallet.type.cash',       icon: 'fi-rr-money-bill-wave' },
 ]
 
 const COLORS = ['#0053EF', '#CFF330', '#18A058', '#E8382A', '#F59E0B', '#0A0A0A']
 
 export default function Onboarding() {
-  const { addWallet, addTransaction, categories, currencySymbol, wallets, dbError } = useApp()
+  const { addWallet, addTransaction, categories, currencySymbol, wallets, dbError, t } = useApp()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [skipTx, setSkipTx] = useState(false)
@@ -30,7 +30,7 @@ export default function Onboarding() {
   })
 
   const setW = (k, v) => setWallet(w => ({ ...w, [k]: v }))
-  const setT = (k, v) => setTx(t => ({ ...t, [k]: v }))
+  const setT = (k, v) => setTx(prev => ({ ...prev, [k]: v }))
 
   const txFilled = tx.name.trim() && Number(tx.amount) > 0
   const txEmpty  = !tx.name.trim() && !Number(tx.amount)
@@ -58,7 +58,7 @@ export default function Onboarding() {
       // wallets.length > 0 now — Dashboard unmounts this automatically
     } catch (err) {
       console.error('[Onboarding]', err)
-      setError(`Falha ao salvar — ${err?.code || err?.message || String(err)}`)
+      setError(t('onb.saveFailed', { error: err?.code || err?.message || String(err) }))
     } finally {
       setLoading(false)
     }
@@ -86,7 +86,7 @@ export default function Onboarding() {
             padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 20,
             background: 'rgba(232,56,42,.12)', color: '#E8382A', wordBreak: 'break-word',
           }}>
-            Erro de conexão com o banco — <strong>{dbError}</strong> (carteiras carregadas: {wallets.length})
+            {t('onb.dbError', { error: dbError, count: wallets.length })}
           </div>
         )}
 
@@ -94,17 +94,17 @@ export default function Onboarding() {
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>Bem-vindo ao Eazy</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>{t('onb.welcome')}</h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-                Vamos criar sua primeira carteira em 3 passos rápidos.
+                {t('onb.welcomeSub')}
               </p>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Nome da carteira</label>
+              <label className="form-label">{t('onb.walletName')}</label>
               <input
                 className="form-input" autoFocus
-                placeholder="Ex: Nubank, Itaú, Carteira..."
+                placeholder={t('onb.walletNamePlaceholder')}
                 value={wallet.name}
                 onChange={e => setW('name', e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && wallet.name.trim() && setStep(2)}
@@ -112,25 +112,25 @@ export default function Onboarding() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Tipo</label>
+              <label className="form-label">{t('wallet.type')}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {WALLET_TYPES.map(t => (
-                  <button key={t.value} type="button" onClick={() => setW('type', t.value)} style={{
+                {WALLET_TYPES.map(wt => (
+                  <button key={wt.value} type="button" onClick={() => setW('type', wt.value)} style={{
                     padding: '12px 14px', borderRadius: 10, cursor: 'pointer', fontWeight: 500, fontSize: 14,
                     display: 'flex', alignItems: 'center', gap: 10, transition: 'all .15s',
-                    border: wallet.type === t.value ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                    background: wallet.type === t.value ? 'rgba(var(--accent-rgb),.08)' : 'var(--bg-card)',
-                    color: wallet.type === t.value ? 'var(--accent)' : 'var(--text-primary)',
+                    border: wallet.type === wt.value ? '2px solid var(--accent)' : '1.5px solid var(--border)',
+                    background: wallet.type === wt.value ? 'rgba(var(--accent-rgb),.08)' : 'var(--bg-card)',
+                    color: wallet.type === wt.value ? 'var(--accent)' : 'var(--text-primary)',
                   }}>
-                    <i className={`fi ${t.icon}`} />
-                    {t.label}
+                    <i className={`fi ${wt.icon}`} />
+                    {t(wt.labelKey)}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Cor</label>
+              <label className="form-label">{t('wallet.color')}</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {COLORS.map(c => (
                   <button key={c} type="button" onClick={() => setW('color', c)} style={{
@@ -144,7 +144,7 @@ export default function Onboarding() {
 
             <button className="btn btn-primary" style={{ padding: 16, fontSize: 16 }}
               disabled={!wallet.name.trim()} onClick={() => setStep(2)}>
-              Próximo →
+              {t('onb.next')}
             </button>
           </div>
         )}
@@ -153,9 +153,9 @@ export default function Onboarding() {
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>Qual é o saldo atual?</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>{t('onb.balanceTitle')}</h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-                Informe quanto há em <strong>{wallet.name}</strong> agora. Pode ser zero.
+                {t('onb.balanceSub', { name: wallet.name })}
               </p>
             </div>
 
@@ -171,10 +171,10 @@ export default function Onboarding() {
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-secondary" style={{ flex: 1, padding: 14 }} onClick={() => setStep(1)}>
-                ← Voltar
+                {t('onb.back')}
               </button>
               <button className="btn btn-primary" style={{ flex: 2, padding: 14, fontSize: 16 }} onClick={() => setStep(3)}>
-                Próximo →
+                {t('onb.next')}
               </button>
             </div>
           </div>
@@ -184,9 +184,9 @@ export default function Onboarding() {
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>Primeira transação</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>{t('onb.firstTxTitle')}</h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-                Registre uma movimentação agora ou pule — você pode lançar depois.
+                {t('onb.firstTxSub')}
               </p>
             </div>
 
@@ -194,27 +194,27 @@ export default function Onboarding() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Tipo</label>
+                    <label className="form-label">{t('wallet.type')}</label>
                     <select className="form-select" value={tx.type} onChange={e => setT('type', e.target.value)}>
-                      <option value="income">Receita</option>
-                      <option value="expense">Despesa</option>
+                      <option value="income">{t('txModal.income')}</option>
+                      <option value="expense">{t('txModal.expense')}</option>
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Categoria</label>
+                    <label className="form-label">{t('tx.category')}</label>
                     <select className="form-select" value={tx.category} onChange={e => setT('category', e.target.value)}>
                       {categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Descrição</label>
+                  <label className="form-label">{t('tx.description')}</label>
                   <input className="form-input" autoFocus
-                    placeholder="Ex: Salário de junho, Conta de luz..."
+                    placeholder={t('onb.txNamePlaceholder')}
                     value={tx.name} onChange={e => setT('name', e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Valor ({currencySymbol})</label>
+                  <label className="form-label">{t('txModal.value', { symbol: currencySymbol })}</label>
                   <CurrencyInput className="form-input" value={tx.amount} onChange={v => setT('amount', v)} />
                 </div>
               </div>
@@ -223,7 +223,7 @@ export default function Onboarding() {
                 <i className="fi fi-rr-check-circle" style={{
                   fontSize: 52, color: 'var(--accent-green)', display: 'block', marginBottom: 12,
                 }} />
-                Tudo certo. Você pode lançar transações a qualquer momento.
+                {t('onb.skipped')}
               </div>
             )}
 
@@ -239,18 +239,18 @@ export default function Onboarding() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100 }}
                 disabled={loading} onClick={() => setStep(2)}>
-                ← Voltar
+                {t('onb.back')}
               </button>
               <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100, opacity: loading ? .5 : 1 }}
                 disabled={loading}
                 onClick={() => { setSkipTx(true); handleFinish(true) }}>
-                Pular
+                {t('onb.skip')}
               </button>
               <button className="btn btn-primary"
                 style={{ flex: 2, padding: 14, fontSize: 16, minWidth: 140, opacity: canFinish ? 1 : .45, cursor: canFinish ? 'pointer' : 'not-allowed' }}
                 disabled={!canFinish}
                 onClick={() => handleFinish()}>
-                {loading ? 'Salvando...' : 'Concluir ✓'}
+                {t(loading ? 'onb.saving' : 'onb.finish')}
               </button>
             </div>
           </div>

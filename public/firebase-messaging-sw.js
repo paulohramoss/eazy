@@ -24,13 +24,30 @@ messaging.onBackgroundMessage(payload => {
   })
 })
 
-// Click na notificação abre o app
+// Click na notificação abre o app na tela relevante.
+//
+// Antes isto só focava a primeira janela aberta, ignorando o destino: clicar em
+// "fatura vence hoje" caía na Visão Geral. Com o roteador por hash, o job manda
+// o destino em fcmOptions.link e aqui ele é aplicado.
 self.addEventListener('notificationclick', event => {
   event.notification.close()
+
+  const data = event.notification.data || {}
+  const target = data.link || (data.FCM_MSG && data.FCM_MSG.notification && data.FCM_MSG.notification.click_action) || '/'
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      if (list.length) return list[0].focus()
-      return clients.openWindow('/')
+      for (const client of list) {
+        if ('focus' in client) {
+          // navigate() falha em alguns navegadores quando o client está num
+          // escopo diferente; focar mesmo assim é melhor que não abrir nada.
+          if ('navigate' in client && target !== '/') {
+            return client.navigate(target).then(c => (c || client).focus()).catch(() => client.focus())
+          }
+          return client.focus()
+        }
+      }
+      return clients.openWindow(target)
     })
   )
 })

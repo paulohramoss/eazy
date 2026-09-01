@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 
 // Converts numeric cents to "1.000,00" display string
 const format = (cents) => {
@@ -18,30 +18,35 @@ const toCents = (v) => Math.round((Number(v) || 0) * 100)
  */
 export default function CurrencyInput({ value, onChange, className, placeholder, ...rest }) {
   const [display, setDisplay] = useState(() => format(toCents(value)))
-  const lastEmitted = useRef(toCents(value))
+  // Estado, não ref: o valor é lido durante o render (padrão oficial de
+  // "ajustar estado quando uma prop muda"), e ler ref no render é proibido.
+  const [lastEmitted, setLastEmitted] = useState(() => toCents(value))
 
   // Resync when `value` changes from outside (e.g. programmatic reset/shortcut
   // buttons) — but not when it's just an echo of what we ourselves emitted.
-  useEffect(() => {
-    const cents = toCents(value)
-    if (cents !== lastEmitted.current) {
-      lastEmitted.current = cents
-      setDisplay(format(cents))
-    }
-  }, [value])
+  //
+  // Ajuste durante o render, e não num efeito: o efeito só rodava DEPOIS de
+  // pintar o valor velho, causando um frame com o texto errado e um render
+  // extra em cascata. Este é o padrão recomendado para estado derivado de props
+  // (react.dev/learn/you-might-not-need-an-effect).
+  const cents = toCents(value)
+  if (cents !== lastEmitted) {
+    setLastEmitted(cents)
+    setDisplay(format(cents))
+  }
 
   const handleChange = (e) => {
     const digits = e.target.value.replace(/\D/g, '')
     if (!digits) {
-      lastEmitted.current = 0
+      setLastEmitted(0)
       setDisplay('')
       onChange(0)
       return
     }
-    const cents = parseInt(digits, 10)
-    lastEmitted.current = cents
-    setDisplay(format(cents))
-    onChange(cents / 100)
+    const nextCents = parseInt(digits, 10)
+    setLastEmitted(nextCents)
+    setDisplay(format(nextCents))
+    onChange(nextCents / 100)
   }
 
   return (
