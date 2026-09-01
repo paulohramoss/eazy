@@ -8,3 +8,10 @@ export const isoDate = (d = new Date()) =>
 
 // Meio-dia evita que o fuso empurre a data para o dia anterior na exibição.
 export const brDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR')
+
+// Soma (ou subtrai) dias. O construtor Date normaliza o overflow de mês e ano,
+// e usar componentes locais mantém o resultado no mesmo fuso que isoDate.
+export const addDays = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return isoDate(new Date(y, m - 1, d + n))
+}
