@@ -1,3 +1,5 @@
+import { addDays } from './date.js'
+
 // Regra única de saldo do app. Vive fora do AppContext por ser função pura —
 // dá para conferir a conta sem montar o React nem o Firestore.
 
@@ -27,4 +29,35 @@ export function walletStats(wallets, txs, cutoff) {
     acc[w.id] = { balance: (w.balance || 0) + income - expenses, income, expenses }
     return acc
   }, {})
+}
+
+/**
+ * Saldo total no fim de cada dia de um intervalo, considerando todas as carteiras.
+ *
+ * Faz uma passada só: parte do saldo acumulado até a véspera de `fromIso` e vai
+ * somando o líquido de cada dia. Chamar walletStats por dia daria o mesmo
+ * resultado relendo todas as transações 42 vezes numa grade de mês.
+ *
+ * @returns { [dia ISO]: saldo }
+ */
+export function dailyBalances(wallets, txs, fromIso, toIso) {
+  const opening = Object.values(walletStats(wallets, txs, addDays(fromIso, -1)))
+    .reduce((sum, st) => sum + st.balance, 0)
+
+  const net = {}
+  for (const t of txs) {
+    if (!t.date || t.date < fromIso || t.date > toIso) continue
+    const delta = t.type === 'income' ? (t.amount || 0)
+      : t.type === 'expense' ? -(t.amount || 0)
+      : 0
+    net[t.date] = (net[t.date] || 0) + delta
+  }
+
+  const out = {}
+  let running = opening
+  for (let day = fromIso; day <= toIso; day = addDays(day, 1)) {
+    running += net[day] || 0
+    out[day] = running
+  }
+  return out
 }

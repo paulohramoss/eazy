@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
+import { dailyBalances } from '../utils/balances'
+import { isoDate } from '../utils/date'
 
 const fmtShort = (n, symbol) => {
   if (Math.abs(n) >= 1000) return `${symbol} ${(n / 1000).toFixed(1)}k`
@@ -14,26 +16,23 @@ const MONTHS_PT = [
 
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-const dateKey = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 export default function FinancialCalendar() {
-  const { transactions, formatCurrency: fmt, currencySymbol } = useApp()
+  const { transactions, wallets, formatCurrency: fmt, currencySymbol } = useApp()
   const now   = new Date()
-  const todayKey = dateKey(now)
+  const todayKey = isoDate(now)
 
   const [year,  setYear]  = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [selectedDay, setSelectedDay] = useState(null)
 
-  // Build txByDate map (exclude failed)
-  const txByDate = {}
-  transactions
-    .filter(t => t.status !== 'failed' && t.date)
-    .forEach(t => {
-      if (!txByDate[t.date]) txByDate[t.date] = []
-      txByDate[t.date].push(t)
-    })
+  const validTx = useMemo(
+    () => transactions.filter(t => t.status !== 'failed' && t.date), [transactions])
+
+  const txByDate = useMemo(() => validTx.reduce((acc, t) => {
+    (acc[t.date] ||= []).push(t)
+    return acc
+  }, {}), [validTx])
 
   // Navigate months
   const prevMonth = () => {
@@ -46,6 +45,10 @@ export default function FinancialCalendar() {
     else setMonth(m => m + 1)
     setSelectedDay(null)
   }
+  const goToday = () => {
+    setYear(now.getFullYear()); setMonth(now.getMonth()); setSelectedDay(null)
+  }
+  const onCurrentMonth = year === now.getFullYear() && month === now.getMonth()
 
   // Build calendar grid cells
   const firstDow   = new Date(year, month, 1).getDay()
@@ -72,6 +75,31 @@ export default function FinancialCalendar() {
   const weeks = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
 
+  const cellKey = (c) =>
+    `${c.year}-${String(c.month + 1).padStart(2, '0')}-${String(c.day).padStart(2, '0')}`
+
+  // Saldo projetado no fim de cada dia da grade, numa passada só.
+  const gridFrom = cellKey(cells[0])
+  const gridTo   = cellKey(cells[cells.length - 1])
+  const balanceByDay = useMemo(
+    () => dailyBalances(wallets, validTx, gridFrom, gridTo),
+    [wallets, validTx, gridFrom, gridTo])
+
+  // Totais do mês visível (só os dias do próprio mês, sem o preenchimento).
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  const monthTotals = useMemo(() => {
+    const inMonth = validTx.filter(t => t.date.startsWith(monthPrefix))
+    const income   = inMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+    const expenses = inMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    return { income, expenses, net: income - expenses }
+  }, [validTx, monthPrefix])
+
+  const lastDayKey = `${monthPrefix}-${String(daysInMonth).padStart(2, '0')}`
+  const endOfMonthBalance = balanceByDay[lastDayKey] ?? 0
+
+  const negativeDays = Object.entries(balanceByDay)
+    .filter(([day, bal]) => bal < 0 && day.startsWith(monthPrefix)).length
+
   const selectedTxs = selectedDay ? (txByDate[selectedDay] || []) : []
 
   return (
@@ -90,7 +118,40 @@ export default function FinancialCalendar() {
           <button className="cal-nav-btn" onClick={nextMonth}>
             <i className="fi fi-rr-angle-right" />
           </button>
+          {!onCurrentMonth && (
+            <button className="btn btn-secondary btn-sm" onClick={goToday}>Hoje</button>
+          )}
         </div>
+      </div>
+
+      {/* Totais do mês visível */}
+      <div className="cal-month-summary">
+        <div>
+          <span className="cal-summary-label">Receitas</span>
+          <span className="cal-summary-value positive-text">+{fmt(monthTotals.income)}</span>
+        </div>
+        <div>
+          <span className="cal-summary-label">Despesas</span>
+          <span className="cal-summary-value negative-text">−{fmt(monthTotals.expenses)}</span>
+        </div>
+        <div>
+          <span className="cal-summary-label">Resultado</span>
+          <span className={`cal-summary-value ${monthTotals.net >= 0 ? 'positive-text' : 'negative-text'}`}>
+            {monthTotals.net >= 0 ? '+' : '−'}{fmt(Math.abs(monthTotals.net))}
+          </span>
+        </div>
+        <div>
+          <span className="cal-summary-label">Saldo no fim do mês</span>
+          <span className={`cal-summary-value ${endOfMonthBalance < 0 ? 'negative-text' : ''}`}>
+            {fmt(endOfMonthBalance)}
+          </span>
+        </div>
+        {negativeDays > 0 && (
+          <div className="cal-summary-warn">
+            <i className="fi fi-rr-exclamation" />
+            {negativeDays} dia{negativeDays > 1 ? 's' : ''} com saldo negativo
+          </div>
+        )}
       </div>
 
       {/* Calendar grid */}
@@ -104,10 +165,12 @@ export default function FinancialCalendar() {
         {weeks.map((week, wi) => (
           <div key={wi} className="cal-week-row">
             {week.map((cell, ci) => {
-              const key = `${cell.year}-${String(cell.month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`
+              const key = cellKey(cell)
               const txs      = txByDate[key] || []
               const isToday  = key === todayKey
               const isSel    = key === selectedDay
+              const balance  = balanceByDay[key]
+              const negative = balance != null && balance < 0
 
               return (
                 <div
@@ -118,6 +181,7 @@ export default function FinancialCalendar() {
                     isToday ? 'cal-cell-today' : '',
                     isSel   ? 'cal-cell-selected' : '',
                     txs.length > 0 ? 'cal-cell-has-tx' : '',
+                    negative && cell.current ? 'cal-cell-negative' : '',
                   ].filter(Boolean).join(' ')}
                   onClick={() => setSelectedDay(isSel ? null : key)}
                 >
@@ -136,6 +200,13 @@ export default function FinancialCalendar() {
                       {txs.length > 2 && (
                         <div className="cal-tx-more">+{txs.length - 2}</div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Saldo projetado no fim do dia — o motivo de existir o calendário. */}
+                  {balance != null && (
+                    <div className={`cal-day-balance${negative ? ' cal-day-balance-neg' : ''}`}>
+                      {fmtShort(balance, currencySymbol)}
                     </div>
                   )}
                 </div>
@@ -175,6 +246,13 @@ export default function FinancialCalendar() {
               ))}
             </div>
           )}
+
+          <div className="cal-detail-balance">
+            <span>Saldo projetado no fim do dia</span>
+            <strong className={(balanceByDay[selectedDay] ?? 0) < 0 ? 'negative-text' : ''}>
+              {fmt(balanceByDay[selectedDay] ?? 0)}
+            </strong>
+          </div>
 
           {/* Day totals */}
           {selectedTxs.length > 0 && (() => {
