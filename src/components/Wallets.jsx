@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
+import DeleteWithTransactionsModal from './DeleteWithTransactionsModal'
+import { useToast } from './Toast'
 import Checkbox from './Checkbox'
-import { isoDate, brDate } from '../utils/date'
+import { isoDate } from '../utils/date'
 import CurrencyInput from './CurrencyInput'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const WALLET_TYPES = [
-  { value: 'checking', label: 'Conta Corrente' },
-  { value: 'savings', label: 'Poupança' },
-  { value: 'credit', label: 'Cartão de Crédito' },
-  { value: 'investment', label: 'Investimentos' },
-  { value: 'cash', label: 'Dinheiro Físico' },
+  { value: 'checking',   labelKey: 'wallet.type.checking' },
+  { value: 'savings',    labelKey: 'wallet.type.savings' },
+  { value: 'credit',     labelKey: 'wallet.type.credit' },
+  { value: 'investment', labelKey: 'wallet.type.investment' },
+  { value: 'cash',       labelKey: 'wallet.type.cash' },
 ]
-const TYPE_LABELS = Object.fromEntries(WALLET_TYPES.map(t => [t.value, t.label]))
+const TYPE_KEYS = Object.fromEntries(WALLET_TYPES.map(wt => [wt.value, wt.labelKey]))
 
 const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#F59E0B', '#3370F5', '#BBBBBB', '#555555', '#EEF3FF', '#B8DC1A', '#141414']
 
@@ -23,7 +25,7 @@ const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', i
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 
 function WalletModal({ initial, onSave, onClose }) {
-  const { currencySymbol } = useApp()
+  const { currencySymbol, t } = useApp()
   const [form, setForm] = useState(initial
     ? { ...initial, icon: resolveWalletIcon(initial.icon, initial.type), balance: String(initial.balance) }
     : EMPTY_FORM
@@ -39,24 +41,24 @@ function WalletModal({ initial, onSave, onClose }) {
 
   return (
     <Modal
-      title={initial ? 'Editar Carteira' : 'Nova Carteira'}
+      title={t(initial ? 'wallet.editTitle' : 'wallet.newTitle')}
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Salvar</button>
+          <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn btn-primary" onClick={handleSave}>{t('action.save')}</button>
         </>
       }
     >
       <div className="form-group">
-        <label className="form-label">Nome</label>
-        <input className="form-input" placeholder="Ex: Nubank, Poupança..." value={form.name} onChange={e => set('name', e.target.value)} />
+        <label className="form-label">{t('wallet.name')}</label>
+        <input className="form-input" placeholder={t('wallet.namePlaceholder')} value={form.name} onChange={e => set('name', e.target.value)} />
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Tipo</label>
+          <label className="form-label">{t('wallet.type')}</label>
           <select className="form-select" value={form.type} onChange={e => set('type', e.target.value)}>
-            {WALLET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            {WALLET_TYPES.map(wt => <option key={wt.value} value={wt.value}>{t(wt.labelKey)}</option>)}
           </select>
         </div>
         <div className="form-group">
@@ -65,7 +67,7 @@ function WalletModal({ initial, onSave, onClose }) {
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">Ícone</label>
+        <label className="form-label">{t('wallet.icon')}</label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(42px, 42px))', gap: 8 }}>
           {WALLET_ICON_OPTIONS.map(option => {
             const selected = selectedIcon === option.icon
@@ -93,7 +95,7 @@ function WalletModal({ initial, onSave, onClose }) {
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">Cor</label>
+        <label className="form-label">{t('wallet.color')}</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {PRESET_COLORS.map(color => (
             <button
@@ -107,7 +109,7 @@ function WalletModal({ initial, onSave, onClose }) {
               }}
             />
           ))}
-          <label title="Cor personalizada" style={{ position: 'relative', width: 28, height: 28, cursor: 'pointer' }}>
+          <label title={t('wallet.customColor')} style={{ position: 'relative', width: 28, height: 28, cursor: 'pointer' }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%', cursor: 'pointer',
               background: `conic-gradient(red, yellow, lime, cyan, blue, magenta, red)`,
@@ -127,39 +129,19 @@ function WalletModal({ initial, onSave, onClose }) {
   )
 }
 
-function ConfirmModal({ name, count, orphanTx = 0, onConfirm, onClose }) {
-  const plural = count > 1
-  return (
-    <Modal
-      title={count ? 'Excluir Carteiras' : 'Excluir Carteira'}
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-danger" onClick={() => { onConfirm(); onClose() }}>Excluir</button>
-        </>
-      }
-    >
-      <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-        {count
-          ? <>Deseja excluir <strong style={{ color: 'var(--text-primary)' }}>{count} carteira{plural ? 's' : ''}</strong> selecionada{plural ? 's' : ''}? Esta ação não pode ser desfeita.</>
-          : <>Deseja excluir a carteira <strong style={{ color: 'var(--text-primary)' }}>{name}</strong>?</>
-        }
-      </p>
-      {orphanTx > 0 && (
-        <p style={{ color: 'var(--accent-yellow)', fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>
-          <i className="fi fi-rr-exclamation" style={{ marginRight: 6 }} />
-          {orphanTx} transaç{orphanTx > 1 ? 'ões vinculadas continuarão' : 'ão vinculada continuará'} cadastrad{orphanTx > 1 ? 'as' : 'a'}, sem carteira.
-        </p>
-      )}
-    </Modal>
-  )
+// Mensagem de confirmação: diz o que aconteceu com as transações, não só que a
+// carteira sumiu.
+function describeDeletion(t, count, affected, mode, targetName) {
+  const base = count > 1 ? t('wallet.deletedMany', { count }) : t('wallet.deleted')
+  if (!affected) return `${base}.`
+  const key = mode === 'move' ? 'wallet.movedTx' : mode === 'delete' ? 'wallet.removedTx' : 'wallet.orphanedTx'
+  return `${base}. ${t(key, { count: affected, target: targetName })}`
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Wallets() {
-  const { wallets, transactions, walletStatsAsOf, addWallet, updateWallet, deleteWallet, bulkDeleteWallets, formatCurrency: fmt } = useApp()
+  const { wallets, transactions, walletStatsAsOf, addWallet, updateWallet, deleteWallet, bulkDeleteWallets, formatCurrency: fmt, formatDate, t } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
@@ -167,6 +149,7 @@ export default function Wallets() {
   const [selected, setSelected] = useState(() => new Set())
   const [bulkConfirm, setBulkConfirm] = useState(false)
   const [asOf, setAsOf] = useState(isoDate)
+  const toast = useToast()
 
   const isToday = asOf === isoDate()
   const stats = useMemo(() => walletStatsAsOf(asOf), [walletStatsAsOf, asOf])
@@ -176,7 +159,7 @@ export default function Wallets() {
 
   // A lista do card também respeita o corte, senão os números não fecham.
   const walletTx = activeWallet
-    ? transactions.filter(t => t.walletId === activeWallet && t.date && t.date <= asOf)
+    ? transactions.filter(tx => tx.walletId === activeWallet && tx.date && tx.date <= asOf)
     : []
 
   // Derivar da lista atual descarta ids de carteiras já removidas e mantém a ordem da grid.
@@ -184,7 +167,7 @@ export default function Wallets() {
   const allSelected = wallets.length > 0 && selectedIds.length === wallets.length
   const someSelected = selectedIds.length > 0 && !allSelected
 
-  const countTx = (ids) => transactions.filter(t => ids.includes(t.walletId)).length
+  const countTx = (ids) => transactions.filter(tx => ids.includes(tx.walletId)).length
 
   const toggleOne = (id) => setSelected(prev => {
     const next = new Set(prev)
@@ -194,11 +177,12 @@ export default function Wallets() {
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(wallets.map(w => w.id)))
   const clearSelection = () => setSelected(new Set())
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = async (mode, targetId) => {
     const ids = selectedIds
     if (ids.includes(activeWallet)) setActiveWallet(null)
     clearSelection()
-    await bulkDeleteWallets(ids)
+    const affected = await bulkDeleteWallets(ids, { mode, targetId })
+    toast.success(describeDeletion(t, ids.length, affected, mode, wallets.find(w => w.id === targetId)?.name))
   }
 
   return (
@@ -207,13 +191,13 @@ export default function Wallets() {
       <div className="wallets-header">
         <div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            {isToday ? 'Saldo Total hoje' : `Saldo Total em ${brDate(asOf)}`}
+            {isToday ? t('wallet.totalToday') : t('wallet.totalOn', { date: formatDate(asOf) })}
           </div>
           <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1 }}>{fmt(totalAsOf)}</div>
         </div>
         <div className="wallets-header-actions">
           <label className="wallets-asof">
-            <span>Saldo em</span>
+            <span>{t('wallet.balanceOn')}</span>
             <input
               type="date"
               className="form-input wallets-asof-input"
@@ -222,9 +206,9 @@ export default function Wallets() {
             />
           </label>
           {!isToday && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setAsOf(isoDate())}>Hoje</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setAsOf(isoDate())}>{t('wallet.today')}</button>
           )}
-          <button className="btn btn-primary" onClick={() => setAddModal(true)}>+ Nova Carteira</button>
+          <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('wallet.new')}</button>
         </div>
       </div>
 
@@ -235,19 +219,19 @@ export default function Wallets() {
             checked={allSelected}
             indeterminate={someSelected}
             onChange={toggleAll}
-            label="Selecionar todas as carteiras"
+            label={t('wallet.selectAll')}
           />
           <span className="wallets-toolbar-label">
             {selectedIds.length > 0
-              ? `${selectedIds.length} de ${wallets.length} selecionada${selectedIds.length > 1 ? 's' : ''}`
-              : 'Selecionar carteiras'}
+              ? t('wallet.selectedCount', { count: selectedIds.length, total: wallets.length })
+              : t('wallet.selectPrompt')}
           </span>
           {selectedIds.length > 0 && (
             <div className="tx-bulk-bar">
-              <button className="btn btn-secondary btn-sm" onClick={clearSelection}>Limpar</button>
+              <button className="btn btn-secondary btn-sm" onClick={clearSelection}>{t('wallet.clear')}</button>
               <button className="btn btn-danger btn-sm" onClick={() => setBulkConfirm(true)}>
                 <i className="fi fi-rr-trash" style={{ marginRight: 6 }} />
-                Excluir selecionadas
+                {t('wallet.deleteSelected')}
               </button>
             </div>
           )}
@@ -258,8 +242,8 @@ export default function Wallets() {
       {wallets.length === 0 ? (
         <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <i className="fi fi-rr-wallet" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Nenhuma carteira cadastrada</p>
-          <button className="btn btn-primary" onClick={() => setAddModal(true)}>Criar primeira carteira</button>
+          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{t('wallet.empty')}</p>
+          <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('wallet.createFirst')}</button>
         </div>
       ) : (
       <div className="wallets-grid">
@@ -290,12 +274,12 @@ export default function Wallets() {
                   </span>
                   <button
                     className="btn-icon"
-                    title="Editar"
+                    title={t('action.edit')}
                     onClick={e => { e.stopPropagation(); setEditItem(w) }}
                   ><i className="fi fi-rr-pencil" /></button>
                   <button
                     className="btn-icon danger"
-                    title="Excluir"
+                    title={t('action.delete')}
                     onClick={e => { e.stopPropagation(); setDelItem(w) }}
                   ><i className="fi fi-rr-trash" /></button>
                 </div>
@@ -305,7 +289,7 @@ export default function Wallets() {
                 <div className="wallet-card-balance">{fmt(currentBalance)}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="wallet-card-type">{TYPE_LABELS[w.type] || w.type}</span>
+                <span className="wallet-card-type">{TYPE_KEYS[w.type] ? t(TYPE_KEYS[w.type]) : w.type}</span>
               </div>
               <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
                 <span style={{ color: 'var(--accent-green)' }}>↑ {fmt(income)}</span>
@@ -323,25 +307,27 @@ export default function Wallets() {
           <div className="card-header">
             <div>
               <div className="card-title">
-                Transações — {wallets.find(w => w.id === activeWallet)?.name}
+                {t('wallet.txTitle', { name: wallets.find(w => w.id === activeWallet)?.name })}
               </div>
               <div className="card-subtitle">
-                {walletTx.length} movimentação(ões){isToday ? '' : ` até ${brDate(asOf)}`}
+                {isToday
+                  ? t('wallet.txCount', { count: walletTx.length })
+                  : t('wallet.txCountUntil', { count: walletTx.length, date: formatDate(asOf) })}
               </div>
             </div>
-            <button className="card-action" onClick={() => setActiveWallet(null)}>Fechar</button>
+            <button className="card-action" onClick={() => setActiveWallet(null)}>{t('action.close')}</button>
           </div>
           {walletTx.length === 0 ? (
-            <div className="empty-state"><p>Nenhuma transação nesta carteira</p></div>
+            <div className="empty-state"><p>{t('wallet.noTx')}</p></div>
           ) : (
             <table className="transactions-table">
               <thead>
                 <tr>
-                  <th>Descrição</th>
-                  <th>Categoria</th>
-                  <th>Data</th>
-                  <th style={{ textAlign: 'right' }}>Valor</th>
-                  <th style={{ textAlign: 'center' }}>Status</th>
+                  <th>{t('tx.description')}</th>
+                  <th>{t('tx.category')}</th>
+                  <th>{t('tx.date')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('tx.amount')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('tx.status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -351,7 +337,7 @@ export default function Wallets() {
                     <tr key={tx.id}>
                       <td><span style={{ fontWeight: 500 }}>{tx.name}</span></td>
                       <td><span className="category-tag">{tx.category}</span></td>
-                      <td className="tx-date">{new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                      <td className="tx-date">{formatDate(tx.date)}</td>
                       <td className={`tx-amount ${tx.type === 'income' ? 'positive' : 'negative'}`}>
                         {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                       </td>
@@ -377,20 +363,27 @@ export default function Wallets() {
         />
       )}
       {delItem && (
-        <ConfirmModal
-          name={delItem.name}
-          orphanTx={countTx([delItem.id])}
-          onConfirm={() => {
+        <DeleteWithTransactionsModal
+          title={t('wallet.deleteOneTitle')}
+          entityLabel="carteira"
+          names={[delItem.name]}
+          affectedCount={countTx([delItem.id])}
+          targets={wallets.filter(w => w.id !== delItem.id).map(w => ({ id: w.id, name: w.name }))}
+          onConfirm={async (mode, targetId) => {
             if (activeWallet === delItem.id) setActiveWallet(null)
-            deleteWallet(delItem.id)
+            const affected = await deleteWallet(delItem.id, { mode, targetId })
+            toast.success(describeDeletion(t, 1, affected, mode, wallets.find(w => w.id === targetId)?.name))
           }}
           onClose={() => setDelItem(null)}
         />
       )}
       {bulkConfirm && (
-        <ConfirmModal
-          count={selectedIds.length}
-          orphanTx={countTx(selectedIds)}
+        <DeleteWithTransactionsModal
+          title={t('wallet.deleteManyTitle')}
+          entityLabel="carteira"
+          names={wallets.filter(w => selected.has(w.id)).map(w => w.name)}
+          affectedCount={countTx(selectedIds)}
+          targets={wallets.filter(w => !selected.has(w.id)).map(w => ({ id: w.id, name: w.name }))}
           onConfirm={handleBulkDelete}
           onClose={() => setBulkConfirm(false)}
         />

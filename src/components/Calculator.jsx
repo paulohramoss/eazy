@@ -70,7 +70,6 @@ export default function Calculator({ anchorRef, onClose }) {
 
   useEffect(() => {
     const handler = (e) => {
-      const map = { Enter: '=', Escape: null, Backspace: null }
       if (e.key === 'Escape') { onClose(); return }
       if (e.key === 'Backspace') {
         setDisplay(d => d.length > 1 ? d.slice(0, -1) : '0'); return

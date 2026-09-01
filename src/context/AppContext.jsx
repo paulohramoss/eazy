@@ -1,6 +1,9 @@
-import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from './AuthContext'
-import { isoDate } from '../utils/date'
+import { addMonths, advance, isoDate } from '../utils/date'
+import { splitInstallments } from '../utils/installments'
+import { normalizeDate, parseAmount, parseCSV } from '../utils/csv'
+import { cacheLanguage, createFormatters, createTranslator } from '../i18n'
 import { walletStats } from '../utils/balances'
 import { db } from '../firebase'
 import {
@@ -59,6 +62,7 @@ const COL = {
   investments:  'investments',
   creditCards:  'creditCards',
   alerts:       'alerts',
+  recurrences:  'recurrences',
   users:        'users',
 }
 
@@ -98,8 +102,8 @@ const saveBiometric = (uid, val) => localStorage.setItem(`bio_${uid}`, JSON.stri
 // ─── Pure helpers (no closures over component state — safe to hoist) ─────────
 
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-const sumIncome   = (txs) => txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-const sumExpenses = (txs) => txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+const sumIncome   = (txs) => txs.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
+const sumExpenses = (txs) => txs.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
 const pctChange   = (curr, prev) => prev === 0 ? 0 : +(((curr - prev) / prev) * 100).toFixed(1)
 
 // Retorna a data de início do ciclo de faturamento atual do cartão
@@ -120,6 +124,10 @@ const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
   const { user } = useAuth()
+  // Só o uid entra nas dependências do efeito de subscription: o objeto `user`
+  // troca de identidade a cada refresh de token, e depender dele religaria as
+  // sete listeners do Firestore sem necessidade.
+  const uid = user?.uid
 
   const [transactions, setTransactions] = useState([])
   const [wallets,      setWallets]      = useState([])
@@ -128,11 +136,16 @@ export function AppProvider({ children }) {
   const [investments,  setInvestments]  = useState([])
   const [creditCards,  setCreditCards]  = useState([])
   const [alerts,       setAlerts]       = useState([])
-  const [settings,     setSettings]     = useState(PREF_DEFAULTS)
+  const [recurrences,  setRecurrences]  = useState([])
+  // Guarda só o que vem do Firestore. Nome/e-mail/iniciais são derivados do
+  // objeto de auth logo abaixo — misturá-los aqui obrigava o efeito de
+  // subscription a depender do `user` inteiro e a religar as sete listeners a
+  // cada refresh de token.
+  const [rawSettings,  setRawSettings]  = useState(PREF_DEFAULTS)
   const [systemDark,   setSystemDark]   = useState(
     () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
   const [categories,   setCategories]   = useState(CATEGORIES)
-  const [dbLoading,    setDbLoading]    = useState(true)
+  const [dbLoading,    setDbLoading]    = useState(() => !!user)
   const [dbError,      setDbError]      = useState('')
   // addWallet confirmado pelo servidor. O gate do Onboarding depende de
   // wallets.length, alimentado só pelo onSnapshot — se o listener falhar
@@ -142,24 +155,16 @@ export function AppProvider({ children }) {
   // ── Subscribe to Firestore collections ────────────────────────────────────
 
   useEffect(() => {
-    if (!user) {
-      setTransactions([]); setWallets([]); setBudgets([])
-      setGoals([]); setInvestments([]); setCreditCards([]); setAlerts([])
-      setSettings(PREF_DEFAULTS); setCategories(CATEGORIES)
-      setWalletCreated(false)
-      setDbLoading(false)
-      return
-    }
+    // Sem usuário não há nada a assinar. O estado não precisa ser limpo aqui:
+    // o App monta o AppProvider com key={uid}, então trocar de conta (ou sair)
+    // desmonta o provider inteiro e nada da conta anterior sobrevive. Limpar
+    // via setState dentro do efeito só provocava renders em cascata.
+    if (!uid) return
 
-    setDbLoading(true)
-    setDbError('')
-    const uid = user.uid
+    // dbLoading já nasce true quando há usuário e dbError já nasce vazio; como
+    // o provider é remontado por key={uid}, este efeito roda uma vez por conta
+    // e não precisa reinicializar nada — fazê-lo aqui só custava um render.
     const userQuery = (col) => query(collection(db, col), where('allowedUsers', 'array-contains', uid))
-    const authDisplay = {
-      name:     user.displayName || user.email?.split('@')[0] || 'Usuário',
-      email:    user.email || '',
-      initials: (user.displayName || user.email || 'U').slice(0, 2).toUpperCase(),
-    }
 
     let walletsReady = false
     let userDocReady = false
@@ -181,10 +186,9 @@ export function AppProvider({ children }) {
       onSnapshot(userDocRef, snap => {
         if (snap.exists()) {
           const { prefs = {}, categories: cats } = snap.data()
-          setSettings({
+          setRawSettings({
             ...PREF_DEFAULTS,
             ...prefs,
-            ...authDisplay,
             biometricEnabled: loadBiometric(uid),
           })
           setCategories(Array.isArray(cats) && cats.length ? cats : CATEGORIES)
@@ -219,25 +223,60 @@ export function AppProvider({ children }) {
       onSnapshot(userQuery(COL.investments),  snap => setInvestments(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('investments')),
       onSnapshot(userQuery(COL.creditCards),  snap => setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('creditCards')),
       onSnapshot(userQuery(COL.alerts),       snap => setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('alerts')),
+      onSnapshot(userQuery(COL.recurrences),  snap => setRecurrences(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('recurrences')),
     ]
 
     return () => unsubs.forEach(u => u())
-  }, [user?.uid])
+  }, [uid])
+
+  // ── Identidade vinda do auth (não persistida em prefs) ─────────────────────
+
+  const authDisplay = useMemo(() => ({
+    name:     user?.displayName || user?.email?.split('@')[0] || 'Usuário',
+    email:    user?.email || '',
+    initials: (user?.displayName || user?.email || 'U').slice(0, 2).toUpperCase(),
+  }), [user?.displayName, user?.email])
+
+  const settings = useMemo(
+    () => ({ ...rawSettings, ...authDisplay }),
+    [rawSettings, authDisplay])
 
   // ── Auto-complete pending transactions ─────────────────────────────────────
-  useEffect(() => {
-    if (!transactions || transactions.length === 0) return
-    const todayStr = new Date().toISOString().split('T')[0]
-    const toComplete = transactions.filter(t => t.status === 'pending' && t.date && t.date <= todayStr)
+  // Uma transação pendente cuja data já chegou vira concluída.
+  //
+  // Antes isto rodava a cada mudança em `transactions` — e como o próprio batch
+  // muda `transactions`, o efeito se realimentava. Terminava porque o filtro
+  // esvaziava, mas gastava escritas à toa e ficava a um bug de distância de um
+  // laço infinito. Agora cada id só é processado uma vez por sessão, e o efeito
+  // reavalia de hora em hora para pegar a virada do dia com o app aberto.
+  const completedRef = useRef(new Set())
+  const [dayTick, setDayTick] = useState(0)
 
-    if (toComplete.length > 0) {
-      const batch = writeBatch(db)
-      toComplete.forEach(t => {
-        batch.update(doc(db, COL.transactions, t.id), { status: 'completed' })
-      })
-      batch.commit().catch(console.error)
-    }
-  }, [transactions])
+  useEffect(() => {
+    const id = setInterval(() => setDayTick(tx => tx + 1), 60 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!user || !transactions.length) return
+
+    const todayStr = isoDate()
+    const toComplete = transactions.filter(tx =>
+      tx.status === 'pending' && tx.date && tx.date <= todayStr && !completedRef.current.has(tx.id))
+
+    if (!toComplete.length) return
+
+    toComplete.forEach(tx => completedRef.current.add(tx.id))
+
+    const batch = writeBatch(db)
+    toComplete.forEach(tx => batch.update(doc(db, COL.transactions, tx.id), { status: 'completed' }))
+    batch.commit().catch(err => {
+      // A escrita falhou: solta os ids para uma próxima tentativa não ficar
+      // bloqueada pelo registro otimista acima.
+      toComplete.forEach(tx => completedRef.current.delete(tx.id))
+      console.error('[auto-complete]', err)
+    })
+  }, [transactions, user, dayTick])
 
   // ── Base doc fields ────────────────────────────────────────────────────────
 
@@ -258,14 +297,20 @@ export function AppProvider({ children }) {
 
   // ── Currency (settings.currency é a fonte da verdade — não hardcoded) ───────
 
-  const formatCurrency = useCallback((n) =>
-    (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: settings.currency || 'BRL' }),
-  [settings.currency])
+  // Formatadores derivados do idioma E da moeda. Antes o locale estava fixo em
+  // 'pt-BR' aqui e em mais uma dúzia de pontos, então quem escolhia USD via
+  // "US$ 1.234,56": símbolo americano com agrupamento brasileiro.
+  const i18n = useMemo(
+    () => createFormatters(settings.language, settings.currency || 'BRL'),
+    [settings.language, settings.currency])
 
-  const currencySymbol = useMemo(() => {
-    const parts = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: settings.currency || 'BRL' }).formatToParts(0)
-    return parts.find(p => p.type === 'currency')?.value || settings.currency
-  }, [settings.currency])
+  const t = useMemo(() => createTranslator(settings.language), [settings.language])
+
+  // Cache local do idioma: a tela de login roda fora deste provider e precisa
+  // saber em que língua se apresentar antes de haver usuário.
+  useEffect(() => { cacheLanguage(settings.language) }, [settings.language])
+
+  const { formatCurrency, currencySymbol, formatNumber, formatDate, formatLongDate } = i18n
 
   // ── Computed ───────────────────────────────────────────────────────────────
 
@@ -274,7 +319,7 @@ export function AppProvider({ children }) {
   const thisMonth = fmt(now)
   const lastMonth = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1))
 
-  const validTx = useMemo(() => transactions.filter(t => t.status !== 'failed'), [transactions])
+  const validTx = useMemo(() => transactions.filter(tx => tx.status !== 'failed'), [transactions])
 
   // Retorna o total gasto no ciclo atual de um cartão
   const getCardCurrentUsed = useCallback((cardId) => {
@@ -282,16 +327,16 @@ export function AppProvider({ children }) {
     if (!card) return 0
     const cycleStart = getCardCycleStart(card.closingDay || 1)
     return validTx
-      .filter(t => t.cardId === cardId && t.type === 'expense')
-      .filter(t => {
-        if (!t.date) return false
-        return new Date(t.date + 'T00:00:00') >= cycleStart
+      .filter(tx => tx.cardId === cardId && tx.type === 'expense')
+      .filter(tx => {
+        if (!tx.date) return false
+        return new Date(tx.date + 'T00:00:00') >= cycleStart
       })
-      .reduce((s, t) => s + (t.amount || 0), 0)
+      .reduce((s, tx) => s + (tx.amount || 0), 0)
   }, [creditCards, validTx])
 
-  const txThis = useMemo(() => validTx.filter(t => t.date?.startsWith(thisMonth)), [validTx, thisMonth])
-  const txLast = useMemo(() => validTx.filter(t => t.date?.startsWith(lastMonth)), [validTx, lastMonth])
+  const txThis = useMemo(() => validTx.filter(tx => tx.date?.startsWith(thisMonth)), [validTx, thisMonth])
+  const txLast = useMemo(() => validTx.filter(tx => tx.date?.startsWith(lastMonth)), [validTx, lastMonth])
 
   const monthlyIncome   = useMemo(() => sumIncome(txThis), [txThis])
   const monthlyExpenses = useMemo(() => sumExpenses(txThis), [txThis])
@@ -299,7 +344,7 @@ export function AppProvider({ children }) {
   const lastIncome      = useMemo(() => sumIncome(txLast), [txLast])
   const lastExpenses    = useMemo(() => sumExpenses(txLast), [txLast])
   const lastSavings     = lastIncome - lastExpenses
-  const pendingCount    = useMemo(() => transactions.filter(t => t.status === 'pending').length, [transactions])
+  const pendingCount    = useMemo(() => transactions.filter(tx => tx.status === 'pending').length, [transactions])
 
   const walletStatsAsOf = useCallback(
     (cutoff) => walletStats(wallets, validTx, cutoff), [wallets, validTx])
@@ -320,15 +365,15 @@ export function AppProvider({ children }) {
   // Saldo no fim do mês anterior: só tx com data < 1º deste mês. Comparável
   // direto com totalBalance, que também para no dia de hoje.
   const lastBalance = useMemo(() => wallets.reduce((sum, w) => {
-    const txsUpToLastMonth = validTx.filter(t => t.walletId === w.id && t.date && t.date < `${thisMonth}-01`)
-    const income   = txsUpToLastMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const expenses = txsUpToLastMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    const txsUpToLastMonth = validTx.filter(tx => tx.walletId === w.id && tx.date && tx.date < `${thisMonth}-01`)
+    const income   = txsUpToLastMonth.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
+    const expenses = txsUpToLastMonth.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
     return sum + (w.balance || 0) + income - expenses
   }, 0), [wallets, validTx, thisMonth])
 
   const spendingByCategory = useMemo(() => txThis
-    .filter(t => t.type === 'expense')
-    .reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + t.amount; return acc }, {}),
+    .filter(tx => tx.type === 'expense')
+    .reduce((acc, tx) => { acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc }, {}),
   [txThis])
 
   const monthlyChartData = useMemo(() => {
@@ -336,10 +381,10 @@ export function AppProvider({ children }) {
     return Array.from({ length: 6 }, (_, i) => {
       const d   = new Date(y, (m - 1) - (5 - i), 1)
       const key = fmt(d)
-      const txs = validTx.filter(t => t.date?.startsWith(key))
-      return { key, label: d.toLocaleString('pt-BR', { month: 'short' }), income: sumIncome(txs), expenses: sumExpenses(txs) }
+      const txs = validTx.filter(tx => tx.date?.startsWith(key))
+      return { key, label: i18n.formatMonthShort(d), income: sumIncome(txs), expenses: sumExpenses(txs) }
     })
-  }, [validTx, thisMonth])
+  }, [validTx, thisMonth, i18n])
 
   // ── Notification helpers ───────────────────────────────────────────────────
 
@@ -348,8 +393,8 @@ export function AppProvider({ children }) {
     const budget = budgets.find(b => b.category === category)
     if (!budget) return
     const currentSpend = validTx
-      .filter(t => t.type === 'expense' && t.category === category && t.date?.startsWith(thisMonth))
-      .reduce((s, t) => s + t.amount, 0)
+      .filter(tx => tx.type === 'expense' && tx.category === category && tx.date?.startsWith(thisMonth))
+      .reduce((s, tx) => s + tx.amount, 0)
     const projected = currentSpend + addedAmount
     const pct = budget.limit > 0 ? Math.round((projected / budget.limit) * 100) : 0
     if (projected > budget.limit) {
@@ -374,41 +419,26 @@ export function AppProvider({ children }) {
 
   // ── Transactions ───────────────────────────────────────────────────────────
 
+  // Parcelamento: gera as N parcelas de uma vez. Recorrência não passa mais por
+  // aqui — virou uma regra própria em createRecurringSeries.
   const addMultipleTransactions = useCallback(async (data, mode, count) => {
     const batch = writeBatch(db)
-    const baseDate = new Date(data.date + 'T12:00:00')
-    const totalAmount = data.amount
-    const perInstallment = mode === 'installment' ? Number((totalAmount / count).toFixed(2)) : totalAmount
-
-    let remainder = 0
-    if (mode === 'installment') {
-      const sum = perInstallment * count
-      remainder = totalAmount - sum
-    }
+    const startDate = data.date || isoDate()
+    const amounts = mode === 'installment'
+      ? splitInstallments(data.amount, count)
+      : Array.from({ length: count }, () => Number(data.amount))
 
     for (let i = 0; i < count; i++) {
-      const txDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, baseDate.getDate(), 12, 0, 0)
-      if (txDate.getMonth() !== (baseDate.getMonth() + i) % 12) {
-        txDate.setDate(0)
-      }
-
-      const dateStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`
-
-      let amount = perInstallment
-      if (i === 0 && mode === 'installment') amount += remainder
-
-      let name = data.name
-      if (mode === 'installment' || mode === 'recurring') name = `${data.name} (${i + 1}/${count})`
-
+      // addMonths encolhe o dia quando o mês de destino é mais curto, então a
+      // parcela de uma compra feita dia 31 cai em 28/fev em vez de escorregar
+      // para 3 de março.
       const txData = {
         ...data,
-        amount: Number(amount.toFixed(2)),
-        date: dateStr,
-        name
+        amount: amounts[i],
+        date: addMonths(startDate, i),
+        name: `${data.name} (${i + 1}/${count})`,
       }
-
-      const docRef = doc(collection(db, COL.transactions))
-      batch.set(docRef, base(txData))
+      batch.set(doc(collection(db, COL.transactions)), base(txData))
     }
 
     await batch.commit()
@@ -416,10 +446,9 @@ export function AppProvider({ children }) {
     notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
 
     if (data.type === 'expense') {
-      // Para parceladas/recorrentes verifica só o impacto da 1ª parcela no mês atual
-      const firstAmount = mode === 'installment' ? perInstallment : data.amount
-      checkBudgetNotify(data.category, firstAmount, data.status)
-      checkCardNotify(data.cardId, firstAmount, data.type, data.status)
+      // Só o impacto da 1ª parcela conta para o mês atual.
+      checkBudgetNotify(data.category, amounts[0], data.status)
+      checkCardNotify(data.cardId, amounts[0], data.type, data.status)
     }
   }, [base, settings, checkBudgetNotify, checkCardNotify])
 
@@ -473,16 +502,41 @@ export function AppProvider({ children }) {
   const updateWallet = useCallback((id, data) =>
     updateDoc(doc(db, COL.wallets, id), data), [])
 
-  const deleteWallet = useCallback((id) =>
-    deleteDoc(doc(db, COL.wallets, id)), [])
+  // Exclusão em lote com destino explícito para as transações vinculadas.
+  //
+  // Antes a exclusão só apagava a carteira e deixava as transações órfãs: elas
+  // continuavam entrando em algumas somas (total do mês, categorias) mas
+  // sumiam de outras (saldo por carteira), então os números pararam de fechar.
+  //
+  //   'orphan' — comportamento antigo, mantido como escolha consciente
+  //   'move'   — reatribui para outra carteira (targetId)
+  //   'delete' — apaga também as transações
+  //
+  // writeBatch tem teto de 500 operações; grandes históricos vão em blocos.
+  const removeWallets = useCallback(async (ids, { mode = 'orphan', targetId = '' } = {}) => {
+    const idSet = new Set(ids)
+    const affected = mode === 'orphan' ? [] : transactions.filter(tx => idSet.has(tx.walletId))
 
-  // Não faz cascata nas transações — igual ao deleteWallet. A tela avisa quantas
-  // transações ficarão sem carteira antes de confirmar.
-  const bulkDeleteWallets = useCallback(async (ids) => {
-    const batch = writeBatch(db)
-    ids.forEach(id => batch.delete(doc(db, COL.wallets, id)))
-    await batch.commit()
-  }, [])
+    const ops = [
+      ...affected.map(tx => (batch) => {
+        if (mode === 'delete') batch.delete(doc(db, COL.transactions, tx.id))
+        else batch.update(doc(db, COL.transactions, tx.id), { walletId: targetId })
+      }),
+      ...ids.map(id => (batch) => batch.delete(doc(db, COL.wallets, id))),
+    ]
+
+    const CHUNK = 450
+    for (let i = 0; i < ops.length; i += CHUNK) {
+      const batch = writeBatch(db)
+      ops.slice(i, i + CHUNK).forEach(op => op(batch))
+      await batch.commit()
+    }
+
+    return affected.length
+  }, [transactions])
+
+  const deleteWallet = useCallback((id, options) => removeWallets([id], options), [removeWallets])
+  const bulkDeleteWallets = useCallback((ids, options) => removeWallets(ids, options), [removeWallets])
 
   // ── Budgets ────────────────────────────────────────────────────────────────
 
@@ -577,8 +631,106 @@ export function AppProvider({ children }) {
   const updateCreditCard = useCallback((id, data) =>
     updateDoc(doc(db, COL.creditCards, id), data), [])
 
-  const deleteCreditCard = useCallback((id) =>
-    deleteDoc(doc(db, COL.creditCards, id)), [])
+  // Mesmo tratamento das carteiras: uma fatura apagada não pode deixar as
+  // despesas dela apontando para um cartão que não existe mais.
+  const deleteCreditCard = useCallback(async (id, { mode = 'orphan', targetId = '' } = {}) => {
+    const affected = mode === 'orphan' ? [] : transactions.filter(tx => tx.cardId === id)
+
+    const ops = [
+      ...affected.map(tx => (batch) => {
+        if (mode === 'delete') batch.delete(doc(db, COL.transactions, tx.id))
+        else batch.update(doc(db, COL.transactions, tx.id), { cardId: targetId })
+      }),
+      (batch) => batch.delete(doc(db, COL.creditCards, id)),
+    ]
+
+    const CHUNK = 450
+    for (let i = 0; i < ops.length; i += CHUNK) {
+      const batch = writeBatch(db)
+      ops.slice(i, i + CHUNK).forEach(op => op(batch))
+      await batch.commit()
+    }
+
+    return affected.length
+  }, [transactions])
+
+  // ── Recorrências ───────────────────────────────────────────────────────────
+  // Antes, "fixa/recorrente" apenas materializava N cópias na criação: não
+  // existia a série, então não dava para editar, pausar ou cancelar "daqui em
+  // diante" — só apagar transação por transação. Agora a regra é um documento
+  // próprio e o job diário gera as ocorrências.
+
+  const addRecurrence = useCallback((data) =>
+    addDoc(collection(db, COL.recurrences), base(data)), [base])
+
+  const updateRecurrence = useCallback((id, data) =>
+    updateDoc(doc(db, COL.recurrences, id), data), [])
+
+  // Apagar a regra não apaga o que já foi lançado: aquele dinheiro saiu de
+  // verdade. Quem quiser remover o histórico usa a tela de transações.
+  const deleteRecurrence = useCallback((id) =>
+    deleteDoc(doc(db, COL.recurrences, id)), [])
+
+  const toggleRecurrence = useCallback((id, active) =>
+    updateDoc(doc(db, COL.recurrences, id), { active: !!active }), [])
+
+  // Cria a regra e, se a data de início já chegou, lança a primeira ocorrência
+  // na hora — esperar o cron da madrugada seguinte faria a transação sumir da
+  // tela logo depois de o usuário salvá-la.
+  const createRecurringSeries = useCallback(async (data, frequency = 'monthly', count = 0) => {
+    const startDate = data.date || isoDate()
+    const repetitions = Number(count) || 0
+    const endDate = repetitions > 1 ? advance(startDate, frequency, repetitions - 1) : ''
+
+    const todayStr = isoDate()
+    const startsToday = startDate <= todayStr
+
+    const batch = writeBatch(db)
+    const recRef = doc(collection(db, COL.recurrences))
+
+    batch.set(recRef, base({
+      name: data.name,
+      amount: Number(data.amount),
+      type: data.type,
+      category: data.category || 'Outros',
+      walletId: data.walletId || '',
+      cardId: data.cardId || '',
+      notes: data.notes || '',
+      frequency,
+      startDate,
+      endDate,
+      nextDate: startsToday ? advance(startDate, frequency) : startDate,
+      active: true,
+    }))
+
+    if (startsToday) {
+      batch.set(doc(collection(db, COL.transactions)), base({
+        ...data,
+        amount: Number(data.amount),
+        date: startDate,
+        status: data.status || 'completed',
+        recurrenceId: recRef.id,
+      }))
+    }
+
+    await batch.commit()
+
+    if (startsToday) {
+      notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+      if (data.type === 'expense') {
+        checkBudgetNotify(data.category, Number(data.amount), data.status)
+        checkCardNotify(data.cardId, Number(data.amount), data.type, data.status)
+      }
+    }
+
+    return recRef
+  }, [base, settings, checkBudgetNotify, checkCardNotify])
+
+  const nextRecurrences = useMemo(() =>
+    recurrences
+      .filter(r => r.active !== false)
+      .sort((a, b) => (a.nextDate || '').localeCompare(b.nextDate || '')),
+  [recurrences])
 
   // ── Alerts ─────────────────────────────────────────────────────────────────
 
@@ -593,9 +745,9 @@ export function AppProvider({ children }) {
 
   const alertsDueCount = useMemo(() => alerts.filter(a => {
     if (a.paid) return false
-    const today = new Date()
+    const rightNow = new Date()
     const due = new Date(a.dueDate + 'T12:00:00')
-    const diff = (due - today) / (1000 * 60 * 60 * 24)
+    const diff = (due - rightNow) / (1000 * 60 * 60 * 24)
     return diff <= 3
   }).length, [alerts])
 
@@ -624,13 +776,13 @@ export function AppProvider({ children }) {
     const header = ['Data','Descrição','Tipo','Categoria','Valor','Status','Carteira','Observações']
     const rows = [...transactions]
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .map(t => [
-        t.date || '', t.name || '',
-        t.type === 'income' ? 'Receita' : 'Despesa',
-        t.category || '', t.amount ?? 0,
-        t.status === 'completed' ? 'Concluído' : 'Pendente',
-        wallets.find(w => w.id === t.walletId)?.name || '',
-        t.notes || '',
+      .map(tx => [
+        tx.date || '', tx.name || '',
+        tx.type === 'income' ? 'Receita' : 'Despesa',
+        tx.category || '', tx.amount ?? 0,
+        tx.status === 'completed' ? 'Concluído' : 'Pendente',
+        wallets.find(w => w.id === tx.walletId)?.name || '',
+        tx.notes || '',
       ])
     _download(
       '﻿' + [header, ...rows].map(r => r.map(esc).join(',')).join('\n'),
@@ -639,19 +791,52 @@ export function AppProvider({ children }) {
     )
   }, [transactions, wallets])
 
-  const importJSON = useCallback(async (file) => {
+  // Assinatura de conteúdo de uma transação. Serve para não reimportar o que já
+  // existe: antes, importar o mesmo backup duas vezes duplicava tudo em
+  // silêncio, e não havia como desfazer.
+  const txSignature = (tx) =>
+    [tx.date, tx.type, Number(tx.amount).toFixed(2), (tx.name || '').trim().toLowerCase()].join('|')
+
+  const importJSON = useCallback(async (file, { skipDuplicates = true } = {}) => {
     const text = await file.text()
-    const data = JSON.parse(text)
+    let data
+    try {
+      data = JSON.parse(text)
+    } catch {
+      throw new Error('Arquivo não é um JSON válido')
+    }
     if (!data.version || !Array.isArray(data.transactions)) throw new Error('Arquivo inválido ou corrompido')
 
+    const existing = new Set(transactions.map(txSignature))
+    const stats = { imported: 0, skipped: 0 }
+
     const entries = []
-    const push = (items, col) => items?.forEach(item => entries.push({ item, col }))
-    push(data.transactions, COL.transactions)
-    push(data.wallets,      COL.wallets)
-    push(data.budgets,      COL.budgets)
-    push(data.goals,        COL.goals)
-    push(data.investments,  COL.investments)
-    push(data.creditCards,  COL.creditCards)
+    const push = (items, col) => (items || []).forEach(item => entries.push({ item, col }))
+
+    for (const tx of data.transactions) {
+      if (skipDuplicates && existing.has(txSignature(tx))) { stats.skipped++; continue }
+      // Marca dentro do próprio lote também: um backup pode trazer duplicatas.
+      existing.add(txSignature(tx))
+      entries.push({ item: tx, col: COL.transactions })
+      stats.imported++
+    }
+
+    // Carteiras/cartões/categorias não são deduplicados por conteúdo — o
+    // usuário pode legitimamente ter duas contas com o mesmo nome — mas nomes
+    // já existentes são ignorados para não encher a lista de cópias.
+    const existingWallets = new Set(wallets.map(w => (w.name || '').trim().toLowerCase()))
+    push((data.wallets || []).filter(w => !existingWallets.has((w.name || '').trim().toLowerCase())), COL.wallets)
+
+    const existingCards = new Set(creditCards.map(c => (c.name || '').trim().toLowerCase()))
+    push((data.creditCards || []).filter(c => !existingCards.has((c.name || '').trim().toLowerCase())), COL.creditCards)
+
+    const existingBudgets = new Set(budgets.map(b => b.category))
+    push((data.budgets || []).filter(b => !existingBudgets.has(b.category)), COL.budgets)
+
+    const existingGoals = new Set(goals.map(g => (g.name || '').trim().toLowerCase()))
+    push((data.goals || []).filter(g => !existingGoals.has((g.name || '').trim().toLowerCase())), COL.goals)
+
+    push(data.investments, COL.investments)
 
     // writeBatch tem teto de 500 operações — quebra em chunks pra backups grandes
     const CHUNK_SIZE = 450
@@ -661,20 +846,101 @@ export function AppProvider({ children }) {
       await batch.commit()
     }
 
-    return data.transactions?.length ?? 0
-  }, [base])
+    return stats
+  }, [base, transactions, wallets, creditCards, budgets, goals])
+
+  // Importação de CSV — a via realista de trazer o extrato do banco. Aceita o
+  // CSV exportado pelo próprio app e os cabeçalhos mais comuns de banco.
+  const importCSV = useCallback(async (file, { skipDuplicates = true, walletId = '' } = {}) => {
+    const text = (await file.text()).replace(/^\uFEFF/, '')
+    const rows = parseCSV(text)
+    if (rows.length < 2) throw new Error('CSV vazio ou sem linhas de dados')
+
+    const header = rows[0].map(h => h.trim().toLowerCase())
+    const findCol = (...names) => header.findIndex(h => names.some(n => h.includes(n)))
+
+    const iDate   = findCol('data', 'date')
+    const iName   = findCol('descri', 'histór', 'histor', 'name', 'lançamento', 'lancamento')
+    const iAmount = findCol('valor', 'amount', 'quantia')
+    const iType   = findCol('tipo', 'type')
+    const iCat    = findCol('categoria', 'category')
+    const iNotes  = findCol('observ', 'notes', 'memo')
+
+    if (iDate < 0 || iAmount < 0) {
+      throw new Error('Não encontrei as colunas de data e valor. Cabeçalhos esperados: Data, Descrição, Valor.')
+    }
+
+    const existing = new Set(transactions.map(txSignature))
+    const parsed = []
+    const stats = { imported: 0, skipped: 0, invalid: 0 }
+
+    for (const row of rows.slice(1)) {
+      if (!row.length || row.every(c => !c.trim())) continue
+
+      const date = normalizeDate(row[iDate])
+      const amountRaw = row[iAmount]
+      const amount = parseAmount(amountRaw)
+
+      if (!date || amount == null) { stats.invalid++; continue }
+
+      // Sem coluna de tipo, o sinal do valor decide — é a convenção de extrato.
+      const typeCell = iType >= 0 ? (row[iType] || '').toLowerCase() : ''
+      const type = typeCell
+        ? (typeCell.includes('receit') || typeCell.includes('entrada') || typeCell.includes('credit') || typeCell.includes('income') ? 'income' : 'expense')
+        : (amount < 0 ? 'expense' : 'income')
+
+      const tx = {
+        date,
+        name: (iName >= 0 ? row[iName] : '').trim() || 'Importado',
+        amount: Math.abs(amount),
+        type,
+        category: (iCat >= 0 ? row[iCat] : '').trim() || 'Outros',
+        notes: (iNotes >= 0 ? row[iNotes] : '').trim(),
+        status: 'completed',
+        walletId,
+        cardId: '',
+      }
+
+      const sig = txSignature(tx)
+      if (skipDuplicates && existing.has(sig)) { stats.skipped++; continue }
+      existing.add(sig)
+      parsed.push(tx)
+      stats.imported++
+    }
+
+    const CHUNK_SIZE = 450
+    for (let i = 0; i < parsed.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db)
+      parsed.slice(i, i + CHUNK_SIZE).forEach(tx => batch.set(doc(collection(db, COL.transactions)), base(tx)))
+      await batch.commit()
+    }
+
+    return stats
+  }, [base, transactions])
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
+  // Espelho do estado para o updateSettings ler o valor atual sem se recriar a
+  // cada troca de preferência (ele entra na dependência de meio contexto).
+  // A sincronia vai num efeito porque escrever em ref durante o render é
+  // proibido — o efeito roda no commit, antes de qualquer interação do usuário.
+  const rawSettingsRef = useRef(rawSettings)
+  useEffect(() => { rawSettingsRef.current = rawSettings }, [rawSettings])
+
   const updateSettings = useCallback((data) => {
-    setSettings(prev => {
-      const next = { ...prev, ...data }
-      const { name, email, initials, biometricEnabled, ...prefs } = next
-      // biometricEnabled is device-local — never written to Firestore
-      if ('biometricEnabled' in data) saveBiometric(user.uid, biometricEnabled)
-      updateDoc(doc(db, COL.users, user.uid), { prefs }).catch(console.error)
-      return next
-    })
+    const next = { ...rawSettingsRef.current, ...data }
+    setRawSettings(next)
+
+    // A gravação fica FORA do updater do setState: em StrictMode o React chama
+    // o updater duas vezes, e a versão anterior disparava dois writes no
+    // Firestore a cada mudança de preferência.
+    // name/email/initials vêm do auth e podem estar em prefs antigas — são
+    // removidos aqui para não congelar um nome desatualizado no banco.
+    const { name, email, initials, biometricEnabled, ...prefs } = next
+    void name; void email; void initials
+    // biometricEnabled is device-local — never written to Firestore
+    if ('biometricEnabled' in data) saveBiometric(user.uid, biometricEnabled)
+    updateDoc(doc(db, COL.users, user.uid), { prefs }).catch(console.error)
   }, [user])
 
   // theme guarda a preferência ('system' | 'light' | 'dark'); resolvedTheme é o
@@ -708,11 +974,13 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
+    recurrences, nextRecurrences,
     settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
     totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
     pctChange, getCardCurrentUsed, formatCurrency, currencySymbol,
+    formatNumber, formatDate, formatLongDate, t, locale: i18n.locale,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
@@ -720,15 +988,18 @@ export function AppProvider({ children }) {
     addInvestment, updateInvestment, deleteInvestment,
     addCreditCard, updateCreditCard, deleteCreditCard,
     addAlert, updateAlert, deleteAlert,
+    addRecurrence, updateRecurrence, deleteRecurrence, toggleRecurrence, createRecurringSeries,
     updateSettings, toggleTheme, addCategory, removeCategory,
-    exportJSON, exportCSV, importJSON,
+    exportJSON, exportCSV, importJSON, importCSV,
   }), [
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
+    recurrences, nextRecurrences,
     settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
     totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
     getCardCurrentUsed, formatCurrency, currencySymbol,
+    formatNumber, formatDate, formatLongDate, t, i18n,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
@@ -736,8 +1007,9 @@ export function AppProvider({ children }) {
     addInvestment, updateInvestment, deleteInvestment,
     addCreditCard, updateCreditCard, deleteCreditCard,
     addAlert, updateAlert, deleteAlert,
+    addRecurrence, updateRecurrence, deleteRecurrence, toggleRecurrence, createRecurringSeries,
     updateSettings, toggleTheme, addCategory, removeCategory,
-    exportJSON, exportCSV, importJSON,
+    exportJSON, exportCSV, importJSON, importCSV,
   ])
 
   return (

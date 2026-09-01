@@ -85,7 +85,7 @@ function StatusMsg({ type, msg }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Alerts() {
-  const { settings, updateSettings, currencySymbol } = useApp()
+  const { settings, updateSettings, currencySymbol, t } = useApp()
   const set = (key, val) => updateSettings({ [key]: val })
 
   const [pushStatus,  setPushStatus]  = useState(null) // { type, msg }
@@ -110,20 +110,20 @@ export default function Alerts() {
       setPushStatus(null)
       return
     }
-    setPushStatus({ type: 'info', msg: 'Solicitando permissão...' })
+    setPushStatus({ type: 'info', msg: t('alerts.requestingPermission') })
     const result = await requestPushPermission()
     if (result.ok) {
       set('pushEnabled', true)
       if (result.token) set('fcmToken', result.token)
-      setPushStatus({ type: 'ok', msg: 'Notificações push ativadas! Você receberá alertas mesmo com o app em segundo plano.' })
+      setPushStatus({ type: 'ok', msg: t('alerts.pushEnabled') })
     } else {
       set('pushEnabled', false)
       const isBlocked = result.error?.includes('denied') || result.error?.includes('negada')
       setPushStatus({
         type: 'err',
         msg: isBlocked
-          ? 'Permissão bloqueada. Desbloqueie as notificações nas configurações do navegador e tente novamente.'
-          : `Erro: ${result.error}`,
+          ? t('alerts.pushBlocked')
+          : t('alerts.pushError', { error: result.error }),
       })
     }
   }
@@ -136,8 +136,8 @@ export default function Alerts() {
     const results = []
 
     if (settings.pushEnabled) {
-      showLocalNotification('EAZY Finance', 'Suas notificações push estão funcionando!')
-      results.push('Push enviado')
+      showLocalNotification('EAZY Finance', t('alerts.pushWorking'))
+      results.push(t('alerts.pushSent'))
     }
 
     if (settings.emailEnabled && settings.emailAddress) {
@@ -146,13 +146,13 @@ export default function Alerts() {
         type: 'test',
         data: {},
       })
-      results.push(r.ok ? 'E-mail enviado' : `E-mail: ${r.error}`)
-      if (!r.ok) setEmailStatus({ type: 'err', msg: `Falha ao enviar e-mail: ${r.error}` })
-      else setEmailStatus({ type: 'ok', msg: `E-mail enviado para ${settings.emailAddress}` })
+      results.push(r.ok ? t('alerts.emailSent') : t('alerts.emailFail', { error: r.error }))
+      if (!r.ok) setEmailStatus({ type: 'err', msg: t('alerts.emailFailLong', { error: r.error }) })
+      else setEmailStatus({ type: 'ok', msg: t('alerts.emailSentTo', { address: settings.emailAddress }) })
     }
 
     if (!settings.pushEnabled && !settings.emailEnabled) {
-      setTestResult({ type: 'info', msg: 'Ative ao menos um canal de notificação para testar.' })
+      setTestResult({ type: 'info', msg: t('alerts.enableOneChannel') })
     } else {
       setTestResult({ type: 'ok', msg: results.join(' · ') })
     }
@@ -183,14 +183,14 @@ export default function Alerts() {
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 2 }}>
-              {anyChannelOn ? 'Notificações ativas' : 'Notificações desativadas'}
+              {t(anyChannelOn ? 'alerts.on' : 'alerts.off')}
             </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
               {[
                 settings.pushEnabled  && 'Push',
-                settings.emailEnabled && 'E-mail',
+                settings.emailEnabled && t('alerts.email'),
                 settings.smsEnabled   && 'SMS',
-              ].filter(Boolean).join(' · ') || 'Nenhum canal configurado'}
+              ].filter(Boolean).join(' · ') || t('alerts.noChannel')}
             </div>
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function Alerts() {
           }}
         >
           <i className={`fi ${testLoading ? 'fi-rr-spinner' : testResult?.type === 'ok' ? 'fi-rr-check' : 'fi-rr-paper-plane'}`} />
-          {testLoading ? 'Enviando...' : 'Testar notificação'}
+          {t(testLoading ? 'alerts.sending' : 'alerts.test')}
         </button>
       </div>
 
@@ -216,14 +216,14 @@ export default function Alerts() {
       <div className="settings-grid" style={{ gap: 16 }}>
 
         {/* ── Canais ──────────────────────────────────────────── */}
-        <Section icon="fi-rr-signal-alt" title="Canais de Notificação"
-          subtitle="Escolha como você quer receber os avisos">
+        <Section icon="fi-rr-signal-alt" title={t('alerts.channelsTitle')}
+          subtitle={t('alerts.channelsSub')}>
 
           {/* Push */}
           <Row
             icon="fi-rr-smartphone"
-            label="Push — Navegador / PWA"
-            desc="Notificações instantâneas enquanto esta aba ou app estiver aberto, no momento exato da ação (não funciona em segundo plano)"
+            label={t('alerts.push')}
+            desc={t('alerts.pushDesc')}
             on={settings.pushEnabled}
             onChange={handlePushToggle}
           />
@@ -232,13 +232,13 @@ export default function Alerts() {
           {/* E-mail */}
           <Row
             icon="fi-rr-envelope"
-            label="E-mail"
-            desc={`Alertas enviados pelo EAZY Finance para o seu endereço de e-mail`}
+            label={t('alerts.email')}
+            desc={t('alerts.emailDesc')}
             on={settings.emailEnabled}
             onChange={v => { set('emailEnabled', v); setEmailStatus(null) }}
           >
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Endereço de e-mail</label>
+              <label className="form-label">{t('alerts.emailAddress')}</label>
               <input
                 className="form-input"
                 type="email"
@@ -247,7 +247,7 @@ export default function Alerts() {
                 onChange={e => set('emailAddress', e.target.value)}
               />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
-                Será usado o e-mail do seu cadastro se não informar outro
+                {t('alerts.emailFallback')}
               </div>
             </div>
           </Row>
@@ -256,13 +256,13 @@ export default function Alerts() {
           {/* SMS */}
           <Row
             icon="fi-rr-comment-sms"
-            label="SMS"
-            desc="Alertas críticos enviados para o seu número de celular"
+            label={t('alerts.sms')}
+            desc={t('alerts.smsDesc')}
             on={settings.smsEnabled}
             onChange={v => set('smsEnabled', v)}
           >
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Número de celular (com DDD)</label>
+              <label className="form-label">{t('alerts.smsPhone')}</label>
               <input
                 className="form-input"
                 type="tel"
@@ -271,39 +271,39 @@ export default function Alerts() {
                 onChange={e => set('smsPhone', e.target.value)}
               />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
-                Seu número será utilizado somente para envio de alertas do EAZY Finance
+                {t('alerts.smsNote')}
               </div>
             </div>
           </Row>
         </Section>
 
         {/* ── Transações ──────────────────────────────────────── */}
-        <Section icon="fi-rr-exchange" title="Transações"
-          subtitle="Seja notificado sobre movimentações na sua conta">
+        <Section icon="fi-rr-exchange" title={t('alerts.txTitle')}
+          subtitle={t('alerts.txSub')}>
 
           <Row
             icon="fi-rr-plus-small"
-            label="Nova transação registrada"
-            desc="Cada vez que uma receita ou despesa for adicionada"
+            label={t('alerts.newTx')}
+            desc={t('alerts.newTxDesc')}
             on={settings.notifNewTransaction}
             onChange={v => set('notifNewTransaction', v)}
           />
           <Row
             icon="fi-rr-clock"
-            label="Transação pendente"
-            desc="Quando uma transação estiver aguardando confirmação"
+            label={t('alerts.pendingTx')}
+            desc={t('alerts.pendingTxDesc')}
             on={settings.notifPendingTransaction}
             onChange={v => set('notifPendingTransaction', v)}
           />
           <Row
             icon="fi-rr-triangle-warning"
-            label="Despesa acima do limite"
-            desc="Aviso quando uma despesa única ultrapassar o valor definido"
+            label={t('alerts.largeExpense')}
+            desc={t('alerts.largeExpenseDesc')}
             on={settings.notifLargeExpense}
             onChange={v => set('notifLargeExpense', v)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <label className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>Valor mínimo ({currencySymbol})</label>
+              <label className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>{t('alerts.minAmount', { symbol: currencySymbol })}</label>
               <input
                 className="form-input"
                 type="number"
@@ -317,100 +317,103 @@ export default function Alerts() {
         </Section>
 
         {/* ── Cartões ─────────────────────────────────────────── */}
-        <Section icon="fi-rr-credit-card" title="Cartões de Crédito"
-          subtitle="Monitore o uso dos seus cartões em tempo real">
+        <Section icon="fi-rr-credit-card" title={t('alerts.cardsTitle')}
+          subtitle={t('alerts.cardsSub')}>
 
           <Row
             icon="fi-rr-chart-line-up"
-            label="Próximo ao limite (80%)"
-            desc="Alerta quando o uso do cartão atingir 80% do limite"
+            label={t('alerts.cardNear')}
+            desc={t('alerts.cardNearDesc')}
             on={settings.notifCardNearLimit}
             onChange={v => set('notifCardNearLimit', v)}
           />
           <Row
             icon="fi-rr-ban"
-            label="Limite atingido"
-            desc="Notificação imediata quando o limite for esgotado"
+            label={t('alerts.cardReached')}
+            desc={t('alerts.cardReachedDesc')}
             on={settings.notifCardLimitReached}
             onChange={v => set('notifCardLimitReached', v)}
           />
           <Row
             icon="fi-rr-calendar-clock"
-            label="Dia de fechamento"
-            desc="Lembrete no dia em que a fatura fecha — requer agendamento no servidor, ainda não implementado"
-            badge="em breve"
-            on={false}
-            disabled
-            onChange={() => {}}
+            label={t('alerts.cardClosing')}
+            desc={t('alerts.cardClosingDesc')}
+            on={settings.notifCardClosingDay}
+            onChange={v => set('notifCardClosingDay', v)}
           />
           <Row
             icon="fi-rr-calendar-exclamation"
-            label="Dia de vencimento"
-            desc="Lembrete no dia em que a fatura vence — requer agendamento no servidor, ainda não implementado"
-            badge="em breve"
-            on={false}
-            disabled
-            onChange={() => {}}
+            label={t('alerts.cardDue')}
+            desc={t('alerts.cardDueDesc')}
+            on={settings.notifCardDueDay}
+            onChange={v => set('notifCardDueDay', v)}
           />
         </Section>
 
         {/* ── Planejamento ────────────────────────────────────── */}
-        <Section icon="fi-rr-layers" title="Planejamento"
-          subtitle="Acompanhe orçamentos e objetivos financeiros">
+        <Section icon="fi-rr-layers" title={t('alerts.planningTitle')}
+          subtitle={t('alerts.planningSub')}>
 
           <Row
             icon="fi-rr-piggy-bank"
-            label="Orçamento próximo ao limite"
-            desc="Aviso quando 80% do orçamento de uma categoria for utilizado"
+            label={t('alerts.budgetNear')}
+            desc={t('alerts.budgetNearDesc')}
             on={settings.notifBudgetNearLimit}
             onChange={v => set('notifBudgetNearLimit', v)}
           />
           <Row
             icon="fi-rr-exclamation"
-            label="Orçamento estourado"
-            desc="Alerta imediato quando o limite de uma categoria for ultrapassado"
+            label={t('alerts.budgetOver')}
+            desc={t('alerts.budgetOverDesc')}
             on={settings.notifBudgetExceeded}
             onChange={v => set('notifBudgetExceeded', v)}
           />
           <Row
             icon="fi-rr-star"
-            label="Objetivo atingido"
-            desc="Comemore quando um objetivo financeiro for concluído"
+            label={t('alerts.goalReached')}
+            desc={t('alerts.goalReachedDesc')}
             on={settings.notifGoalReached}
             onChange={v => set('notifGoalReached', v)}
           />
           <Row
             icon="fi-rr-bell"
-            label="Lembrete semanal de objetivos"
-            desc="Resumo semanal do progresso dos seus objetivos — requer agendamento no servidor, ainda não implementado"
-            badge="em breve"
-            on={false}
-            disabled
-            onChange={() => {}}
-          />
+            label={t('alerts.goalReminder')}
+            desc={t('alerts.goalReminderDesc')}
+            on={settings.notifGoalReminder}
+            onChange={v => set('notifGoalReminder', v)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>{t('alerts.weekday')}</label>
+              <select
+                className="form-select"
+                value={settings.notifGoalReminderDay ?? 1}
+                onChange={e => set('notifGoalReminderDay', Number(e.target.value))}
+                style={{ maxWidth: 180 }}
+              >
+                {[0, 1, 2, 3, 4, 5, 6]
+                  .map(i => <option key={i} value={i}>{t(`weekday.${i}`)}</option>)}
+              </select>
+            </div>
+          </Row>
         </Section>
 
         {/* ── Relatórios ──────────────────────────────────────── */}
-        <Section icon="fi-rr-document" title="Relatórios Automáticos"
-          subtitle="Resumos periódicos da sua vida financeira">
+        <Section icon="fi-rr-document" title={t('alerts.reportsTitle')}
+          subtitle={t('alerts.reportsSub')}>
 
           <Row
             icon="fi-rr-calendar"
-            label="Resumo semanal"
-            desc="Todo domingo, um resumo das transações da semana — requer agendamento no servidor, ainda não implementado"
-            badge="em breve"
-            on={false}
-            disabled
-            onChange={() => {}}
+            label={t('alerts.weekly')}
+            desc={t('alerts.weeklyDesc')}
+            on={settings.notifWeeklyReport}
+            onChange={v => set('notifWeeklyReport', v)}
           />
           <Row
             icon="fi-rr-chart-pie"
-            label="Resumo mensal"
-            desc="No primeiro dia do mês, análise completa do mês anterior — requer agendamento no servidor, ainda não implementado"
-            badge="em breve"
-            on={false}
-            disabled
-            onChange={() => {}}
+            label={t('alerts.monthly')}
+            desc={t('alerts.monthlyDesc')}
+            on={settings.notifMonthlyReport}
+            onChange={v => set('notifMonthlyReport', v)}
           />
         </Section>
       </div>

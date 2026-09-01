@@ -1,5 +1,11 @@
 {
   "rewrites": [
     { "source": "/api/bolsai/:path*", "destination": "/api/bolsai?path=:path*" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 12 * * *"
+    }
   ]
 }

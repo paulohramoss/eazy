@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
+import { apiFetch } from '../utils/api'
 
-const fmtN = (n, d = 2) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
+const fmtN = (n, d = 2, locale = 'pt-BR') =>
+  (Number(n) || 0).toLocaleString(locale, { minimumFractionDigits: d, maximumFractionDigits: d })
 
 const TYPES = ['Ação', 'Cripto', 'FII/ETF', 'Renda F.', 'Outro']
 const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB', '#555555', '#3370F5']
@@ -45,7 +47,7 @@ const CACHE_TTL = 5 * 60 * 1000
 const marketCache = {}
 
 async function fetchCryptoQuotes(tickers) {
-  const ids = tickers.map(t => CRYPTO_IDS[t]).filter(Boolean).join(',')
+  const ids = tickers.map(tx => CRYPTO_IDS[tx]).filter(Boolean).join(',')
   const res  = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=brl&include_24hr_change=true`)
   if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
   const json = await res.json()
@@ -59,7 +61,7 @@ async function fetchCryptoQuotes(tickers) {
 async function fetchOneTicker(ticker, tab) {
   // ETFs (BOVA11, IVVB11...) também vivem em /stocks — só FII usa /fiis.
   const path = tab === 'FII' ? `/fiis/${ticker}` : `/stocks/${ticker}/stats`
-  const res  = await fetch(`${BOLSAI_BASE}${path}`)
+  const res  = await apiFetch(`${BOLSAI_BASE}${path}`)
   if (!res.ok) throw new Error(`${ticker}: HTTP ${res.status}`)
   const json = await res.json()
 
@@ -83,7 +85,7 @@ async function fetchQuoteFor(inv) {
     return quotes[ticker]?.price ?? null
   }
 
-  const res = await fetch(`${BOLSAI_BASE}/stocks/${ticker}/stats`)
+  const res = await apiFetch(`${BOLSAI_BASE}/stocks/${ticker}/stats`)
   if (!res.ok) throw new Error(`${ticker}: HTTP ${res.status}`)
   const json = await res.json()
   return json.close ?? null
@@ -92,36 +94,36 @@ async function fetchQuoteFor(inv) {
 // ─── Market Explorer ──────────────────────────────────────────────────────────
 
 function MarketExplorer({ onAdd }) {
-  const { formatCurrency: fmt } = useApp()
+  const { formatCurrency: fmt, t } = useApp()
   const [tab, setTab] = useState('Ação')
   const [quotes, setQuotes] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const load = async (t, force = false) => {
+  const load = async (assetTab, force = false) => {
     const now = Date.now()
-    if (!force && marketCache[t] && now - marketCache[t].ts < CACHE_TTL) {
-      setQuotes(marketCache[t].data)
+    if (!force && marketCache[assetTab] && now - marketCache[assetTab].ts < CACHE_TTL) {
+      setQuotes(marketCache[assetTab].data)
       return
     }
-    if (force) delete marketCache[t]
+    if (force) delete marketCache[assetTab]
 
     setLoading(true)
     setError(null)
     setQuotes({})
 
-    const tickers = MARKET_ASSETS[t]
+    const tickers = MARKET_ASSETS[assetTab]
     const result = {}
 
     try {
-      if (t === 'Cripto') {
+      if (assetTab === 'Cripto') {
         const cryptos = await fetchCryptoQuotes(tickers)
         Object.assign(result, cryptos)
         setQuotes(cryptos)
       } else {
         // Em paralelo e tolerante a falha: um ticker fora do ar não derruba a aba.
         await Promise.allSettled(tickers.map(async ticker => {
-          const q = await fetchOneTicker(ticker, t)
+          const q = await fetchOneTicker(ticker, assetTab)
           if (q) {
             result[ticker] = q
             setQuotes(prev => ({ ...prev, [ticker]: q }))
@@ -130,7 +132,7 @@ function MarketExplorer({ onAdd }) {
       }
 
       if (!Object.keys(result).length) throw new Error('nenhuma cotação retornada')
-      marketCache[t] = { data: result, ts: Date.now() }
+      marketCache[assetTab] = { data: result, ts: Date.now() }
     } catch {
       setError('Falha ao buscar dados de mercado.')
     } finally {
@@ -144,35 +146,35 @@ function MarketExplorer({ onAdd }) {
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontWeight: 700, fontSize: 14 }}>Explorar Mercado</span>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>{t('inv.explore')}</span>
         <div style={{ display: 'flex', gap: 6, flex: 1, flexWrap: 'wrap' }}>
-          {Object.keys(MARKET_ASSETS).map(t => (
+          {Object.keys(MARKET_ASSETS).map(name => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={name}
+              onClick={() => setTab(name)}
               style={{
                 padding: '4px 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600,
                 cursor: 'pointer',
-                background: tab === t ? 'var(--accent)' : 'var(--bg-hover)',
-                color: tab === t ? 'white' : 'var(--text-secondary)',
+                background: tab === name ? 'var(--accent)' : 'var(--bg-hover)',
+                color: tab === name ? 'white' : 'var(--text-secondary)',
               }}
-            >{t}</button>
+            >{name}</button>
           ))}
         </div>
         <button
           onClick={() => load(tab, true)}
-          title="Atualizar"
+          title={t('inv.refresh')}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, lineHeight: 1 }}
         >↺</button>
       </div>
 
       {/* Content */}
       {loading ? (
-        <div className="empty-state"><p>Buscando preços em tempo real...</p></div>
+        <div className="empty-state"><p>{t('inv.loadingQuotes')}</p></div>
       ) : error ? (
         <div className="empty-state">
           <p style={{ color: 'var(--accent-red)', marginBottom: 8 }}>{error}</p>
-          <button className="btn btn-secondary btn-sm" onClick={() => load(tab, true)}>Tentar novamente</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => load(tab, true)}>{t('inv.retry')}</button>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(185px, 1fr))', gap: 1, background: 'var(--border)' }}>
@@ -191,7 +193,7 @@ function MarketExplorer({ onAdd }) {
                   <button
                     onClick={() => q && onAdd({ ticker, name: q.name || ticker, type: TYPE_MAP[tab], currentPrice: q.price })}
                     disabled={!q}
-                    title={`Adicionar ${ticker} à carteira`}
+                    title={t('inv.addToPortfolio', { ticker })}
                     style={{
                       flexShrink: 0, width: 26, height: 26, borderRadius: 6, border: 'none',
                       background: q ? 'var(--accent)' : 'var(--bg-hover)',
@@ -232,7 +234,7 @@ function MarketExplorer({ onAdd }) {
 
 // ─── Donut Chart ──────────────────────────────────────────────────────────────
 
-function AllocationDonut({ data }) {
+function AllocationDonut({ data, t }) {
   const r = 70, cx = 85, cy = 85
   const circumference = 2 * Math.PI * r
   const total = data.reduce((s, d) => s + d.value, 0) || 1
@@ -262,7 +264,7 @@ function AllocationDonut({ data }) {
         </svg>
         <div className="donut-center">
           <span className="donut-center-value">{data.length}</span>
-          <span className="donut-center-label">ativos</span>
+          <span className="donut-center-label">{t('inv.assets')}</span>
         </div>
       </div>
       <div className="donut-legend">
@@ -283,7 +285,7 @@ function AllocationDonut({ data }) {
 // ─── Investment Modal ─────────────────────────────────────────────────────────
 
 function InvModal({ initial, onSave, onClose }) {
-  const { currencySymbol } = useApp()
+  const { currencySymbol, t } = useApp()
   const [form, setForm] = useState(() => {
     if (!initial) return EMPTY_FORM
     return {
@@ -309,49 +311,49 @@ function InvModal({ initial, onSave, onClose }) {
 
   return (
     <Modal
-      title={initial?.id ? 'Editar Ativo' : 'Novo Ativo'}
+      title={t(initial?.id ? 'inv.editTitle' : 'inv.newTitle')}
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Salvar</button>
+          <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn btn-primary" onClick={handleSave}>{t('action.save')}</button>
         </>
       }
     >
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Nome</label>
-          <input className="form-input" placeholder="Ex: Vale S.A." value={form.name} onChange={e => set('name', e.target.value)} />
+          <label className="form-label">{t('inv.name')}</label>
+          <input className="form-input" placeholder={t('inv.namePlaceholder')} value={form.name} onChange={e => set('name', e.target.value)} />
         </div>
         <div className="form-group">
-          <label className="form-label">Ticker / Código</label>
-          <input className="form-input" placeholder="Ex: VALE3" value={form.ticker} onChange={e => set('ticker', e.target.value.toUpperCase())} />
+          <label className="form-label">{t('inv.ticker')}</label>
+          <input className="form-input" placeholder={t('inv.tickerPlaceholder')} value={form.ticker} onChange={e => set('ticker', e.target.value.toUpperCase())} />
         </div>
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Tipo</label>
+          <label className="form-label">{t('inv.type')}</label>
           <select className="form-select" value={form.type} onChange={e => set('type', e.target.value)}>
-            {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            {TYPES.map(tx => <option key={tx} value={tx}>{tx}</option>)}
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Quantidade</label>
+          <label className="form-label">{t('inv.quantity')}</label>
           <input className="form-input" type="number" min="0" step="any" placeholder="0" value={form.quantity} onChange={e => set('quantity', e.target.value)} />
         </div>
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">Preço Médio ({currencySymbol})</label>
+          <label className="form-label">{t('inv.avgPrice', { symbol: currencySymbol })}</label>
           <CurrencyInput className="form-input" value={form.avgPrice} onChange={v => set('avgPrice', v)} />
         </div>
         <div className="form-group">
-          <label className="form-label">Preço Atual ({currencySymbol})</label>
+          <label className="form-label">{t('inv.currentPrice', { symbol: currencySymbol })}</label>
           <CurrencyInput className="form-input" value={form.currentPrice} onChange={v => set('currentPrice', v)} />
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">Cor</label>
+        <label className="form-label">{t('inv.color')}</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {COLORS.map(color => (
             <button key={color} type="button" onClick={() => set('color', color)}
@@ -362,7 +364,7 @@ function InvModal({ initial, onSave, onClose }) {
               }}
             />
           ))}
-          <label title="Cor personalizada" style={{ position: 'relative', width: 28, height: 28, cursor: 'pointer' }}>
+          <label title={t('inv.customColor')} style={{ position: 'relative', width: 28, height: 28, cursor: 'pointer' }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%',
               background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
@@ -383,15 +385,16 @@ function InvModal({ initial, onSave, onClose }) {
 }
 
 function ConfirmModal({ name, onConfirm, onClose }) {
+  const { t } = useApp()
   return (
-    <Modal title="Remover Ativo" onClose={onClose}
+    <Modal title={t('inv.removeTitle')} onClose={onClose}
       footer={<>
-        <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-        <button className="btn btn-danger" onClick={() => { onConfirm(); onClose() }}>Remover</button>
+        <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
+        <button className="btn btn-danger" onClick={() => { onConfirm(); onClose() }}>{t('inv.remove')}</button>
       </>}
     >
       <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-        Deseja remover <strong style={{ color: 'var(--text-primary)' }}>{name}</strong> da carteira?
+        {t('inv.removeConfirm', { name })}
       </p>
     </Modal>
   )
@@ -400,7 +403,7 @@ function ConfirmModal({ name, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Investments() {
-  const { investments, addInvestment, updateInvestment, deleteInvestment, formatCurrency: fmt } = useApp()
+  const { investments, addInvestment, updateInvestment, deleteInvestment, formatCurrency: fmt, locale, t } = useApp()
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
@@ -440,7 +443,7 @@ export default function Investments() {
         ? { error: true, text: `Não foi possível atualizar: ${failed.join(', ')}` }
         : {
             error: false,
-            text: `${updated} ativo${updated > 1 ? 's' : ''} atualizado${updated > 1 ? 's' : ''}`
+            text: t('inv.updatedCount', { count: updated })
               + (failed.length ? ` · falhou: ${failed.join(', ')}` : ''),
           }
     )
@@ -478,21 +481,21 @@ export default function Investments() {
       {/* Summary */}
       <div className="summary-strip" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <div className="summary-stat">
-          <div className="summary-stat-label">Valor Total</div>
+          <div className="summary-stat-label">{t('inv.totalValue')}</div>
           <div className="summary-stat-value">{fmt(totalValue)}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Total Investido</div>
+          <div className="summary-stat-label">{t('inv.totalInvested')}</div>
           <div className="summary-stat-value">{fmt(totalInvested)}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Retorno Total</div>
+          <div className="summary-stat-label">{t('inv.totalReturn')}</div>
           <div className={`summary-stat-value ${totalReturn >= 0 ? 'positive-text' : 'negative-text'}`}>
             {totalReturn >= 0 ? '+' : ''}{fmt(totalReturn)}
           </div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Rentabilidade</div>
+          <div className="summary-stat-label">{t('inv.yield')}</div>
           <div className={`summary-stat-value ${totalReturnPct >= 0 ? 'positive-text' : 'negative-text'}`}>
             {totalReturnPct >= 0 ? '+' : ''}{fmtN(totalReturnPct, 2)}%
           </div>
@@ -507,13 +510,13 @@ export default function Investments() {
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Alocação por Tipo</div>
-              <div className="card-subtitle">Distribuição da carteira</div>
+              <div className="card-title">{t('inv.allocationByType')}</div>
+              <div className="card-subtitle">{t('inv.portfolioSplit')}</div>
             </div>
           </div>
           {donutData.length > 0 ? (
             <div style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
-              <AllocationDonut data={donutData} />
+              <AllocationDonut t={t} data={donutData} />
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {Object.entries(typeMap).sort((a, b) => b[1] - a[1]).map(([type, val], i) => (
                   <div key={type}>
@@ -529,14 +532,14 @@ export default function Investments() {
               </div>
             </div>
           ) : (
-            <div className="empty-state"><p>Nenhum ativo cadastrado</p></div>
+            <div className="empty-state"><p>{t('inv.noAssets')}</p></div>
           )}
         </div>
 
         {/* Stats */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card-header" style={{ marginBottom: 0 }}>
-            <div className="card-title">Resumo</div>
+            <div className="card-title">{t('inv.summary')}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[
@@ -557,14 +560,14 @@ export default function Investments() {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Minha Carteira ({investments.length})</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{t('inv.myPortfolio', { count: investments.length })}</span>
             {refreshMsg ? (
               <span style={{ fontSize: 11, color: refreshMsg.error ? 'var(--accent-red)' : 'var(--text-muted)' }}>
                 {refreshMsg.text}
               </span>
             ) : lastPricedAt && (
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                Cotações de {new Date(lastPricedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                {t('inv.quotesFrom', { date: new Date(lastPricedAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) })}
               </span>
             )}
           </div>
@@ -573,34 +576,34 @@ export default function Investments() {
               className="btn btn-secondary btn-sm"
               onClick={refreshPrices}
               disabled={refreshing || !priceable.length}
-              title={priceable.length ? 'Buscar cotações atuais' : 'Nenhum ativo com cotação de mercado'}
+              title={t(priceable.length ? 'inv.refreshTitle' : 'inv.refreshNone')}
             >
               <i className={`fi fi-rr-refresh${refreshing ? ' spinning' : ''}`} style={{ marginRight: 6 }} />
-              {refreshing ? 'Atualizando…' : 'Atualizar cotações'}
+              {t(refreshing ? 'inv.refreshing' : 'inv.refreshQuotes')}
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Novo Ativo</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>{t('inv.newAsset')}</button>
           </div>
         </div>
         {enriched.length === 0 ? (
           <div className="empty-state">
             <i className="fi fi-rr-chart-line-up" style={{ fontSize: 34, color: 'var(--text-muted)' }} />
-            <p>Nenhum ativo na carteira</p>
-            <button className="btn btn-primary" onClick={() => setAddModal(true)}>Adicionar primeiro ativo</button>
+            <p>{t('inv.emptyPortfolio')}</p>
+            <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('inv.addFirst')}</button>
           </div>
         ) : (<>
           {/* ── Desktop table ── */}
           <table className="investments-table transactions-table" style={{ margin: 0 }}>
             <thead>
               <tr>
-                <th style={{ padding: '12px 20px 12px' }}>Ativo</th>
-                <th>Tipo</th>
-                <th style={{ textAlign: 'right' }}>Qtd</th>
-                <th style={{ textAlign: 'right' }}>Preço Médio</th>
-                <th style={{ textAlign: 'right' }}>Preço Atual</th>
-                <th style={{ textAlign: 'right' }}>Valor Total</th>
-                <th style={{ textAlign: 'right' }}>Retorno</th>
-                <th style={{ textAlign: 'right' }}>Alocação</th>
-                <th style={{ textAlign: 'right', paddingRight: 20 }}>Ações</th>
+                <th style={{ padding: '12px 20px 12px' }}>{t('inv.asset')}</th>
+                <th>{t('inv.type')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inv.qty')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inv.avgPriceShort')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inv.currentPriceShort')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inv.totalValue')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inv.return')}</th>
+                <th style={{ textAlign: 'right' }}>{t('inv.allocation')}</th>
+                <th style={{ textAlign: 'right', paddingRight: 20 }}>{t('tx.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -633,8 +636,8 @@ export default function Investments() {
                   </td>
                   <td style={{ paddingRight: 20 }}>
                     <div className="table-actions">
-                      <button className="btn-icon" title="Editar" onClick={() => setEditItem(inv)}><i className="fi fi-rr-pencil" /></button>
-                      <button className="btn-icon danger" title="Remover" onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
+                      <button className="btn-icon" title={t('action.edit')} onClick={() => setEditItem(inv)}><i className="fi fi-rr-pencil" /></button>
+                      <button className="btn-icon danger" title={t('inv.remove')} onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
                     </div>
                   </td>
                 </tr>

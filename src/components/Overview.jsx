@@ -4,7 +4,7 @@ import CurrencyInput from './CurrencyInput'
 
 // ─── Donut Chart ──────────────────────────────────────────────────────────────
 
-function DonutChart({ data }) {
+function DonutChart({ data, t }) {
   const r = 60, cx = 75, cy = 75
   const circumference = 2 * Math.PI * r
   const total = data.reduce((s, d) => s + d.pct, 0) || 1
@@ -33,7 +33,7 @@ function DonutChart({ data }) {
         </svg>
         <div className="donut-center">
           <span className="donut-center-value">{Math.round((data.reduce((s, d) => s + d.pct, 0) / total) * 100) || 100}%</span>
-          <span className="donut-center-label">Distribuição</span>
+          <span className="donut-center-label">{t('overview.distribution')}</span>
         </div>
       </div>
       <div className="donut-legend">
@@ -54,7 +54,7 @@ function DonutChart({ data }) {
 // ─── Can I Spend Widget ───────────────────────────────────────────────────────
 
 function CanISpend({ remaining }) {
-  const { formatCurrency: fmt, currencySymbol } = useApp()
+  const { formatCurrency: fmt, currencySymbol, t } = useApp()
   const [amount, setAmount] = useState(0)
   const hasValue        = amount > 0
   const afterSpend      = remaining - amount
@@ -67,16 +67,16 @@ function CanISpend({ remaining }) {
         <div>
           <div className="card-title">
             <i className="fi fi-rr-calculator" style={{ marginRight: 8 }} />
-            Posso gastar isso?
+            {t('overview.canSpend.title')}
           </div>
-          <div className="card-subtitle">Simule um gasto e veja o impacto no mês</div>
+          <div className="card-subtitle">{t('overview.canSpend.sub')}</div>
         </div>
       </div>
 
       <div className="can-spend-body">
         {/* Available balance pill */}
         <div className="can-spend-balance">
-          <span className="can-spend-balance-label">Disponível este mês</span>
+          <span className="can-spend-balance-label">{t('overview.canSpend.available')}</span>
           <span className="can-spend-balance-value">{fmt(Math.max(remaining, 0))}</span>
         </div>
 
@@ -99,7 +99,7 @@ function CanISpend({ remaining }) {
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <span className="can-spend-pct">{pct.toFixed(0)}% do disponível</span>
+            <span className="can-spend-pct">{t('overview.canSpend.ofAvailable', { pct: pct.toFixed(0) })}</span>
           </div>
         )}
 
@@ -108,16 +108,16 @@ function CanISpend({ remaining }) {
           {!hasValue && (
             <>
               <i className="fi fi-rr-interrogation" />
-              <span>Digite um valor para simular</span>
+              <span>{t('overview.canSpend.prompt')}</span>
             </>
           )}
           {hasValue && canSpend && (
             <>
               <i className="fi fi-rr-check-circle" />
               <div>
-                <div className="can-spend-result-main">Sim, você pode gastar!</div>
+                <div className="can-spend-result-main">{t('overview.canSpend.yes')}</div>
                 <div className="can-spend-result-sub">
-                  Ainda restarão <strong>{fmt(afterSpend)}</strong> até o fim do mês.
+                  {t('overview.canSpend.yesSub', { amount: fmt(afterSpend) })}
                 </div>
               </div>
             </>
@@ -126,9 +126,9 @@ function CanISpend({ remaining }) {
             <>
               <i className="fi fi-rr-cross-circle" />
               <div>
-                <div className="can-spend-result-main">Atenção!</div>
+                <div className="can-spend-result-main">{t('overview.canSpend.no')}</div>
                 <div className="can-spend-result-sub">
-                  Você ultrapassaria seu limite em <strong>{fmt(Math.abs(afterSpend))}</strong>.
+                  {t('overview.canSpend.noSub', { amount: fmt(Math.abs(afterSpend)) })}
                 </div>
               </div>
             </>
@@ -147,27 +147,27 @@ export default function Overview() {
   const {
     totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, spendingByCategory, monthlyChartData, pctChange,
-    formatCurrency: fmt,
+    formatCurrency: fmt, t,
   } = useApp()
 
   const remaining = monthlyIncome - monthlyExpenses
 
   const metrics = [
     {
-      label: 'Saldo Total', value: fmt(totalBalance), icon: 'fi-rr-wallet', color: 'purple',
-      change: pctChange(totalBalance, lastBalance), dir: totalBalance >= lastBalance ? 'up' : 'down', period: 'vs mês anterior'
+      label: t('overview.totalBalance'), value: fmt(totalBalance), icon: 'fi-rr-wallet', color: 'purple',
+      change: pctChange(totalBalance, lastBalance), dir: totalBalance >= lastBalance ? 'up' : 'down', period: t('overview.vsLastMonth')
     },
     {
-      label: 'Receitas', value: fmt(monthlyIncome), icon: 'fi-rr-chart-line-up', color: 'green',
-      change: pctChange(monthlyIncome, lastIncome), dir: monthlyIncome >= lastIncome ? 'up' : 'down', period: 'vs mês anterior'
+      label: t('overview.income'), value: fmt(monthlyIncome), icon: 'fi-rr-chart-line-up', color: 'green',
+      change: pctChange(monthlyIncome, lastIncome), dir: monthlyIncome >= lastIncome ? 'up' : 'down', period: t('overview.vsLastMonth')
     },
     {
-      label: 'Despesas', value: fmt(monthlyExpenses), icon: 'fi-rr-money-bill-wave', color: 'red',
-      change: pctChange(monthlyExpenses, lastExpenses), dir: monthlyExpenses <= lastExpenses ? 'up' : 'down', period: 'vs mês anterior'
+      label: t('overview.expenses'), value: fmt(monthlyExpenses), icon: 'fi-rr-money-bill-wave', color: 'red',
+      change: pctChange(monthlyExpenses, lastExpenses), dir: monthlyExpenses <= lastExpenses ? 'up' : 'down', period: t('overview.vsLastMonth')
     },
     {
-      label: 'Economias', value: fmt(Math.max(monthlySavings, 0)), icon: 'fi-rr-piggy-bank', color: 'yellow',
-      change: pctChange(monthlySavings, lastSavings), dir: monthlySavings >= lastSavings ? 'up' : 'down', period: 'vs mês anterior'
+      label: t('overview.savings'), value: fmt(Math.max(monthlySavings, 0)), icon: 'fi-rr-piggy-bank', color: 'yellow',
+      change: pctChange(monthlySavings, lastSavings), dir: monthlySavings >= lastSavings ? 'up' : 'down', period: t('overview.vsLastMonth')
     },
   ]
 
@@ -208,8 +208,8 @@ export default function Overview() {
           <div className="card">
             <div className="card-header">
               <div>
-                <div className="card-title">Receitas vs Despesas</div>
-                <div className="card-subtitle">Últimos 6 meses</div>
+                <div className="card-title">{t('overview.incomeVsExpenses')}</div>
+                <div className="card-subtitle">{t('overview.last6Months')}</div>
               </div>
             </div>
             <div className="chart-bars">
@@ -224,21 +224,21 @@ export default function Overview() {
               {monthlyChartData.map(d => <span key={d.key} className="chart-label">{d.label}</span>)}
             </div>
             <div className="chart-legend">
-              <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--accent)' }} />Receitas</div>
-              <div className="legend-item"><div className="legend-dot" style={{ background: 'rgba(108,99,255,0.3)' }} />Despesas</div>
+              <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--accent)' }} />{t('overview.income')}</div>
+              <div className="legend-item"><div className="legend-dot" style={{ background: 'rgba(108,99,255,0.3)' }} />{t('overview.expenses')}</div>
             </div>
           </div>
 
           <div className="card">
             <div className="card-header">
               <div>
-                <div className="card-title">Categorias</div>
-                <div className="card-subtitle">Distribuição de gastos</div>
+                <div className="card-title">{t('overview.categories')}</div>
+                <div className="card-subtitle">{t('overview.spendingSplit')}</div>
               </div>
             </div>
             {donutData.length > 0
-              ? <DonutChart data={donutData} />
-              : <div className="empty-state"><p>Sem gastos este mês</p></div>
+              ? <DonutChart data={donutData} t={t} />
+              : <div className="empty-state"><p>{t('overview.noExpenses')}</p></div>
             }
           </div>
         </div>
