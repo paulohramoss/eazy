@@ -1,0 +1,448 @@
+/* cards-alerts — Cartões de crédito e a tela de alertas.
+   Extraído de App.css (linhas 3117-3562 do arquivo original). */
+
+/* ─── Credit Cards ────────────────────────────────────────── */
+.cc-card {
+  border-radius: 16px;
+  padding: 20px;
+  color: white;
+  width: 300px;
+  min-width: 300px;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  transition: transform .2s, box-shadow .2s;
+  user-select: none;
+}
+
+.cc-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .3);
+}
+
+.cc-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.cc-card-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.cc-card-flag {
+  font-size: 12px;
+  opacity: .75;
+  background: rgba(255, 255, 255, .15);
+  padding: 3px 8px;
+  border-radius: 99px;
+}
+
+.cc-card-number {
+  font-size: 15px;
+  letter-spacing: 3px;
+  opacity: .6;
+  margin: 12px 0;
+  font-family: monospace;
+}
+
+.cc-card-bottom {
+  display: flex;
+  justify-content: space-between;
+}
+
+.cc-card-label {
+  font-size: 10px;
+  opacity: .7;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 2px;
+}
+
+.cc-card-value {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cc-card-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, .2);
+  border-radius: 99px;
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.cc-card-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .4s;
+}
+
+/* Carousel */
+.cc-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 14px;
+}
+
+.cc-carousel-wrapper {
+  position: relative;
+  margin-bottom: 28px;
+}
+
+.cc-carousel {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 6px 4px 14px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cc-carousel::-webkit-scrollbar {
+  height: 4px;
+}
+
+.cc-carousel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cc-carousel::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+}
+
+.cc-carousel-item {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 18px;
+  transition: outline .15s, transform .15s;
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  margin-top: 3px;
+}
+
+.cc-carousel-item--active {
+  outline-color: var(--accent);
+  transform: translateY(-3px);
+}
+
+.cc-carousel-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cc-add-card {
+  width: 300px;
+  min-width: 300px;
+  min-height: 160px;
+  border-radius: 16px;
+  border: 2px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+}
+
+.cc-add-card:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), .04);
+}
+
+.cc-add-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px dashed currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* Detail panel */
+.cc-detail {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cc-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cc-detail-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cc-detail-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .1);
+}
+
+.cc-detail-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cc-detail-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.cc-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cc-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+.cc-action-btn--danger {
+  color: var(--accent-red);
+}
+
+.cc-action-btn--danger:hover {
+  background: rgba(239, 68, 68, .1);
+  border-color: var(--accent-red);
+}
+
+/* Spending */
+.cc-spending {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cc-spending-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.cc-spending-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.cc-spending-values {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.cc-spending-used {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.cc-spending-sep {
+  color: var(--text-muted);
+}
+
+.cc-spending-limit {
+  color: var(--text-muted);
+}
+
+.cc-spending-pct {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), .12);
+  padding: 2px 6px;
+  border-radius: 99px;
+}
+
+.cc-spending-pct--danger {
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, .12);
+}
+
+.cc-spending-bar {
+  height: 10px;
+  background: var(--bg-primary);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.cc-spending-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .5s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* Transactions section */
+.cc-tx-section {
+  padding: 20px 24px;
+}
+
+.cc-tx-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.cc-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cc-tx-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cc-tx-item:last-child {
+  border-bottom: none;
+}
+
+.cc-tx-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.cc-tx-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cc-tx-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-tx-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.cc-tx-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-red);
+  white-space: nowrap;
+}
+
+/* ─── Alerts ──────────────────────────────────────────────── */
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: box-shadow .15s, border-color .15s;
+}
+
+.alert-item:hover {
+  border-color: var(--border-light);
+}
+
+.alert-item:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .06);
+}
+
+.alert-item--overdue {
+  border-left: 3px solid var(--accent-red);
+}
+
+.alert-item--soon {
+  border-left: 3px solid #f59e0b;
+}
+
+.alert-item--ok {
+  border-left: 3px solid var(--accent-green);
+}
+
+.alert-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.alert-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: var(--accent-red);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* ─── Header btn active state ─────────────────────────────── */
+.header-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.3);
+}

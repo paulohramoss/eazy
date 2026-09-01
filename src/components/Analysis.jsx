@@ -33,6 +33,8 @@ function LineChart({ data, color, label }) {
     }).join(' ') +
     ` L ${pts[pts.length - 1].x} ${H} Z`
 
+  // `label` aqui não é texto de interface: serve só para dar um id único ao
+  // gradiente SVG, por isso não passa pelo tradutor.
   const gradId = `grad-${label.replace(/\s/g, '')}`
 
   return (
@@ -57,7 +59,7 @@ function LineChart({ data, color, label }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Analysis() {
-  const { transactions, monthlyChartData, spendingByCategory, monthlyIncome, monthlySavings, formatCurrency: fmt } = useApp()
+  const { transactions, monthlyChartData, spendingByCategory, monthlyIncome, monthlySavings, formatCurrency: fmt, t } = useApp()
 
   const incomeData   = monthlyChartData.map(d => d.income)
   const expenseData  = monthlyChartData.map(d => d.expenses)
@@ -75,11 +77,11 @@ export default function Analysis() {
   const maxCat = categoryList[0]?.[1] || 1
 
   const topCategories = transactions
-    .filter(t => t.type === 'expense' && t.status !== 'failed')
-    .reduce((acc, t) => {
-      const key = t.category
+    .filter(tx => tx.type === 'expense' && tx.status !== 'failed')
+    .reduce((acc, tx) => {
+      const key = tx.category
       if (!acc[key]) acc[key] = { total: 0, count: 0 }
-      acc[key].total += t.amount
+      acc[key].total += tx.amount
       acc[key].count += 1
       return acc
     }, {})
@@ -91,26 +93,26 @@ export default function Analysis() {
       {/* Stats row */}
       <div className="summary-strip" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <div className="summary-stat">
-          <div className="summary-stat-label">Média de Receitas</div>
+          <div className="summary-stat-label">{t('analysis.avgIncome')}</div>
           <div className="summary-stat-value positive-text">{fmt(avgIncome)}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>últimos 6 meses</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{t('analysis.last6')}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Média de Despesas</div>
+          <div className="summary-stat-label">{t('analysis.avgExpenses')}</div>
           <div className="summary-stat-value negative-text">{fmt(avgExpenses)}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>últimos 6 meses</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{t('analysis.last6')}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Média de Poupança</div>
+          <div className="summary-stat-label">{t('analysis.avgSavings')}</div>
           <div className="summary-stat-value">{fmt(avgSavings)}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>últimos 6 meses</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{t('analysis.last6')}</div>
         </div>
         <div className="summary-stat">
-          <div className="summary-stat-label">Taxa de Poupança</div>
+          <div className="summary-stat-label">{t('analysis.savingsRate')}</div>
           <div className={`summary-stat-value ${savingsRate >= 20 ? 'positive-text' : savingsRate > 0 ? '' : 'negative-text'}`}>
             {savingsRate}%
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>do total de receitas</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{t('analysis.ofTotalIncome')}</div>
         </div>
       </div>
 
@@ -119,8 +121,8 @@ export default function Analysis() {
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Tendência de Receitas</div>
-              <div className="card-subtitle">Últimos 6 meses</div>
+              <div className="card-title">{t('analysis.incomeTrend')}</div>
+              <div className="card-subtitle">{t('analysis.last6Cap')}</div>
             </div>
           </div>
           <LineChart data={incomeData} color="var(--accent-green)" label="receitas" />
@@ -132,8 +134,8 @@ export default function Analysis() {
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Taxa de Poupança</div>
-              <div className="card-subtitle">Mensal</div>
+              <div className="card-title">{t('analysis.savingsRate')}</div>
+              <div className="card-subtitle">{t('analysis.monthly')}</div>
             </div>
           </div>
           <LineChart data={savingsData} color="var(--accent)" label="poupanca" />
@@ -148,8 +150,8 @@ export default function Analysis() {
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Tendência de Despesas</div>
-              <div className="card-subtitle">Últimos 6 meses</div>
+              <div className="card-title">{t('analysis.expenseTrend')}</div>
+              <div className="card-subtitle">{t('analysis.last6Cap')}</div>
             </div>
           </div>
           <LineChart data={expenseData} color="var(--accent-red)" label="despesas" />
@@ -161,12 +163,12 @@ export default function Analysis() {
         <div className="card">
           <div className="card-header">
             <div>
-              <div className="card-title">Gastos por Categoria</div>
-              <div className="card-subtitle">Este mês</div>
+              <div className="card-title">{t('analysis.byCategory')}</div>
+              <div className="card-subtitle">{t('analysis.thisMonth')}</div>
             </div>
           </div>
           {categoryList.length === 0 ? (
-            <div className="empty-state"><p>Sem dados este mês</p></div>
+            <div className="empty-state"><p>{t('analysis.noDataMonth')}</p></div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {categoryList.map(([cat, val], i) => (
@@ -191,21 +193,21 @@ export default function Analysis() {
       <div className="card">
         <div className="card-header">
           <div>
-            <div className="card-title">Resumo por Categoria</div>
-            <div className="card-subtitle">Histórico geral</div>
+            <div className="card-title">{t('analysis.categorySummary')}</div>
+            <div className="card-subtitle">{t('analysis.allTime')}</div>
           </div>
         </div>
         {Object.keys(topCategories).length === 0 ? (
-          <div className="empty-state"><p>Sem dados</p></div>
+          <div className="empty-state"><p>{t('analysis.noData')}</p></div>
         ) : (
           <table className="transactions-table">
             <thead>
               <tr>
-                <th>Categoria</th>
-                <th style={{ textAlign: 'right' }}>Nº transações</th>
-                <th style={{ textAlign: 'right' }}>Total gasto</th>
-                <th style={{ textAlign: 'right' }}>Ticket médio</th>
-                <th style={{ textAlign: 'right' }}>% do total</th>
+                <th>{t('tx.category')}</th>
+                <th style={{ textAlign: 'right' }}>{t('analysis.txCount')}</th>
+                <th style={{ textAlign: 'right' }}>{t('analysis.totalSpent')}</th>
+                <th style={{ textAlign: 'right' }}>{t('analysis.avgTicket')}</th>
+                <th style={{ textAlign: 'right' }}>{t('analysis.pctOfTotal')}</th>
               </tr>
             </thead>
             <tbody>

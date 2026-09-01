@@ -27,69 +27,219 @@ service cloud.firestore {
 
     // Na criação o cliente precisa se incluir em allowedUsers e marcar userId,
     // senão daria pra criar doc órfão ou em nome de outro usuário.
+    // allowedUsers começa contendo só o dono: compartilhamento ainda não existe
+    // na UI, e liberar a lista aqui abriria a porta para gravar na conta alheia.
     function validNewDoc() {
       return isMember(request.resource.data)
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.allowedUsers == [request.auth.uid];
     }
 
+    // No update os campos de dono são imutáveis. Sem isto um membro podia
+    // reescrever allowedUsers e sequestrar (ou vazar) o documento.
+    function ownershipUnchanged() {
+      return request.resource.data.userId == resource.data.userId
+        && request.resource.data.allowedUsers == resource.data.allowedUsers;
+    }
+
+    // ── Validação de conteúdo ────────────────────────────────────────────────
+    // Autorização responde "quem escreve"; isto responde "o quê". Sem estas
+    // checagens o cliente gravava amount: "banana", ou uma string de megabytes,
+    // e todo o resto do app (somas, gráficos, orçamentos) passava a ler lixo.
+    //
+    // Os campos são acessados literalmente, e não por índice com variável:
+    // estas regras barram toda escrita do app, então clareza sobre concisão.
+
+    // Dinheiro: número finito e não-negativo. O teto corta erro de digitação e
+    // o overflow que quebraria os gráficos. O tipo (income/expense) é quem diz
+    // a direção, por isso nunca há valor negativo.
+    function isMoney(v) {
+      return v is number && v >= 0 && v <= 1000000000000;
+    }
+
+    function isText(v, maxLen) {
+      return v is string && v.size() <= maxLen;
+    }
+
+    function isIsoDate(v) {
+      return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    // Deliberadamente `is number`, e não `is int`: o SDK JS decide sozinho entre
+    // integerValue e doubleValue ao serializar, e um dia de fechamento
+    // rejeitado por causa disso travaria o cadastro de cartão. A faixa é o que
+    // importa aqui; um valor fracionário não é problema de segurança e o app já
+    // faz o clamp.
+    function isDayOfMonth(v) {
+      return v is number && v >= 1 && v <= 31;
+    }
+
+    // ── users ────────────────────────────────────────────────────────────────
     // Preferências e categorias — um doc por usuário, id = uid.
+    // O notificationLog (subcoleção) é escrito só pelo Admin SDK no cron, que
+    // não passa por estas regras; nenhum acesso pelo cliente é necessário.
     match /users/{userId} {
       allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // ── transactions ─────────────────────────────────────────────────────────
+    function validTransaction(d) {
+      return isMoney(d.amount)
+        && isIsoDate(d.date)
+        && d.type in ['income', 'expense']
+        && (!('status' in d) || d.status in ['completed', 'pending', 'failed'])
+        && (!('name' in d)         || isText(d.name, 200))
+        && (!('category' in d)     || isText(d.category, 100))
+        && (!('notes' in d)        || isText(d.notes, 2000))
+        && (!('walletId' in d)     || isText(d.walletId, 128))
+        && (!('cardId' in d)       || isText(d.cardId, 128))
+        && (!('goalId' in d)       || isText(d.goalId, 128))
+        && (!('recurrenceId' in d) || isText(d.recurrenceId, 128));
     }
 
     match /transactions/{docId} {
       allow get:    if isMember(resource.data);
       allow list:   if canList();
-      allow create: if validNewDoc();
-      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow create: if validNewDoc() && validTransaction(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validTransaction(request.resource.data);
       allow delete: if isMember(resource.data);
+    }
+
+    // ── wallets ──────────────────────────────────────────────────────────────
+    function validWallet(d) {
+      return (!('balance' in d) || isMoney(d.balance))
+        && (!('name' in d)  || isText(d.name, 120))
+        && (!('type' in d)  || isText(d.type, 60))
+        && (!('icon' in d)  || isText(d.icon, 80))
+        && (!('color' in d) || isText(d.color, 40));
     }
 
     match /wallets/{docId} {
       allow get:    if isMember(resource.data);
       allow list:   if canList();
-      allow create: if validNewDoc();
-      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow create: if validNewDoc() && validWallet(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validWallet(request.resource.data);
       allow delete: if isMember(resource.data);
+    }
+
+    // ── budgets ──────────────────────────────────────────────────────────────
+    function validBudget(d) {
+      return isMoney(d.limit)
+        && (!('category' in d) || isText(d.category, 100));
     }
 
     match /budgets/{docId} {
       allow get:    if isMember(resource.data);
       allow list:   if canList();
-      allow create: if validNewDoc();
-      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow create: if validNewDoc() && validBudget(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validBudget(request.resource.data);
       allow delete: if isMember(resource.data);
+    }
+
+    // ── goals ────────────────────────────────────────────────────────────────
+    function validGoal(d) {
+      return isMoney(d.target)
+        && (!('current' in d)  || isMoney(d.current))
+        && (!('name' in d)     || isText(d.name, 200))
+        && (!('icon' in d)     || isText(d.icon, 80))
+        && (!('color' in d)    || isText(d.color, 40))
+        && (!('deadline' in d) || isIsoDate(d.deadline) || d.deadline == '')
+        && (!('starred' in d)  || d.starred is bool);
     }
 
     match /goals/{docId} {
       allow get:    if isMember(resource.data);
       allow list:   if canList();
-      allow create: if validNewDoc();
-      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow create: if validNewDoc() && validGoal(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validGoal(request.resource.data);
       allow delete: if isMember(resource.data);
+    }
+
+    // ── investments ──────────────────────────────────────────────────────────
+    function validInvestment(d) {
+      return (!('amount' in d)       || isMoney(d.amount))
+        && (!('quantity' in d)     || isMoney(d.quantity))
+        && (!('avgPrice' in d)     || isMoney(d.avgPrice))
+        && (!('currentPrice' in d) || isMoney(d.currentPrice))
+        && (!('name' in d)         || isText(d.name, 200))
+        && (!('ticker' in d)       || isText(d.ticker, 40))
+        && (!('type' in d)         || isText(d.type, 60));
     }
 
     match /investments/{docId} {
       allow get:    if isMember(resource.data);
       allow list:   if canList();
-      allow create: if validNewDoc();
-      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow create: if validNewDoc() && validInvestment(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validInvestment(request.resource.data);
       allow delete: if isMember(resource.data);
+    }
+
+    // ── creditCards ──────────────────────────────────────────────────────────
+    function validCreditCard(d) {
+      return isMoney(d.limit)
+        && (!('closingDay' in d) || isDayOfMonth(d.closingDay))
+        && (!('dueDay' in d)     || isDayOfMonth(d.dueDay))
+        && (!('name' in d)       || isText(d.name, 120))
+        && (!('flag' in d)       || isText(d.flag, 60))
+        && (!('color' in d)      || isText(d.color, 40));
     }
 
     match /creditCards/{docId} {
       allow get:    if isMember(resource.data);
       allow list:   if canList();
-      allow create: if validNewDoc();
-      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow create: if validNewDoc() && validCreditCard(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validCreditCard(request.resource.data);
       allow delete: if isMember(resource.data);
+    }
+
+    // ── alerts ───────────────────────────────────────────────────────────────
+    function validAlert(d) {
+      return isIsoDate(d.dueDate)
+        && (!('amount' in d)   || isMoney(d.amount))
+        && (!('name' in d)     || isText(d.name, 200))
+        && (!('category' in d) || isText(d.category, 100))
+        && (!('paid' in d)     || d.paid is bool);
     }
 
     match /alerts/{docId} {
       allow get:    if isMember(resource.data);
       allow list:   if canList();
-      allow create: if validNewDoc();
-      allow update: if isMember(resource.data) && isMember(request.resource.data);
+      allow create: if validNewDoc() && validAlert(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validAlert(request.resource.data);
+      allow delete: if isMember(resource.data);
+    }
+
+    // ── recurrences ──────────────────────────────────────────────────────────
+    // A série vive aqui; as transações geradas apontam de volta por
+    // recurrenceId. Quem gera é o job diário, com o Admin SDK.
+    function validRecurrence(d) {
+      return isMoney(d.amount)
+        && d.type in ['income', 'expense']
+        && d.frequency in ['weekly', 'monthly', 'yearly']
+        && isIsoDate(d.startDate)
+        && isIsoDate(d.nextDate)
+        && (!('endDate' in d)  || isIsoDate(d.endDate) || d.endDate == '')
+        && (!('name' in d)     || isText(d.name, 200))
+        && (!('category' in d) || isText(d.category, 100))
+        && (!('notes' in d)    || isText(d.notes, 2000))
+        && (!('walletId' in d) || isText(d.walletId, 128))
+        && (!('cardId' in d)   || isText(d.cardId, 128))
+        && (!('active' in d)   || d.active is bool);
+    }
+
+    match /recurrences/{docId} {
+      allow get:    if isMember(resource.data);
+      allow list:   if canList();
+      allow create: if validNewDoc() && validRecurrence(request.resource.data);
+      allow update: if isMember(resource.data) && ownershipUnchanged()
+                    && validRecurrence(request.resource.data);
       allow delete: if isMember(resource.data);
     }
 

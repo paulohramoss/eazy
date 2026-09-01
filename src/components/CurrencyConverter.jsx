@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useApp } from '../context/AppContext'
 
 const CURRENCIES = [
   { code: 'BRL', label: 'Real (BRL)', symbol: 'R$' },
@@ -15,6 +16,7 @@ const CURRENCIES = [
 const FALLBACK = { BRL: 1, USD: 0.19, EUR: 0.18, GBP: 0.15, ARS: 172, CLP: 178, BTC: 0.0000030 }
 
 export default function CurrencyConverter({ anchorRef, onClose }) {
+  const { locale, t } = useApp()
   const [amount, setAmount] = useState('1')
   const [from, setFrom] = useState('USD')
   const [to, setTo] = useState('BRL')
@@ -48,7 +50,7 @@ export default function CurrencyConverter({ anchorRef, onClose }) {
     // Convert from → BRL → to
     const inBRL = val / (rates[from] || 1)
     const result = inBRL * (rates[to] || 1)
-    return result.toLocaleString('pt-BR', { maximumFractionDigits: to === 'BTC' ? 8 : 2 })
+    return result.toLocaleString(locale, { maximumFractionDigits: to === 'BTC' ? 8 : 2 })
   }
 
   const swap = () => { setFrom(to); setTo(from) }
@@ -59,12 +61,12 @@ export default function CurrencyConverter({ anchorRef, onClose }) {
   return createPortal(
     <div ref={ref} className="calc-popup" style={{ top: pos.top, right: pos.right, width: 300 }}>
       <div style={{ padding: '14px 16px 0', fontWeight: 700, fontSize: 13, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span><i className="fi fi-rr-exchange" style={{ marginRight: 6 }} />Conversor de Moeda</span>
-        {loading && <span style={{ fontSize: 11 }}>Atualizando...</span>}
+        <span><i className="fi fi-rr-exchange" style={{ marginRight: 6 }} />{t('conv.title')}</span>
+        {loading && <span style={{ fontSize: 11 }}>{t('conv.updating')}</span>}
       </div>
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="form-group" style={{ margin: 0 }}>
-          <label className="form-label">Valor</label>
+          <label className="form-label">{t('conv.amount')}</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
             <span style={{ padding: '0 10px', color: 'var(--text-muted)', fontSize: 13, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRight: 'none', borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)', height: 40, display: 'flex', alignItems: 'center' }}>
               {fromSym}
@@ -81,16 +83,16 @@ export default function CurrencyConverter({ anchorRef, onClose }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'end' }}>
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">De</label>
+            <label className="form-label">{t('conv.from')}</label>
             <select className="form-select" value={from} onChange={e => setFrom(e.target.value)}>
               {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
             </select>
           </div>
-          <button onClick={swap} className="btn btn-secondary" style={{ padding: '8px 10px', marginBottom: 1 }} title="Inverter">
+          <button onClick={swap} className="btn btn-secondary" style={{ padding: '8px 10px', marginBottom: 1 }} title={t('conv.swap')}>
             <i className="fi fi-rr-exchange" />
           </button>
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Para</label>
+            <label className="form-label">{t('conv.to')}</label>
             <select className="form-select" value={to} onChange={e => setTo(e.target.value)}>
               {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
             </select>

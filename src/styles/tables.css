@@ -1,0 +1,192 @@
+/* tables — Tabela de transações e as listas de objetivos/orçamento.
+   Extraído de App.css (linhas 907-1096 do arquivo original). */
+
+/* ─── Transactions Table ─────────────────────────────────── */
+.transactions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.transactions-table thead tr {
+  background: var(--bg-primary);
+  border-bottom: 2px solid var(--border-light);
+}
+
+.transactions-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  padding: 13px 14px;
+  white-space: nowrap;
+}
+
+.transactions-table th:first-child {
+  padding-left: 20px;
+}
+
+.transactions-table th:last-child {
+  padding-right: 20px;
+}
+
+.transactions-table tbody tr {
+  transition: background var(--transition);
+}
+
+.transactions-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.transactions-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.transactions-table td:first-child {
+  padding-left: 20px;
+}
+
+.transactions-table td:last-child {
+  padding-right: 20px;
+}
+
+.transactions-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tx-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tx-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.tx-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.tx-date {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tx-amount {
+  font-weight: 700;
+  font-size: 14px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tx-amount.positive {
+  color: var(--accent-green);
+}
+
+.tx-amount.negative {
+  color: var(--text-primary);
+}
+
+.tx-status {
+  text-align: center;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 99px;
+}
+
+.status-badge.completed {
+  background: rgba(var(--green-rgb), 0.12);
+  color: var(--accent-green);
+  border: 1px solid rgba(var(--green-rgb), 0.2);
+}
+
+.status-badge.pending {
+  background: rgba(var(--yellow-rgb, 245, 158, 11), 0.12);
+  color: var(--accent-yellow);
+  border: 1px solid rgba(var(--yellow-rgb, 245, 158, 11), 0.2);
+}
+
+.status-badge.failed {
+  background: rgba(var(--red-rgb), 0.12);
+  color: var(--accent-red);
+  border: 1px solid rgba(var(--red-rgb), 0.2);
+}
+
+/* ─── Goals / Budget ─────────────────────────────────────── */
+.goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.goal-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.goal-amounts {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.goal-amounts strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 99px;
+}
+
+.goal-pct {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+}
