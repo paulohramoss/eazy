@@ -602,4 +602,38 @@ export const en = {
 
   // Extras
   'wallet.selectAll': 'Select all accounts',
+
+  // Gráficos e estados vazios
+  'chart.viewTable': 'View table',
+  'chart.viewChart': 'View chart',
+  'chart.useTable': 'Use "View table" for exact values.',
+  'chart.month': 'Month',
+  'chart.balance': 'Net',
+  'chart.value': 'Value',
+  'chart.category': 'Category',
+  'chart.other': 'Other',
+  'chart.total': 'Total',
+  'empty.loading': 'Loading the screen',
+  'empty.noTxTitle': 'No transactions yet',
+  'empty.noTxDesc': 'Add your first income or expense and the rest of the app starts to make sense — balances, budget and charts all build from here.',
+  'empty.noTxAction': 'New transaction',
+  'empty.filterTitle': 'Nothing matches these filters',
+  'empty.filterDesc': 'You do have transactions, but none of them fit the current search or date range.',
+  'empty.filterAction': 'Clear filters',
+  'empty.noChartData': 'No data for this period',
+  'empty.noChartDataDesc': 'The chart appears as soon as there is activity.',
+  'empty.noExpensesTitle': 'No expenses this month',
+  'empty.noExpensesDesc': 'The category breakdown shows up once you log the first expense of the month.',
+
+  // Investimentos — vazio
+  'inv.emptyPortfolioDesc': 'Add an asset to see how your portfolio is split across stocks, funds, crypto and fixed income.',
+
+  // Estados vazios por tela
+  'empty.noWalletTxDesc': 'Entries linked to this account show up here.',
+  'empty.noCardTxDesc': 'Purchases made on this card show up here during the cycle.',
+  'empty.noCardsDesc': 'Add a card to track its limit, statement and due date without opening your bank app.',
+  'empty.noWalletsTitle': 'No accounts yet',
+  'empty.noWalletsDesc': 'An account is where money comes from and goes to. Without at least one, balances have nothing to add up to.',
+  'empty.noBudgetsDesc': 'Set a cap per category and the app warns you when you hit 80% of it.',
+  'empty.noGoalsDesc': 'A goal ties money to a target and a deadline — and the app works out how much to save each month.',
 }

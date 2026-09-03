@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
+import EmptyState from './EmptyState'
 import confetti from 'canvas-confetti'
 import { isoDate } from '../utils/date'
 
@@ -205,10 +206,14 @@ export default function Goals() {
 
       {/* Goal cards */}
       {goals.length === 0 ? (
-        <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
-          <i className="fi fi-rr-star" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{t('goal.empty')}</p>
-          <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('goal.createFirst')}</button>
+        <div className="moovia-card">
+          <EmptyState
+            variant="screen"
+            icon="fi-rr-star"
+            title={t('goal.empty')}
+            description={t('empty.noGoalsDesc')}
+            action={{ label: t('goal.createFirst'), icon: 'fi-rr-plus', onClick: () => setAddModal(true) }}
+          />
         </div>
       ) : (
         <div className="moovia-goals-grid">

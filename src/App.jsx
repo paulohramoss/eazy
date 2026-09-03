@@ -12,6 +12,7 @@ import Login from './components/Login'
 import ErrorBoundary from './components/ErrorBoundary'
 import VerifyEmailBanner from './components/VerifyEmailBanner'
 import CommandPalette from './components/CommandPalette'
+import ScreenSkeleton from './components/Skeleton'
 import { navigate as routerNavigate, routeFromHash, useHashRoute } from './utils/router'
 import { createTranslator, detectLanguage } from './i18n'
 
@@ -506,7 +507,9 @@ function Dashboard() {
         <div className="content" id="conteudo" tabIndex={-1}>
           <VerifyEmailBanner />
           <ErrorBoundary resetKey={screen} t={t}>
-            <Suspense fallback={<div className="empty-state"><p>{t('action.loading')}</p></div>}>
+            {/* O esqueleto tem a silhueta da tela que está chegando, então o
+                layout não pula quando o chunk termina de baixar. */}
+            <Suspense fallback={<ScreenSkeleton screen={screen} label={t('empty.loading')} />}>
               {(SCREENS[screen] || SCREENS.overview)(navigate)}
             </Suspense>
           </ErrorBoundary>

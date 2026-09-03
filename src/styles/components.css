@@ -562,3 +562,118 @@ button.header-profile { width: auto; }
   text-overflow: ellipsis;
 }
 .receipt-link:hover .receipt-name { text-decoration: underline; }
+
+/* ─── Skeletons ───────────────────────────────────────────────────────────── */
+
+.skeleton {
+  display: block;
+  background: var(--bg-hover);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Brilho varrendo em vez de opacidade pulsando: o pulso inteiro escurece e
+   clareia a tela toda ao mesmo tempo, o que cansa; a varredura sugere
+   progresso sem competir com o conteúdo que vai chegar. */
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, .45),
+    transparent
+  );
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+[data-theme="dark"] .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .06), transparent);
+}
+
+@keyframes skeleton-sweep {
+  100% { transform: translateX(100%); }
+}
+
+/* Sem animação nenhuma quando o sistema pede movimento reduzido — a varredura
+   é decorativa e some sem custo de informação. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
+.skeleton-text { display: flex; flex-direction: column; gap: 8px; }
+.skeleton-screen { pointer-events: none; }
+.skeleton-card { padding: 18px 20px; }
+.skeleton-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.skeleton-table { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.skeleton-table-row { display: flex; align-items: center; gap: 12px; }
+.skeleton-table-cell { flex: 1; min-width: 0; display: block; }
+
+/* ─── Estado vazio ────────────────────────────────────────────────────────── */
+
+.empty-state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Centralizado na vertical porque o cartão costuma esticar até a altura do
+     irmão que tem gráfico: sem isto o texto fica colado no topo com um vão
+     grande embaixo. */
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 10px;
+}
+
+.empty-state-box--screen { padding: 56px 24px; }
+.empty-state-box--card   { padding: 34px 20px; }
+.empty-state-box--filter { padding: 40px 20px; }
+
+.empty-state-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.empty-state-box--screen .empty-state-icon { width: 64px; height: 64px; font-size: 25px; }
+.empty-state-box--card   .empty-state-icon { width: 46px; height: 46px; font-size: 18px; }
+.empty-state-box--filter .empty-state-icon { width: 52px; height: 52px; font-size: 20px; }
+
+.empty-state-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.3px;
+  color: var(--text-primary);
+  margin: 0;
+}
+.empty-state-box--card .empty-state-title { font-size: 14.5px; }
+
+.empty-state-desc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 420px;
+  margin: 0;
+}
+.empty-state-box--card .empty-state-desc { font-size: 12.5px; max-width: 340px; }
+
+.empty-state-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
