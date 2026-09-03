@@ -48,7 +48,13 @@ export default defineConfig([
   // Separar isso em outro arquivo só para agradar o Fast Refresh pioraria a
   // legibilidade; o custo real é um full reload ocasional em dev.
   {
-    files: ['src/context/**/*.jsx', 'src/components/Toast.jsx'],
+    files: [
+      'src/context/**/*.jsx',
+      'src/components/Toast.jsx',
+      'src/components/charts/primitives.jsx',
+      // preview.jsx é uma entrada (monta a raiz), não um módulo de componentes.
+      'src/preview.jsx',
+    ],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
 

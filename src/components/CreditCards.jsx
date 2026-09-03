@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import DeleteWithTransactionsModal from './DeleteWithTransactionsModal'
+import EmptyState from './EmptyState'
 import { useToast } from './Toast'
 import CurrencyInput from './CurrencyInput'
 
@@ -158,7 +159,7 @@ function Invoice({ card, transactions, onClose }) {
       }
     >
       {cardTx.length === 0 ? (
-        <div className="empty-state"><p>{t('card.noEntriesMonth')}</p></div>
+        <EmptyState icon="fi-rr-receipt" title={t('card.noEntriesMonth')} description={t('empty.noCardTxDesc')} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {cardTx.map(tx => (
@@ -337,10 +338,7 @@ export default function CreditCards() {
             </div>
 
             {cardTx.length === 0 ? (
-              <div className="empty-state" style={{ minHeight: 100 }}>
-                <i className="fi fi-rr-receipt" style={{ fontSize: 28, opacity: 0.2, marginBottom: 8 }} />
-                <p style={{ fontSize: 13 }}>{t('card.noEntriesCard')}</p>
-              </div>
+              <EmptyState icon="fi-rr-receipt" title={t('card.noEntriesCard')} description={t('empty.noCardTxDesc')} />
             ) : (
               <div className="cc-tx-list">
                 {cardTx.map(tx => (
@@ -364,10 +362,13 @@ export default function CreditCards() {
         </div>
       ) : (
         <div className="settings-section">
-          <div className="empty-state" style={{ minHeight: 180 }}>
-            <i className="fi fi-rr-credit-card" style={{ fontSize: 40, opacity: 0.2, marginBottom: 12 }} />
-            <p>{t('card.emptyLine1')}<br />{t('card.emptyLine2')}</p>
-          </div>
+          <EmptyState
+            variant="screen"
+            icon="fi-rr-credit-card"
+            title={t('card.emptyLine1')}
+            description={t('empty.noCardsDesc')}
+            action={{ label: t('card.add'), icon: 'fi-rr-plus', onClick: () => setModal('add') }}
+          />
         </div>
       )}
 

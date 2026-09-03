@@ -612,4 +612,38 @@ export const pt = {
 
   // Extras
   'wallet.selectAll': 'Selecionar todas as carteiras',
+
+  // Gráficos e estados vazios
+  'chart.viewTable': 'Ver tabela',
+  'chart.viewChart': 'Ver gráfico',
+  'chart.useTable': 'Use "Ver tabela" para os valores exatos.',
+  'chart.month': 'Mês',
+  'chart.balance': 'Saldo',
+  'chart.value': 'Valor',
+  'chart.category': 'Categoria',
+  'chart.other': 'Outros',
+  'chart.total': 'Total',
+  'empty.loading': 'Carregando a tela',
+  'empty.noTxTitle': 'Nenhuma transação ainda',
+  'empty.noTxDesc': 'Lance sua primeira receita ou despesa para o resto do app começar a fazer sentido — saldos, orçamento e gráficos partem daqui.',
+  'empty.noTxAction': 'Nova transação',
+  'empty.filterTitle': 'Nenhum resultado com esses filtros',
+  'empty.filterDesc': 'Você tem transações cadastradas, mas nenhuma se encaixa na busca ou no período selecionado.',
+  'empty.filterAction': 'Limpar filtros',
+  'empty.noChartData': 'Sem dados para o período',
+  'empty.noChartDataDesc': 'Assim que houver movimentação, o gráfico aparece aqui.',
+  'empty.noExpensesTitle': 'Nenhuma despesa este mês',
+  'empty.noExpensesDesc': 'A divisão por categoria aparece assim que você lançar o primeiro gasto do mês.',
+
+  // Investimentos — vazio
+  'inv.emptyPortfolioDesc': 'Cadastre um ativo para ver como sua carteira está distribuída entre ações, fundos, cripto e renda fixa.',
+
+  // Estados vazios por tela
+  'empty.noWalletTxDesc': 'Lançamentos vinculados a esta conta aparecem aqui.',
+  'empty.noCardTxDesc': 'As compras feitas neste cartão aparecem aqui durante o ciclo.',
+  'empty.noCardsDesc': 'Cadastre um cartão para acompanhar limite, fatura e vencimento sem abrir o app do banco.',
+  'empty.noWalletsTitle': 'Nenhuma conta cadastrada',
+  'empty.noWalletsDesc': 'Uma conta é de onde o dinheiro sai e para onde entra. Sem pelo menos uma, os saldos não têm como fechar.',
+  'empty.noBudgetsDesc': 'Defina um teto por categoria e o app avisa quando você chegar a 80% dele.',
+  'empty.noGoalsDesc': 'Um objetivo junta dinheiro com uma meta e um prazo — e o app calcula quanto guardar por mês.',
 }

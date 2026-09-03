@@ -1,55 +1,9 @@
 import { useState } from 'react'
-import { useApp } from '../context/AppContext'
+import { CatIcon, useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
-
-// ─── Donut Chart ──────────────────────────────────────────────────────────────
-
-function DonutChart({ data, t }) {
-  const r = 60, cx = 75, cy = 75
-  const circumference = 2 * Math.PI * r
-  const total = data.reduce((s, d) => s + d.pct, 0) || 1
-
-  const segments = data.reduce((acc, seg) => {
-    const dash = (seg.pct / total) * circumference
-    const offset = acc.length > 0 ? acc[acc.length - 1].nextOffset : 0
-    acc.push({ ...seg, dash, gap: circumference - dash, offset, nextOffset: offset + dash })
-    return acc
-  }, [])
-
-  return (
-    <div className="donut-wrap">
-      <div className="donut-chart">
-        <svg className="donut-svg" width="150" height="150" viewBox="0 0 150 150">
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth="18" />
-          {segments.map((seg, i) => (
-            <circle
-              key={i} cx={cx} cy={cy} r={r}
-              fill="none" stroke={seg.color} strokeWidth="18"
-              strokeDasharray={`${seg.dash} ${seg.gap}`}
-              strokeDashoffset={-seg.offset}
-              strokeLinecap="round"
-            />
-          ))}
-        </svg>
-        <div className="donut-center">
-          <span className="donut-center-value">{Math.round((data.reduce((s, d) => s + d.pct, 0) / total) * 100) || 100}%</span>
-          <span className="donut-center-label">{t('overview.distribution')}</span>
-        </div>
-      </div>
-      <div className="donut-legend">
-        {data.map((seg, i) => (
-          <div key={i} className="donut-legend-item">
-            <div className="donut-legend-dot" style={{ background: seg.color }} />
-            <div className="donut-legend-info">
-              <span className="donut-legend-name">{seg.name}</span>
-              <span className="donut-legend-pct">{Math.round((seg.pct / total) * 100)}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+import BarChart from './charts/BarChart'
+import DonutChart from './charts/DonutChart'
+import EmptyState from './EmptyState'
 
 // ─── Can I Spend Widget ───────────────────────────────────────────────────────
 
@@ -141,8 +95,6 @@ function CanISpend({ remaining }) {
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
-const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB']
-
 export default function Overview() {
   const {
     totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
@@ -171,13 +123,11 @@ export default function Overview() {
     },
   ]
 
-  const maxBar = Math.max(...monthlyChartData.map(d => Math.max(d.income, d.expenses)), 1)
-
-  const categoryEntries = Object.entries(spendingByCategory)
-    .sort((a, b) => b[1] - a[1]).slice(0, 5)
-  const donutData = categoryEntries.map(([name, val], i) => ({
-    name, pct: val, color: COLORS[i % COLORS.length],
-  }))
+  // Sem fatiar em 5 aqui: o donut cuida disso e dobra a cauda em "Outros",
+  // para o total do centro continuar batendo com o gasto do mês.
+  const categoryItems = Object.entries(spendingByCategory)
+    .map(([name, value]) => ({ name, value }))
+    .filter(d => d.value > 0)
 
   return (
     <div className="screen">
@@ -206,40 +156,37 @@ export default function Overview() {
         {/* Charts */}
         <div className="charts-row">
           <div className="card">
-            <div className="card-header">
-              <div>
-                <div className="card-title">{t('overview.incomeVsExpenses')}</div>
-                <div className="card-subtitle">{t('overview.last6Months')}</div>
-              </div>
-            </div>
-            <div className="chart-bars">
-              {monthlyChartData.map((d, i) => (
-                <div key={i} className="chart-bar-group">
-                  <div className="chart-bar income" style={{ height: `${(d.income / maxBar) * 100}%` }} title={fmt(d.income)} />
-                  <div className="chart-bar expenses" style={{ height: `${(d.expenses / maxBar) * 100}%` }} title={fmt(d.expenses)} />
-                </div>
-              ))}
-            </div>
-            <div className="chart-labels">
-              {monthlyChartData.map(d => <span key={d.key} className="chart-label">{d.label}</span>)}
-            </div>
-            <div className="chart-legend">
-              <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--accent)' }} />{t('overview.income')}</div>
-              <div className="legend-item"><div className="legend-dot" style={{ background: 'rgba(108,99,255,0.3)' }} />{t('overview.expenses')}</div>
-            </div>
+            {monthlyChartData.some(d => d.income > 0 || d.expenses > 0) ? (
+              <BarChart
+                title={t('overview.incomeVsExpenses')}
+                subtitle={t('overview.last6Months')}
+                data={monthlyChartData}
+              />
+            ) : (
+              <EmptyState
+                icon="fi-rr-chart-histogram"
+                title={t('empty.noChartData')}
+                description={t('empty.noChartDataDesc')}
+              />
+            )}
           </div>
 
           <div className="card">
-            <div className="card-header">
-              <div>
-                <div className="card-title">{t('overview.categories')}</div>
-                <div className="card-subtitle">{t('overview.spendingSplit')}</div>
-              </div>
-            </div>
-            {donutData.length > 0
-              ? <DonutChart data={donutData} t={t} />
-              : <div className="empty-state"><p>{t('overview.noExpenses')}</p></div>
-            }
+            {categoryItems.length > 0 ? (
+              <DonutChart
+                title={t('overview.categories')}
+                subtitle={t('overview.spendingSplit')}
+                items={categoryItems}
+                centerLabel={t('chart.total')}
+                renderIcon={(name) => <CatIcon category={name} />}
+              />
+            ) : (
+              <EmptyState
+                icon="fi-rr-chart-pie"
+                title={t('empty.noExpensesTitle')}
+                description={t('empty.noExpensesDesc')}
+              />
+            )}
           </div>
         </div>
 

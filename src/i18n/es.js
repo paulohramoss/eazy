@@ -602,4 +602,38 @@ export const es = {
 
   // Extras
   'wallet.selectAll': 'Seleccionar todas las cuentas',
+
+  // Gráficos e estados vazios
+  'chart.viewTable': 'Ver tabla',
+  'chart.viewChart': 'Ver gráfico',
+  'chart.useTable': 'Usa "Ver tabla" para los valores exactos.',
+  'chart.month': 'Mes',
+  'chart.balance': 'Saldo',
+  'chart.value': 'Valor',
+  'chart.category': 'Categoría',
+  'chart.other': 'Otros',
+  'chart.total': 'Total',
+  'empty.loading': 'Cargando la pantalla',
+  'empty.noTxTitle': 'Aún no hay transacciones',
+  'empty.noTxDesc': 'Registra tu primer ingreso o gasto y el resto de la app empieza a tener sentido: saldos, presupuesto y gráficos parten de ahí.',
+  'empty.noTxAction': 'Nueva transacción',
+  'empty.filterTitle': 'Nada coincide con estos filtros',
+  'empty.filterDesc': 'Sí tienes transacciones, pero ninguna encaja en la búsqueda o el periodo seleccionado.',
+  'empty.filterAction': 'Limpiar filtros',
+  'empty.noChartData': 'Sin datos para el periodo',
+  'empty.noChartDataDesc': 'El gráfico aparece en cuanto haya movimientos.',
+  'empty.noExpensesTitle': 'Sin gastos este mes',
+  'empty.noExpensesDesc': 'La distribución por categoría aparece cuando registres el primer gasto del mes.',
+
+  // Investimentos — vazio
+  'inv.emptyPortfolioDesc': 'Añade un activo para ver cómo se reparte tu cartera entre acciones, fondos, cripto y renta fija.',
+
+  // Estados vazios por tela
+  'empty.noWalletTxDesc': 'Los movimientos vinculados a esta cuenta aparecen aquí.',
+  'empty.noCardTxDesc': 'Las compras hechas con esta tarjeta aparecen aquí durante el ciclo.',
+  'empty.noCardsDesc': 'Añade una tarjeta para seguir su límite, factura y vencimiento sin abrir la app del banco.',
+  'empty.noWalletsTitle': 'Ninguna cuenta registrada',
+  'empty.noWalletsDesc': 'Una cuenta es de donde sale y a donde entra el dinero. Sin al menos una, los saldos no cuadran.',
+  'empty.noBudgetsDesc': 'Define un tope por categoría y la app te avisa cuando llegues al 80%.',
+  'empty.noGoalsDesc': 'Un objetivo une dinero a una meta y un plazo — y la app calcula cuánto guardar al mes.',
 }

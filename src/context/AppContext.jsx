@@ -120,7 +120,9 @@ const getCardCycleStart = (closingDay) => {
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
-const AppContext = createContext(null)
+// Exportado para a página de preview (preview.html) poder injetar dados de
+// exemplo sem Firebase. O app real nunca usa o Provider diretamente.
+export const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
   const { user } = useAuth()
