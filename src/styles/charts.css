@@ -1,0 +1,278 @@
+/* charts — paleta de dados e cromo dos gráficos.
+   Os valores aqui não são escolha de gosto: foram gerados e conferidos com o
+   validador de paletas (bandas de luminosidade, piso de croma, separação para
+   daltonismo e contraste contra a superfície do cartão). A paleta anterior
+   REPROVAVA: tinha lima #CFF330 com 1,27:1 de contraste (praticamente invisível
+   no branco), preto e cinza sem croma nenhum entrando como se fossem cores, e o
+   par verde/vermelho — os dois tons mais importantes de um app financeiro — a
+   ΔE 6,1 para deuteranopia, ou seja, quase idênticos para quem não distingue
+   verde de vermelho. */
+
+:root {
+  /* ── Superfície e cromo ─────────────────────────────────────────────────
+     Grade e eixos ficam a um tom da superfície: presentes, nunca competindo
+     com os dados. Sempre linha sólida — tracejado lê como "projeção". */
+  --chart-surface: var(--bg-card);
+  --chart-grid:    rgba(0, 0, 0, .07);
+  --chart-axis:    rgba(0, 0, 0, .14);
+
+  /* ── Polaridade: receita × despesa ──────────────────────────────────────
+     É o par mais usado do app. Verde mantido igual ao --accent-green (o resto
+     da interface já usa esse verde para valores positivos); o vermelho foi
+     escurecido em relação ao --accent-red para o par sair de ΔE 6,1 e chegar a
+     ΔE 9,2 sob deuteranopia — acima do alvo de 8. */
+  --chart-income:  #18A058;
+  --chart-expense: #C2251A;
+
+  /* ── Categóricas ────────────────────────────────────────────────────────
+     Ordem fixa, nunca ciclada: a 9ª série vira "Outros", não uma cor gerada.
+     A ordem é o próprio mecanismo de segurança para daltonismo — pares
+     vizinhos foram validados nesta sequência (pior par ΔE 9,1). Slot 1 é o
+     azul da marca. */
+  --chart-1: #0053EF;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #4a3aa7;
+  --chart-8: #e34948;
+
+  /* Cor da fatia "Outros" — cinza deliberado: não é identidade, é resto. */
+  --chart-other: #9A9A9A;
+}
+
+/* Os passos escuros são uma escolha, não uma inversão automática: mesmas
+   matizes, re-passadas para a banda do fundo escuro e validadas contra ele. */
+[data-theme="dark"] {
+  --chart-grid: rgba(255, 255, 255, .09);
+  --chart-axis: rgba(255, 255, 255, .18);
+
+  --chart-income:  #28AC6E;
+  --chart-expense: #C74034;
+
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+
+  --chart-other: #6E6E6E;
+}
+
+/* ─── Moldura ─────────────────────────────────────────────────────────────── */
+
+.chart-frame { display: flex; flex-direction: column; gap: 12px; }
+
+.chart-frame-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chart-frame-titles { min-width: 0; }
+
+.chart-frame-title {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -.2px;
+  color: var(--text-primary);
+}
+
+.chart-frame-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Alterna entre o gráfico e a tabela equivalente. Não é enfeite: é o caminho
+   sem cor para os mesmos números, exigido porque três slots claros da paleta
+   ficam abaixo de 3:1 contra o branco. */
+.chart-view-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chart-view-toggle:hover { color: var(--text-primary); border-color: var(--border-light); }
+
+/* ─── Legenda ─────────────────────────────────────────────────────────────── */
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chart-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+
+.chart-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ─── Área do gráfico ─────────────────────────────────────────────────────── */
+
+/* A altura inclui a faixa dos rótulos do eixo X: fixar só a altura do desenho
+   deixaria os rótulos fora do cartão, criando um scroll interno minúsculo. */
+.chart-plot { position: relative; width: 100%; }
+.chart-plot svg { display: block; width: 100%; overflow: visible; }
+
+.chart-axis-label {
+  font-size: 10.5px;
+  fill: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-hit { fill: transparent; cursor: crosshair; }
+
+/* ─── Tooltip ─────────────────────────────────────────────────────────────── */
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  min-width: 130px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  line-height: 1.5;
+  transform: translate(-50%, -100%);
+}
+
+.chart-tooltip-title {
+  font-weight: 650;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  text-transform: capitalize;
+}
+
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.chart-tooltip-row strong {
+  margin-left: auto;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Tabela equivalente ──────────────────────────────────────────────────── */
+
+.chart-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.chart-table th,
+.chart-table td { padding: 7px 8px; text-align: right; }
+.chart-table th:first-child,
+.chart-table td:first-child { text-align: left; }
+.chart-table thead th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.chart-table tbody td { border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.chart-table tbody tr:last-child td { border-bottom: 0; }
+.chart-table-name { display: flex; align-items: center; gap: 8px; }
+
+/* ─── Donut ───────────────────────────────────────────────────────────────── */
+
+.chart-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.chart-donut { position: relative; flex-shrink: 0; }
+
+.chart-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.chart-donut-value {
+  /* O tamanho vem inline: é calculado para o valor caber no furo do donut. */
+  font-weight: 750;
+  letter-spacing: -.5px;
+  color: var(--text-primary);
+}
+
+.chart-donut-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-top: 1px;
+}
+
+.chart-donut-legend {
+  flex: 1;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-donut-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: default;
+  text-align: left;
+}
+.chart-donut-row.is-active { background: var(--bg-hover); }
+.chart-donut-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-donut-row-value { font-weight: 650; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.chart-donut-row-pct { color: var(--text-muted); min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.chart-segment { transition: opacity .14s; }
+.chart-segment.is-dim { opacity: .3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-segment { transition: none; }
+}
+
+@media (max-width: 560px) {
+  .chart-donut-wrap { gap: 14px; }
+  .chart-frame-head { flex-wrap: wrap; }
+}

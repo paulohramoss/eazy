@@ -3,11 +3,17 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import { apiFetch } from '../utils/api'
+import DonutChart from './charts/DonutChart'
+import EmptyState from './EmptyState'
 
 const fmtN = (n, d = 2, locale = 'pt-BR') =>
   (Number(n) || 0).toLocaleString(locale, { minimumFractionDigits: d, maximumFractionDigits: d })
 
 const TYPES = ['Ação', 'Cripto', 'FII/ETF', 'Renda F.', 'Outro']
+// Paleta do SELETOR de cor — o usuário escolhe um acento decorativo para o
+// próprio item. Não é codificação de dados: os gráficos usam os tokens
+// validados em styles/charts.css. Preto, lima e cinza são escolhas legítimas
+// aqui e reprovariam lá; não unifique as duas listas.
 const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB', '#555555', '#3370F5']
 
 const EMPTY_FORM = { name: '', ticker: '', type: 'Ação', quantity: '', avgPrice: '', currentPrice: '', color: '#0053EF' }
@@ -232,56 +238,6 @@ function MarketExplorer({ onAdd }) {
   )
 }
 
-// ─── Donut Chart ──────────────────────────────────────────────────────────────
-
-function AllocationDonut({ data, t }) {
-  const r = 70, cx = 85, cy = 85
-  const circumference = 2 * Math.PI * r
-  const total = data.reduce((s, d) => s + d.value, 0) || 1
-
-  const segments = data.reduce((acc, seg) => {
-    const pct = seg.value / total
-    const dash = pct * circumference
-    const off = acc.length > 0 ? acc[acc.length - 1].nextOff : 0
-    acc.push({ ...seg, dash, gap: circumference - dash, off, nextOff: off + dash })
-    return acc
-  }, [])
-
-  return (
-    <div className="donut-wrap" style={{ gap: 24 }}>
-      <div className="donut-chart" style={{ width: 170, height: 170 }}>
-        <svg className="donut-svg" width="170" height="170" viewBox="0 0 170 170">
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#2a2d3e" strokeWidth="20" />
-          {segments.map((seg, i) => (
-            <circle key={i} cx={cx} cy={cy} r={r}
-              fill="none" stroke={seg.color} strokeWidth="20"
-              strokeDasharray={`${seg.dash} ${seg.gap}`}
-              strokeDashoffset={-seg.off} strokeLinecap="round"
-            >
-              <title>{seg.name}: {((seg.value / total) * 100).toFixed(1)}%</title>
-            </circle>
-          ))}
-        </svg>
-        <div className="donut-center">
-          <span className="donut-center-value">{data.length}</span>
-          <span className="donut-center-label">{t('inv.assets')}</span>
-        </div>
-      </div>
-      <div className="donut-legend">
-        {segments.map((seg, i) => (
-          <div key={i} className="donut-legend-item">
-            <div className="donut-legend-dot" style={{ background: seg.color }} />
-            <div className="donut-legend-info">
-              <span className="donut-legend-name">{seg.name}</span>
-              <span className="donut-legend-pct">{((seg.value / total) * 100).toFixed(1)}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ─── Investment Modal ─────────────────────────────────────────────────────────
 
 function InvModal({ initial, onSave, onClose }) {
@@ -469,12 +425,17 @@ export default function Investments() {
   const totalReturn = totalValue - totalInvested
   const totalReturnPct = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0
 
-  const donutData = enriched.map(inv => ({ name: inv.ticker, value: inv.currentValue, color: inv.color }))
-
   const typeMap = enriched.reduce((acc, inv) => {
     acc[inv.type] = (acc[inv.type] || 0) + inv.currentValue
     return acc
   }, {})
+
+  // O cartão se chama "Alocação por Tipo", mas o donut vinha montado a partir
+  // dos TICKERS enquanto a lista ao lado usava os tipos — título, gráfico e
+  // legenda diziam três coisas diferentes. Agora os três falam de tipo.
+  const allocationByType = Object.entries(typeMap)
+    .map(([name, value]) => ({ name, value }))
+    .filter(d => d.value > 0)
 
   return (
     <div className="screen">
@@ -508,31 +469,19 @@ export default function Investments() {
       <div className="charts-row">
         {/* Allocation chart */}
         <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">{t('inv.allocationByType')}</div>
-              <div className="card-subtitle">{t('inv.portfolioSplit')}</div>
-            </div>
-          </div>
-          {donutData.length > 0 ? (
-            <div style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
-              <AllocationDonut t={t} data={donutData} />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {Object.entries(typeMap).sort((a, b) => b[1] - a[1]).map(([type, val], i) => (
-                  <div key={type}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{type}</span>
-                      <span style={{ fontWeight: 600 }}>{((val / totalValue) * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="progress-bar" style={{ height: 6 }}>
-                      <div className="progress-fill" style={{ width: `${(val / totalValue) * 100}%`, background: COLORS[i % COLORS.length] }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {allocationByType.length > 0 ? (
+            <DonutChart
+              title={t('inv.allocationByType')}
+              subtitle={t('inv.portfolioSplit')}
+              items={allocationByType}
+              centerLabel={t('chart.total')}
+            />
           ) : (
-            <div className="empty-state"><p>{t('inv.noAssets')}</p></div>
+            <EmptyState
+              icon="fi-rr-chart-pie"
+              title={t('inv.noAssets')}
+              description={t('inv.emptyPortfolioDesc')}
+            />
           )}
         </div>
 

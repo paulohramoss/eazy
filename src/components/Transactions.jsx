@@ -4,6 +4,7 @@ import { CatIcon } from '../context/AppContext'
 import Modal from './Modal'
 import Checkbox from './Checkbox'
 import TransactionModal from './TransactionModal'
+import EmptyState from './EmptyState'
 import { resolveWalletIcon } from '../utils/walletIcons'
 
 const STATUS_LABEL = { completed: '●', pending: '◌' }
@@ -54,6 +55,19 @@ export default function Transactions() {
   })
   
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' })
+
+  // "Nada aqui" e "nada com estes filtros" são situações diferentes e pedem
+  // saídas diferentes: uma quer um botão de criar, a outra quer limpar filtros.
+  const hasAnyTransaction = transactions.length > 0
+
+  const clearFilters = () => {
+    setSearch('')
+    setType('all')
+    setCat('all')
+    setStatus('all')
+    setFilterStart('')
+    setFilterEnd('')
+  }
 
   const [addModal, setAddModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
@@ -228,11 +242,23 @@ export default function Transactions() {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="empty-state">
-            <i className="fi fi-rr-search" style={{ fontSize: 30, color: 'var(--text-muted)' }} />
-            <p>{t('tx.none')}</p>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('tx.adjustFilters')}</span>
-          </div>
+          hasAnyTransaction ? (
+            <EmptyState
+              variant="filter"
+              icon="fi-rr-search"
+              title={t('empty.filterTitle')}
+              description={t('empty.filterDesc')}
+              action={{ label: t('empty.filterAction'), icon: 'fi-rr-cross-small', onClick: clearFilters }}
+            />
+          ) : (
+            <EmptyState
+              variant="screen"
+              icon="fi-rr-receipt"
+              title={t('empty.noTxTitle')}
+              description={t('empty.noTxDesc')}
+              action={{ label: t('empty.noTxAction'), icon: 'fi-rr-plus', onClick: () => setAddModal(true) }}
+            />
+          )
         ) : (<>
           {/* ── Desktop table ── */}
           <table className="transactions-table" style={{ margin: 0 }}>

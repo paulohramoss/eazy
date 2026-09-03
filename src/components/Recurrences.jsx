@@ -4,6 +4,7 @@ import { advance, FREQUENCIES, isoDate } from '../utils/date'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import { useToast } from './Toast'
+import EmptyState from './EmptyState'
 
 const freqKey = (v) => FREQUENCIES.find(f => f.value === v)?.labelKey || 'freq.monthly'
 
@@ -189,13 +190,12 @@ export default function Recurrences() {
   if (!recurrences.length) {
     return (
       <div className="screen">
-        <div className="empty-state" style={{ padding: 48, textAlign: 'center' }}>
-          <i className="fi fi-rr-refresh" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 14 }} />
-          <h3 style={{ marginBottom: 8 }}>{t('rec.emptyTitle')}</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.55, maxWidth: 420, margin: '0 auto' }}>
-            {t('rec.emptyBody')}
-          </p>
-        </div>
+        <EmptyState
+          variant="screen"
+          icon="fi-rr-refresh"
+          title={t('rec.emptyTitle')}
+          description={t('rec.emptyBody')}
+        />
       </div>
     )
   }

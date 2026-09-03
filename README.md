@@ -99,6 +99,28 @@ fiquem com chave faltando. A tela de login e os toasts ficam fora do
 **CSS.** `App.css` só faz `@import` dos arquivos em `src/styles/`, na ordem
 original — a cascata depende dela, então arquivos novos entram no fim.
 
+**Gráficos.** Vivem em `src/components/charts/`. A matemática (escala, ticks,
+geometria de arco) fica isolada em `geometry.js`, sem React, porque é ali que
+nascem NaN e fatia degenerada — e assim dá para testar sem montar a árvore.
+
+Para conferir o visual sem precisar logar e semear dados, `npm run dev` serve
+**`/preview.html`**: todos os gráficos, skeletons e estados vazios numa página
+só, com os casos-limite que já quebraram algo (mês único, tudo zero, fatia de
+0,03%, valor de sete dígitos). Aceita `?theme=dark` e `?lang=en-US`. É dev-only
+— o build de produção tem uma entrada só, `index.html`.
+
+As cores de dados são tokens em `styles/charts.css` e **não são escolha de
+gosto**: passaram pelo validador de paletas (banda de luminosidade, piso de
+croma, separação para daltonismo, contraste contra a superfície). A paleta
+anterior reprovava — tinha um lima com 1,27:1 de contraste e o par
+verde/vermelho a ΔE 6,1 sob deuteranopia, quase indistinguível justamente nas
+duas cores mais importantes do app. Hoje o par está em ΔE 9,2 (claro) e 9,7
+(escuro). Se for mexer nelas, rode o validador de novo.
+
+Cuidado com uma distinção: as listas `COLORS`/`PRESET_COLORS` nos formulários
+são **seletores** de cor para o usuário decorar uma carteira ou um ativo. Não
+são codificação de dados e não seguem as mesmas regras.
+
 ## Segurança
 
 - Regras do Firestore validam **quem** escreve (`allowedUsers`) e **o quê**:
@@ -178,5 +200,8 @@ npm run audit:legacy -- --fix # corrige o que dá para converter
   push e e-mail funcionam de fato.
 - Os comprovantes só podem ser anexados a uma transação já salva, porque o
   caminho no Storage é derivado do id dela.
+- Os gráficos são SVG próprio, sem biblioteca. Cobrem o que o app precisa
+  (barras agrupadas, linha com área, donut); qualquer forma nova — dispersão,
+  candle, mapa — pede uma biblioteca em vez de crescer isto.
 - A importação de CSV assume dia antes de mês em datas ambíguas (`03/04/2026` é
   3 de abril), que é a convenção local.
