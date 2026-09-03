@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import DeleteWithTransactionsModal from './DeleteWithTransactionsModal'
+import EmptyState from './EmptyState'
 import { useToast } from './Toast'
 import Checkbox from './Checkbox'
 import { isoDate } from '../utils/date'
@@ -17,6 +18,10 @@ const WALLET_TYPES = [
 ]
 const TYPE_KEYS = Object.fromEntries(WALLET_TYPES.map(wt => [wt.value, wt.labelKey]))
 
+// Paleta do SELETOR de cor — o usuário escolhe um acento decorativo para o
+// próprio item. Não é codificação de dados: os gráficos usam os tokens
+// validados em styles/charts.css. Preto, lima e cinza são escolhas legítimas
+// aqui e reprovariam lá; não unifique as duas listas.
 const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#F59E0B', '#3370F5', '#BBBBBB', '#555555', '#EEF3FF', '#B8DC1A', '#141414']
 
 const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON }
@@ -240,10 +245,14 @@ export default function Wallets() {
 
       {/* Wallet Cards */}
       {wallets.length === 0 ? (
-        <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
-          <i className="fi fi-rr-wallet" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{t('wallet.empty')}</p>
-          <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('wallet.createFirst')}</button>
+        <div className="moovia-card">
+          <EmptyState
+            variant="screen"
+            icon="fi-rr-wallet"
+            title={t('empty.noWalletsTitle')}
+            description={t('empty.noWalletsDesc')}
+            action={{ label: t('wallet.createFirst'), icon: 'fi-rr-plus', onClick: () => setAddModal(true) }}
+          />
         </div>
       ) : (
       <div className="wallets-grid">
@@ -318,7 +327,7 @@ export default function Wallets() {
             <button className="card-action" onClick={() => setActiveWallet(null)}>{t('action.close')}</button>
           </div>
           {walletTx.length === 0 ? (
-            <div className="empty-state"><p>{t('wallet.noTx')}</p></div>
+            <EmptyState icon="fi-rr-exchange" title={t('wallet.noTx')} description={t('empty.noWalletTxDesc')} />
           ) : (
             <table className="transactions-table">
               <thead>

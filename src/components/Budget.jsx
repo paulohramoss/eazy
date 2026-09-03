@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
+import EmptyState from './EmptyState'
 
 // ─── Budget Modal ─────────────────────────────────────────────────────────────
 
@@ -128,10 +129,14 @@ export default function Budget() {
 
       {/* Budget cards */}
       {budgets.length === 0 ? (
-        <div className="moovia-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
-          <i className="fi fi-rr-piggy-bank" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
-          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{t('budget.empty')}</p>
-          <button className="btn btn-primary" onClick={() => setAddModal(true)}>{t('budget.createFirst')}</button>
+        <div className="moovia-card">
+          <EmptyState
+            variant="screen"
+            icon="fi-rr-piggy-bank"
+            title={t('budget.empty')}
+            description={t('empty.noBudgetsDesc')}
+            action={{ label: t('budget.createFirst'), icon: 'fi-rr-plus', onClick: () => setAddModal(true) }}
+          />
         </div>
       ) : (
         <div className="moovia-list">

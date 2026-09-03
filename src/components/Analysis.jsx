@@ -1,80 +1,34 @@
-import { useApp } from '../context/AppContext'
-import { CatIcon } from '../context/AppContext'
-
-const fmtK = (n, symbol) => n >= 1000 ? `${symbol}${(n / 1000).toFixed(1)}k` : `${symbol}${n.toFixed(0)}`
-
-// ─── Line Chart ───────────────────────────────────────────────────────────────
-
-function LineChart({ data, color, label }) {
-  const { currencySymbol } = useApp()
-  const W = 500, H = 140
-  const max = Math.max(...data, 1)
-  const min = 0
-  const range = max - min
-
-  const pts = data.map((v, i) => ({
-    x: data.length === 1 ? W / 2 : (i / (data.length - 1)) * W,
-    y: H - 10 - ((v - min) / range) * (H - 30),
-  }))
-
-  const linePath = pts.map((p, i) => {
-    if (i === 0) return `M ${p.x} ${p.y}`
-    const prev = pts[i - 1]
-    const cpx = (prev.x + p.x) / 2
-    return `C ${cpx} ${prev.y} ${cpx} ${p.y} ${p.x} ${p.y}`
-  }).join(' ')
-
-  const fillPath = `M ${pts[0].x} ${H} ` +
-    pts.map((p, i) => {
-      if (i === 0) return `L ${p.x} ${p.y}`
-      const prev = pts[i - 1]
-      const cpx = (prev.x + p.x) / 2
-      return `C ${cpx} ${prev.y} ${cpx} ${p.y} ${p.x} ${p.y}`
-    }).join(' ') +
-    ` L ${pts[pts.length - 1].x} ${H} Z`
-
-  // `label` aqui não é texto de interface: serve só para dar um id único ao
-  // gradiente SVG, por isso não passa pelo tradutor.
-  const gradId = `grad-${label.replace(/\s/g, '')}`
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 140, display: 'block' }} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={fillPath} fill={`url(#${gradId})`} />
-      <path d={linePath} stroke={color} fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="5" fill={color} stroke="var(--bg-card)" strokeWidth="2">
-          <title>{fmtK(data[i], currencySymbol)}</title>
-        </circle>
-      ))}
-    </svg>
-  )
-}
+import { CatIcon, useApp } from '../context/AppContext'
+import TrendChart from './charts/TrendChart'
+import DonutChart from './charts/DonutChart'
+import EmptyState from './EmptyState'
+import { SERIES } from './charts/primitives'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Analysis() {
   const { transactions, monthlyChartData, spendingByCategory, monthlyIncome, monthlySavings, formatCurrency: fmt, t } = useApp()
 
-  const incomeData   = monthlyChartData.map(d => d.income)
-  const expenseData  = monthlyChartData.map(d => d.expenses)
-  const savingsData  = monthlyChartData.map(d => Math.max(d.income - d.expenses, 0))
-  const labels       = monthlyChartData.map(d => d.label)
+  // O TrendChart recebe { label, value } e cuida da escala e dos eixos.
+  const incomeData  = monthlyChartData.map(d => ({ key: d.key, label: d.label, value: d.income }))
+  const expenseData = monthlyChartData.map(d => ({ key: d.key, label: d.label, value: d.expenses }))
+  const savingsData = monthlyChartData.map(d => ({
+    key: d.key, label: d.label, value: Math.max(d.income - d.expenses, 0),
+  }))
 
-  const avgIncome   = incomeData.reduce((s, v) => s + v, 0) / incomeData.length || 0
-  const avgExpenses = expenseData.reduce((s, v) => s + v, 0) / expenseData.length || 0
-  const avgSavings  = savingsData.reduce((s, v) => s + v, 0) / savingsData.length || 0
+  const mean = (arr) => (arr.length ? arr.reduce((sum, d) => sum + d.value, 0) / arr.length : 0)
+
+  // Sem nenhum movimento no período, um gráfico de tendência é uma reta no zero
+  // contra um eixo inventado. O estado vazio diz mais.
+  const hasSeries = (arr) => arr.some(d => d.value > 0)
+  const avgIncome   = mean(incomeData)
+  const avgExpenses = mean(expenseData)
+  const avgSavings  = mean(savingsData)
   const savingsRate = monthlyIncome > 0 ? Math.round((monthlySavings / monthlyIncome) * 100) : 0
 
   const categoryList = Object.entries(spendingByCategory)
     .sort((a, b) => b[1] - a[1])
 
-  const maxCat = categoryList[0]?.[1] || 1
 
   const topCategories = transactions
     .filter(tx => tx.type === 'expense' && tx.status !== 'failed')
@@ -85,8 +39,6 @@ export default function Analysis() {
       acc[key].count += 1
       return acc
     }, {})
-
-  const COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#BBBBBB']
 
   return (
     <div className="screen">
@@ -116,75 +68,79 @@ export default function Analysis() {
         </div>
       </div>
 
-      {/* Line Charts */}
+      {/* Tendências */}
       <div className="charts-row">
         <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">{t('analysis.incomeTrend')}</div>
-              <div className="card-subtitle">{t('analysis.last6Cap')}</div>
-            </div>
-          </div>
-          <LineChart data={incomeData} color="var(--accent-green)" label="receitas" />
-          <div className="chart-labels" style={{ marginTop: 8 }}>
-            {labels.map(l => <span key={l} className="chart-label">{l}</span>)}
-          </div>
+          {hasSeries(incomeData) ? (
+            <TrendChart
+              title={t('analysis.incomeTrend')}
+              subtitle={t('analysis.last6Cap')}
+              data={incomeData}
+              color="var(--chart-income)"
+            />
+          ) : (
+            <EmptyState
+              icon="fi-rr-chart-line-up"
+              title={t('empty.noChartData')}
+              description={t('empty.noChartDataDesc')}
+            />
+          )}
         </div>
 
         <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">{t('analysis.savingsRate')}</div>
-              <div className="card-subtitle">{t('analysis.monthly')}</div>
-            </div>
-          </div>
-          <LineChart data={savingsData} color="var(--accent)" label="poupanca" />
-          <div className="chart-labels" style={{ marginTop: 8 }}>
-            {labels.map(l => <span key={l} className="chart-label">{l}</span>)}
-          </div>
+          {hasSeries(expenseData) ? (
+            <TrendChart
+              title={t('analysis.expenseTrend')}
+              subtitle={t('analysis.last6Cap')}
+              data={expenseData}
+              color="var(--chart-expense)"
+            />
+          ) : (
+            <EmptyState
+              icon="fi-rr-chart-line-up"
+              title={t('empty.noChartData')}
+              description={t('empty.noChartDataDesc')}
+            />
+          )}
         </div>
       </div>
 
-      {/* Expense trend + category breakdown */}
       <div className="charts-row">
         <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">{t('analysis.expenseTrend')}</div>
-              <div className="card-subtitle">{t('analysis.last6Cap')}</div>
-            </div>
-          </div>
-          <LineChart data={expenseData} color="var(--accent-red)" label="despesas" />
-          <div className="chart-labels" style={{ marginTop: 8 }}>
-            {labels.map(l => <span key={l} className="chart-label">{l}</span>)}
-          </div>
+          {hasSeries(savingsData) ? (
+            <TrendChart
+              title={t('analysis.avgSavings')}
+              subtitle={t('analysis.last6Cap')}
+              data={savingsData}
+              color="var(--chart-1)"
+            />
+          ) : (
+            <EmptyState
+              icon="fi-rr-chart-line-up"
+              title={t('empty.noChartData')}
+              description={t('empty.noChartDataDesc')}
+            />
+          )}
         </div>
 
         <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">{t('analysis.byCategory')}</div>
-              <div className="card-subtitle">{t('analysis.thisMonth')}</div>
-            </div>
-          </div>
-          {categoryList.length === 0 ? (
-            <div className="empty-state"><p>{t('analysis.noDataMonth')}</p></div>
+          {/* Mesma pergunta da Visão Geral — "para onde foi o dinheiro do mês" —
+              então mesmo formato: barras de tamanhos parecidos são muito mais
+              difíceis de comparar do que fatias com os valores ao lado. */}
+          {categoryList.length > 0 ? (
+            <DonutChart
+              title={t('analysis.byCategory')}
+              subtitle={t('analysis.thisMonth')}
+              items={categoryList.map(([name, value]) => ({ name, value }))}
+              centerLabel={t('chart.total')}
+              renderIcon={(name) => <CatIcon category={name} />}
+            />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {categoryList.map(([cat, val], i) => (
-                <div key={cat}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 13 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
-                      <CatIcon category={cat} />{cat}
-                    </span>
-                    <span style={{ fontWeight: 600 }}>{fmt(val)}</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${(val / maxCat) * 100}%`, background: COLORS[i % COLORS.length] }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <EmptyState
+              icon="fi-rr-chart-pie"
+              title={t('empty.noExpensesTitle')}
+              description={t('empty.noExpensesDesc')}
+            />
           )}
         </div>
       </div>
@@ -198,7 +154,11 @@ export default function Analysis() {
           </div>
         </div>
         {Object.keys(topCategories).length === 0 ? (
-          <div className="empty-state"><p>{t('analysis.noData')}</p></div>
+          <EmptyState
+            icon="fi-rr-list"
+            title={t('empty.noChartData')}
+            description={t('empty.noChartDataDesc')}
+          />
         ) : (
           <table className="transactions-table">
             <thead>
@@ -219,7 +179,7 @@ export default function Analysis() {
                     <tr key={cat}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: 2, background: COLORS[i % COLORS.length] }} />
+                          <span className="chart-legend-swatch" style={{ background: SERIES[i] || 'var(--chart-other)' }} />
                           <CatIcon category={cat} />
                           <span style={{ fontWeight: 500 }}>{cat}</span>
                         </div>
