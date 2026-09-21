@@ -19,6 +19,8 @@ export const pt = {
   'nav.profile': 'Meu Perfil',
   'nav.settings': 'Configurações',
   'nav.more': 'Mais',
+  'nav.pin': 'Fixar menu',
+  'nav.unpin': 'Desafixar menu',
 
   // Títulos de tela
   'screen.overview.title': 'Visão Geral',
