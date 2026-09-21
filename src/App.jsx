@@ -82,6 +82,14 @@ const SCREEN_KEYS = [
 
 const SCREEN_TITLES = Object.fromEntries(SCREEN_KEYS.map(k => [k, true]))
 
+// Telas onde o botão flutuante de "nova transação" faz sentido: as que
+// mostram ou derivam de transações. Em perfil, configurações, alertas,
+// objetivos e investimentos ele era só ruído.
+const FAB_SCREENS = new Set([
+  'overview', 'transactions', 'wallets', 'creditcards',
+  'budget', 'calendar', 'recurrences', 'analysis',
+])
+
 // Telas navegáveis pela busca, derivadas da própria NAV para não haver duas
 // listas para manter em sincronia.
 const FLAT_SCREENS = NAV.flatMap(item =>
@@ -126,7 +134,7 @@ function NavAccordion({ item, screen, setScreen, badges = {}, t }) {
         aria-expanded={open}
       >
         <i className={`fi ${item.icon} nav-icon`} aria-hidden="true" />
-        <span>{t(item.sectionKey)}</span>
+        <span className="nav-label">{t(item.sectionKey)}</span>
         <i className={`fi fi-rr-angle-small-down nav-accordion-arrow${open ? ' open' : ''}`} aria-hidden="true" />
       </button>
       {open && (
@@ -140,7 +148,7 @@ function NavAccordion({ item, screen, setScreen, badges = {}, t }) {
               aria-current={screen === child.screen ? 'page' : undefined}
             >
               <i className={`fi ${child.icon} nav-icon`} aria-hidden="true" />
-              {t(child.labelKey)}
+              <span className="nav-label">{t(child.labelKey)}</span>
               {badges[child.screen] > 0 && (
                 <span className="nav-badge" style={{ background: 'var(--accent-red)' }}>{badges[child.screen]}</span>
               )}
@@ -280,6 +288,11 @@ function Dashboard() {
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // Menu retrátil: por padrão fica como trilho de ícones e só abre no hover.
+  // Fixado, volta a empurrar o conteúdo como antes.
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    try { return localStorage.getItem('eazy_sidebar_pinned') === '1' } catch { return false }
+  })
   const {
     settings, resolvedTheme, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, walletCreated,
     creditCards, categories, addTransaction, addMultipleTransactions, createRecurringSeries,
@@ -295,6 +308,10 @@ function Dashboard() {
   useEffect(() => {
     try { localStorage.setItem('eazy_screen', screen) } catch { /* modo privado */ }
   }, [screen])
+
+  useEffect(() => {
+    try { localStorage.setItem('eazy_sidebar_pinned', sidebarPinned ? '1' : '0') } catch { /* modo privado */ }
+  }, [sidebarPinned])
 
   // Ctrl/⌘+K abre a busca. O preventDefault evita o "buscar no site" do Firefox.
   useEffect(() => {
@@ -343,7 +360,7 @@ function Dashboard() {
   if (!dbLoading && wallets.length === 0 && !walletCreated) return <Onboarding />
 
   return (
-    <div className="dashboard">
+    <div className={`dashboard${sidebarPinned ? '' : ' dashboard--rail'}`}>
       <a className="skip-link" href="#conteudo">{t('a11y.skipToContent')}</a>
 
       {/* Sidebar */}
@@ -352,6 +369,16 @@ function Dashboard() {
           <div className="sidebar-logo-wrap">
             <img src={logoImg} alt="Eazy" />
           </div>
+          <button
+            type="button"
+            className={`sidebar-pin${sidebarPinned ? ' active' : ''}`}
+            onClick={() => setSidebarPinned(p => !p)}
+            aria-pressed={sidebarPinned}
+            title={sidebarPinned ? t('nav.unpin') : t('nav.pin')}
+            aria-label={sidebarPinned ? t('nav.unpin') : t('nav.pin')}
+          >
+            <i className="fi fi-rr-thumbtack" aria-hidden="true" />
+          </button>
         </div>
 
         <nav className="sidebar-nav" aria-label={t('a11y.mainNav')}>
@@ -368,7 +395,7 @@ function Dashboard() {
                 aria-current={screen === item.screen ? 'page' : undefined}
               >
                 <i className={`fi ${item.icon} nav-icon`} aria-hidden="true" />
-                {t(item.labelKey)}
+                <span className="nav-label">{t(item.labelKey)}</span>
                 {item.screen === 'transactions' && pendingCount > 0 && (
                   <span className="nav-badge">{pendingCount}</span>
                 )}
@@ -386,7 +413,7 @@ function Dashboard() {
             aria-haspopup="dialog"
           >
             <i className="fi fi-rr-menu-burger nav-icon" aria-hidden="true" />
-            {t('nav.more')}
+            <span className="nav-label">{t('nav.more')}</span>
           </button>
         </nav>
 
@@ -516,9 +543,16 @@ function Dashboard() {
         </div>
       </main>
 
-      <button className="fab" title={t('action.newTransaction')} onClick={() => setQuickAddOpen(true)}>
-        <i className="fi fi-rr-plus" />
-      </button>
+      {FAB_SCREENS.has(active) && (
+        <button
+          className="fab"
+          title={t('action.newTransaction')}
+          aria-label={t('action.newTransaction')}
+          onClick={() => setQuickAddOpen(true)}
+        >
+          <i className="fi fi-rr-plus" aria-hidden="true" />
+        </button>
+      )}
 
       <CommandPalette
         open={paletteOpen}

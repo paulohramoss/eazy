@@ -24,11 +24,50 @@
 }
 
 .sidebar-logo {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Alfinete que fixa a sidebar aberta. Vive na faixa do logo e some junto
+   com os rótulos quando o menu está recolhido. */
+.sidebar-pin {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), opacity 0.15s ease;
+}
+
+.sidebar-pin:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-pin .fi {
+  display: block;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.sidebar-pin.active {
+  color: var(--accent);
+}
+
+.sidebar-pin.active .fi {
+  transform: rotate(0deg);
 }
 
 .sidebar-logo-wrap {
@@ -391,3 +430,103 @@
 .content::-webkit-scrollbar { width: 4px; }
 .content::-webkit-scrollbar-track { background: transparent; }
 .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ─── Menu retrátil (desktop) ────────────────────────────────
+   Sem o alfinete a sidebar fica como um trilho de ícones e só se abre
+   enquanto o mouse está em cima (ou o foco dentro dela, pro teclado).
+   Ela é `position: fixed`, então ao abrir passa por cima do conteúdo em
+   vez de empurrá-lo — o texto do main não reflui a cada passada do mouse. */
+@media (min-width: 769px) {
+  .sidebar {
+    overflow: hidden;
+    transition: width 0.22s ease, box-shadow 0.22s ease;
+  }
+
+  .sidebar-nav {
+    overflow-x: hidden;
+  }
+
+  .nav-item {
+    position: relative;
+    white-space: nowrap;
+  }
+
+  .nav-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.15s ease;
+  }
+
+  .dashboard--rail .sidebar {
+    width: var(--sidebar-rail);
+  }
+
+  .dashboard--rail .main {
+    margin-left: var(--sidebar-rail);
+  }
+
+  .dashboard--rail .sidebar:hover,
+  .dashboard--rail .sidebar:focus-within {
+    width: var(--sidebar-width);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+  }
+
+  /* ── Estado recolhido ──
+     display:none, não opacity: invisível o rótulo ainda ocuparia o gap e a
+     seta o margin-left:auto, e o ícone sairia do centro. */
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .nav-label,
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .nav-accordion-arrow,
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .sidebar-pin {
+    display: none;
+  }
+
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .nav-item {
+    justify-content: center;
+    gap: 0;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  /* Aberto o accordion mostraria filhos sem rótulo, uma coluna de ícones
+     soltos que não dá para distinguir. */
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .nav-accordion-children {
+    display: none;
+  }
+
+  /* O número não cabe em 76px: vira um ponto em cima do ícone, como no mobile. */
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .nav-badge {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(7px);
+    margin: 0;
+    padding: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    font-size: 0;
+    color: transparent;
+    overflow: hidden;
+  }
+
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .sidebar-logo {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .sidebar-logo-wrap {
+    padding: 4px 6px;
+  }
+
+  .dashboard--rail .sidebar:not(:hover):not(:focus-within) .sidebar-logo-wrap img {
+    height: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav-label,
+  .sidebar-pin .fi {
+    transition: none;
+  }
+}
