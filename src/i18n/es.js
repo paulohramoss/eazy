@@ -16,6 +16,8 @@ export const es = {
   'nav.profile': 'Mi Perfil',
   'nav.settings': 'Configuración',
   'nav.more': 'Más',
+  'nav.pin': 'Fijar menú',
+  'nav.unpin': 'Desfijar menú',
 
   'screen.overview.title': 'Resumen',
   'screen.overview.sub': 'Resumen financiero completo',

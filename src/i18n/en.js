@@ -16,6 +16,8 @@ export const en = {
   'nav.profile': 'My Profile',
   'nav.settings': 'Settings',
   'nav.more': 'More',
+  'nav.pin': 'Pin sidebar',
+  'nav.unpin': 'Unpin sidebar',
 
   'screen.overview.title': 'Overview',
   'screen.overview.sub': 'Complete financial summary',
