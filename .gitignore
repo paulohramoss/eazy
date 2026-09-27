@@ -23,7 +23,18 @@ dist-ssr
 *.sln
 *.sw?
 
-# Env local — nunca commitar
-.env
-.env.local
-.env.*.local
+# Env local — nunca commitar.
+# O glob `.env*` com exceção explícita do exemplo cobre também .env.production
+# e .env.development, que as três linhas anteriores deixavam passar.
+.env*
+!.env.example
+
+# Credenciais e cache de ferramentas
+*.pem
+*.key
+*.p12
+service-account*.json
+serviceAccount*.json
+firebase-adminsdk*.json
+.firebase/
+.vercel/

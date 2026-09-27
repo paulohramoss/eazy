@@ -61,6 +61,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # O scan abaixo olha o conteúdo dos arquivos; este olha os nomes. Um
+      # `.env` rastreado passaria batido lá, porque a chave estaria numa linha
+      # `CHAVE=valor` que não casa com nenhum dos padrões de código.
+      - name: Procurar arquivos de credencial rastreados
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$|\.p12$|service-?account.*\.json$|firebase-adminsdk.*\.json$' | grep -v '\.env\.example$'; then
+            echo "::error::Arquivo de credencial rastreado pelo git. Remova com 'git rm --cached' e confirme o .gitignore."
+            exit 1
+          fi
+          echo "Nenhum arquivo de credencial rastreado."
+
       - name: Procurar segredos no código
         run: |
           set -euo pipefail
