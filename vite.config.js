@@ -27,6 +27,38 @@ export default defineConfig(({ mode }) => {
             { src: 'logo.png', sizes: '192x192', type: 'image/png' },
             { src: 'logo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           ],
+
+          // Segurar o ícone no launcher cai direto na ação, sem abrir o app e
+          // navegar. As rotas já existem — é o roteador por hash de sempre.
+          shortcuts: [
+            {
+              name: 'Nova despesa',
+              short_name: 'Despesa',
+              url: '/#/overview?quick=1',
+              icons: [{ src: 'logo.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Transações',
+              short_name: 'Transações',
+              url: '/#/transactions',
+              icons: [{ src: 'logo.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Visão geral',
+              short_name: 'Saldo',
+              url: '/#/overview',
+              icons: [{ src: 'logo.png', sizes: '192x192', type: 'image/png' }],
+            },
+          ],
+
+          // Compartilhar do app do banco cai no lançamento rápido com o texto
+          // já na linha. GET e não POST de propósito: receber arquivo exige
+          // service worker próprio (injectManifest) — ver README.
+          share_target: {
+            action: '/',
+            method: 'GET',
+            params: { title: 'title', text: 'text', url: 'url' },
+          },
         },
       }),
     ],

@@ -5,6 +5,8 @@ import { splitInstallments } from '../utils/installments'
 import { normalizeDate, parseAmount, parseCSV } from '../utils/csv'
 import { cacheLanguage, createFormatters, createTranslator } from '../i18n'
 import { walletStats } from '../utils/balances'
+import { buildInsights, categoryAverages, daysLeftInMonth } from '../utils/insights'
+import { receivables, settleParticipant } from '../utils/split'
 import { db } from '../firebase'
 import {
   collection, query, where, onSnapshot,
@@ -12,35 +14,11 @@ import {
 } from 'firebase/firestore'
 import { notify } from '../notifications'
 import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
+import { CATEGORIES, CATEGORY_ICONS, GOAL_CATEGORY } from '../utils/categories'
+
+export { CATEGORIES, CATEGORY_ICONS, GOAL_CATEGORY }
 
 // ─── Static config ────────────────────────────────────────────────────────────
-
-// Categoria usada pelos aportes em objetivos. Quem já tem categorias salvas no
-// Firestore não recebe a lista nova, então contributeGoal garante a inclusão.
-export const GOAL_CATEGORY = 'Objetivos'
-
-export const CATEGORIES = [
-  'Salário', 'Freelance', 'Investimentos', 'Outros Rendimentos',
-  'Alimentação', 'Moradia', 'Transporte', 'Saúde', 'Lazer',
-  'Educação', 'Vestuário', 'Tecnologia', GOAL_CATEGORY, 'Outros',
-]
-
-export const CATEGORY_ICONS = {
-  'Salário':           'fi-rr-briefcase',
-  'Freelance':         'fi-rr-laptop',
-  'Investimentos':     'fi-rr-chart-line-up',
-  'Outros Rendimentos':'fi-rr-coins',
-  'Alimentação':       'fi-rr-fork',
-  'Moradia':           'fi-rr-home',
-  'Transporte':        'fi-rr-car',
-  'Saúde':             'fi-rr-heart-rate',
-  'Lazer':             'fi-rr-gamepad',
-  'Educação':          'fi-rr-book',
-  'Vestuário':         'fi-rr-shopping-bag',
-  'Tecnologia':        'fi-rr-mobile',
-  'Objetivos':         'fi-rr-bullseye',
-  'Outros':            'fi-rr-box',
-}
 
 export function CatIcon({ category, style }) {
   const cls = CATEGORY_ICONS[category] || 'fi-rr-box'
@@ -390,6 +368,24 @@ export function AppProvider({ children }) {
 
   // ── Notification helpers ───────────────────────────────────────────────────
 
+  // O que os amigos ainda devem. Deriva do que já está em memória.
+  const pendingReceivables = useMemo(() => receivables(validTx), [validTx])
+
+  // Insights: os mesmos números do mês, ditos em uma frase. A conta é pura e
+  // testada em utils/insights.js — aqui só se assina o resultado.
+  const daysLeft = useMemo(() => daysLeftInMonth(today), [today])
+
+  const categoryAvgs = useMemo(
+    () => categoryAverages(validTx, { today }),
+    [validTx, today])
+
+  const insights = useMemo(
+    () => buildInsights({
+      monthlyIncome, monthlyExpenses, spendingByCategory,
+      averages: categoryAvgs, today,
+    }),
+    [monthlyIncome, monthlyExpenses, spendingByCategory, categoryAvgs, today])
+
   const checkBudgetNotify = useCallback((category, addedAmount, status) => {
     if (status === 'failed') return
     const budget = budgets.find(b => b.category === category)
@@ -483,6 +479,38 @@ export function AppProvider({ children }) {
 
   const updateTransaction = useCallback((id, data) =>
     updateDoc(doc(db, COL.transactions, id), data), [])
+
+  /**
+   * Alguém pagou a parte dele de volta.
+   *
+   * Dois efeitos, e os dois importam: nasce uma receita de verdade (o dinheiro
+   * voltou ao bolso, e o saldo precisa saber) e o participante sai da lista de
+   * quem deve. Num batch só, porque metade disso é pior que nada — uma receita
+   * sem baixa faria o recebível ser cobrado duas vezes.
+   */
+  const settleSplit = useCallback(async (transactionId, transaction, participant) => {
+    const batch = writeBatch(db)
+
+    batch.set(doc(collection(db, COL.transactions)), base({
+      type: 'income',
+      name: `${participant.name} · ${transaction.name}`,
+      category: 'Outros Rendimentos',
+      amount: Number(participant.amount) || 0,
+      date: isoDate(),
+      status: 'completed',
+      walletId: transaction.walletId || '',
+      cardId: '',
+      notes: '',
+      tags: [],
+      split: null,
+    }))
+
+    batch.update(doc(db, COL.transactions, transactionId), {
+      split: settleParticipant(transaction.split, participant.name),
+    })
+
+    await batch.commit()
+  }, [base])
 
   const deleteTransaction = useCallback((id) =>
     deleteDoc(doc(db, COL.transactions, id)), [])
@@ -981,9 +1009,10 @@ export function AppProvider({ children }) {
     totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
+    insights, daysLeft, pendingReceivables,
     pctChange, getCardCurrentUsed, formatCurrency, currencySymbol,
     formatNumber, formatDate, formatLongDate, t, locale: i18n.locale,
-    addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
+    addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
     addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution,
@@ -1000,9 +1029,10 @@ export function AppProvider({ children }) {
     totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
+    insights, daysLeft, pendingReceivables,
     getCardCurrentUsed, formatCurrency, currencySymbol,
     formatNumber, formatDate, formatLongDate, t, i18n,
-    addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions,
+    addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
     addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution,

@@ -5,6 +5,8 @@ import Calculator from './components/Calculator'
 import CurrencyConverter from './components/CurrencyConverter'
 import Onboarding from './components/Onboarding'
 import TransactionModal from './components/TransactionModal'
+import QuickAdd from './components/QuickAdd'
+import StreakBadge from './components/StreakBadge'
 import './App.css'
 import { useAuth } from './context/AuthContext'
 import { AppProvider, useApp } from './context/AppContext'
@@ -13,7 +15,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import VerifyEmailBanner from './components/VerifyEmailBanner'
 import CommandPalette from './components/CommandPalette'
 import ScreenSkeleton from './components/Skeleton'
-import { navigate as routerNavigate, routeFromHash, useHashRoute } from './utils/router'
+import { consumeLaunchParams, navigate as routerNavigate, routeFromHash, useHashRoute } from './utils/router'
 import { createTranslator, detectLanguage } from './i18n'
 
 const Overview          = lazy(() => import('./components/Overview'))
@@ -278,6 +280,12 @@ const initialScreen = (() => {
   return 'overview'
 })()
 
+// Atalho do launcher (`?quick=1`) e compartilhamento do sistema (`?text=...`).
+// Lido uma vez aqui, junto de initialScreen e pelo mesmo motivo: é estado
+// inicial vindo da URL, não efeito — e consumeLaunchParams já limpa a URL, de
+// modo que um F5 não reabre nada.
+const initialLaunch = consumeLaunchParams()
+
 function Dashboard() {
   // A URL é a fonte da verdade da tela. localStorage sobrou só como "última
   // tela visitada", usada quando se abre o app sem hash nenhum.
@@ -285,7 +293,11 @@ function Dashboard() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
   const [converterOpen, setConverterOpen] = useState(false)
-  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(initialLaunch.quick)
+  // O rascunho que o "mais opções" carrega do lançamento rápido para o modal
+  // completo — sem isso a pessoa redigitaria tudo ao precisar parcelar.
+  const [quickAddText, setQuickAddText] = useState(initialLaunch.sharedText)
+  const [fullAddDraft, setFullAddDraft] = useState(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   // Menu retrátil: por padrão fica como trilho de ícones e só abre no hover.
@@ -312,6 +324,7 @@ function Dashboard() {
   useEffect(() => {
     try { localStorage.setItem('eazy_sidebar_pinned', sidebarPinned ? '1' : '0') } catch { /* modo privado */ }
   }, [sidebarPinned])
+
 
   // Ctrl/⌘+K abre a busca. O preventDefault evita o "buscar no site" do Firefox.
   useEffect(() => {
@@ -440,6 +453,7 @@ function Dashboard() {
             </p>
           </div>
           <div className="header-right">
+            <StreakBadge />
             <button
               className="header-search"
               onClick={() => setPaletteOpen(true)}
@@ -561,15 +575,29 @@ function Dashboard() {
         screens={paletteScreens}
       />
 
+      {/* O caminho curto. Só vira o modal completo quando a pessoa pede. */}
       {quickAddOpen && (
+        <QuickAdd
+          initialText={quickAddText}
+          onClose={() => { setQuickAddOpen(false); setQuickAddText('') }}
+          onExpand={(draft) => {
+            setQuickAddOpen(false)
+            setQuickAddText('')
+            setFullAddDraft(draft)
+          }}
+        />
+      )}
+
+      {fullAddDraft && (
         <TransactionModal
+          draft={fullAddDraft}
           wallets={wallets} creditCards={creditCards} categories={categories}
           onSave={(data, mode, count, frequency) => {
             if (mode === 'unique') addTransaction(data)
             else if (mode === 'recurring') createRecurringSeries(data, frequency, count)
             else addMultipleTransactions(data, mode, count)
           }}
-          onClose={() => setQuickAddOpen(false)}
+          onClose={() => setFullAddDraft(null)}
         />
       )}
     </div>

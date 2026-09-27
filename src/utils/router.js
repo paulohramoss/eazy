@@ -20,6 +20,38 @@ export function navigate(screen, { replace = false } = {}) {
   else window.location.hash = target
 }
 
+/**
+ * Lê — e apaga da URL — os parâmetros de entrada do app: o atalho do launcher
+ * (`#/overview?quick=1`) e o compartilhamento do sistema (`/?text=...`, que o
+ * share_target do manifest entrega por GET).
+ *
+ * Apaga porque senão um F5 reabriria o lançamento rápido para sempre, e o
+ * texto compartilhado grudaria na barra de endereço.
+ *
+ * @returns {{quick: boolean, sharedText: string}}
+ */
+export function consumeLaunchParams() {
+  let quick = false
+  let sharedText = ''
+
+  const search = new URLSearchParams(window.location.search)
+  // O Android manda o link em `url` e o texto em `text`; o iOS costuma mandar
+  // tudo em `text`. Juntar os dois cobre os dois casos sem ramificar por SO.
+  const shared = [search.get('title'), search.get('text'), search.get('url')]
+    .filter(Boolean).join(' ').trim()
+  if (shared) sharedText = shared
+
+  const hashQuery = window.location.hash.split('?')[1]
+  if (hashQuery && new URLSearchParams(hashQuery).get('quick') === '1') quick = true
+
+  if (shared || quick) {
+    const screen = routeFromHash()
+    window.history.replaceState(null, '', `${window.location.pathname}#/${screen}`)
+  }
+
+  return { quick: quick || !!sharedText, sharedText }
+}
+
 // isValid mantém uma rota desconhecida (link velho, typo) caindo no fallback em
 // vez de renderizar uma tela vazia.
 export function useHashRoute(fallback = 'overview', isValid = () => true) {

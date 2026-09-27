@@ -8,7 +8,7 @@ import EmptyState from './EmptyState'
 // ─── Can I Spend Widget ───────────────────────────────────────────────────────
 
 function CanISpend({ remaining }) {
-  const { formatCurrency: fmt, currencySymbol, t } = useApp()
+  const { formatCurrency: fmt, currencySymbol, t, daysLeft } = useApp()
   const [amount, setAmount] = useState(0)
   const hasValue        = amount > 0
   const afterSpend      = remaining - amount
@@ -33,6 +33,20 @@ function CanISpend({ remaining }) {
           <span className="can-spend-balance-label">{t('overview.canSpend.available')}</span>
           <span className="can-spend-balance-value">{fmt(Math.max(remaining, 0))}</span>
         </div>
+
+        {/* Quanto isso dá por dia até o mês virar. "R$ 16 por dia" é acionável
+            de um jeito que "R$ 180 disponíveis" não é. */}
+        {remaining > 0 && (
+          <div className="can-spend-perday">
+            <i className="fi fi-rr-calendar" aria-hidden="true" />
+            <span>
+              {t('overview.canSpend.perDay', {
+                perDay: fmt(remaining / daysLeft),
+                days: daysLeft,
+              })}
+            </span>
+          </div>
+        )}
 
         {/* Input */}
         <div className="can-spend-input-wrap">
@@ -93,13 +107,29 @@ function CanISpend({ remaining }) {
   )
 }
 
+// ─── Insights ─────────────────────────────────────────────────────────────────
+
+const INSIGHT_ICONS = {
+  good: 'fi-rr-check-circle',
+  warn: 'fi-rr-triangle-warning',
+  bad:  'fi-rr-exclamation',
+}
+
+// buildInsights devolve números crus para continuar testável sem formatador.
+// A moeda entra aqui, onde o locale do usuário já está resolvido.
+const MONEY_PARAMS = new Set(['amount', 'perDay'])
+
+const formatParams = (params, fmt) => Object.fromEntries(
+  Object.entries(params).map(([k, v]) => [k, MONEY_PARAMS.has(k) ? fmt(v) : v])
+)
+
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
-export default function Overview() {
+export default function Overview({ onNavigate }) {
   const {
     totalBalance, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, spendingByCategory, monthlyChartData, pctChange,
-    formatCurrency: fmt, t,
+    formatCurrency: fmt, t, insights, transactions, dbLoading, pendingReceivables,
   } = useApp()
 
   const remaining = monthlyIncome - monthlyExpenses
@@ -129,8 +159,56 @@ export default function Overview() {
     .map(([name, value]) => ({ name, value }))
     .filter(d => d.value > 0)
 
+  // Antes de existir a primeira transação, a tela mostrava três vazios ao mesmo
+  // tempo ("sem dados", "nenhuma despesa", "disponível R$ 0,00") — quem acabou
+  // de instalar via um app quebrado, não um app novo. Um convite só, no lugar
+  // dos três.
+  if (!dbLoading && transactions.length === 0) {
+    return (
+      <div className="screen">
+        <div className="card overview-first-run">
+          <div className="overview-first-run-icon">
+            <i className="fi fi-rr-plus" aria-hidden="true" />
+          </div>
+          <h2 className="overview-first-run-title">{t('overview.firstRun.title')}</h2>
+          <p className="overview-first-run-text">{t('overview.firstRun.text')}</p>
+          <button
+            type="button"
+            className="btn btn-primary overview-first-run-cta"
+            onClick={() => onNavigate?.('transactions')}
+          >
+            <i className="fi fi-rr-plus" aria-hidden="true" />
+            {t('overview.firstRun.cta')}
+          </button>
+          <p className="overview-first-run-hint">{t('overview.firstRun.hint')}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="screen">
+      {/* A resposta em uma frase, antes dos números que exigem interpretação */}
+      {(insights.length > 0 || pendingReceivables.total > 0) && (
+        <div className="insight-strip">
+          {pendingReceivables.total > 0 && (
+            <div className="insight insight--good">
+              <i className="fi fi-rr-hand-holding-usd" aria-hidden="true" />
+              <span>{t('insight.receivable', {
+                amount: fmt(pendingReceivables.total),
+                count: pendingReceivables.people.length,
+              })}</span>
+            </div>
+          )}
+          {insights.map(({ key, params, tone }) => (
+            <div key={key} className={`insight insight--${tone}`}>
+              <i className={`fi ${INSIGHT_ICONS[tone]}`} aria-hidden="true" />
+              <span>{t(key, formatParams(params, fmt))}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Metrics */}
       <div className="metrics-grid">
         {metrics.map((m, i) => (

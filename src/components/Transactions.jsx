@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { CatIcon } from '../context/AppContext'
+import { norm } from '../utils/text'
 import Modal from './Modal'
 import Checkbox from './Checkbox'
 import TransactionModal from './TransactionModal'
@@ -38,12 +39,13 @@ function ConfirmModal({ name, count, onConfirm, onClose }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, categories, formatCurrency: fmt, formatDate, t } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit, categories, formatCurrency: fmt, formatDate, t } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')
   const [filterCat, setCat] = useState('all')
   const [filterStatus, setStatus] = useState('all')
+  const [filterTag, setTag] = useState('')
   
   const [filterStart, setFilterStart] = useState(() => {
     const d = new Date()
@@ -82,9 +84,18 @@ export default function Transactions() {
     
     if (filterStart && tx.date && tx.date < filterStart) return false
     if (filterEnd && tx.date && tx.date > filterEnd) return false
+    if (filterTag && !(tx.tags || []).includes(filterTag)) return false
 
-    if (search && !tx.name.toLowerCase().includes(search.toLowerCase()) &&
-      !tx.category.toLowerCase().includes(search.toLowerCase())) return false
+    // A busca inclui as tags: elas eram cadastradas e exibidas, mas não
+    // achavam nada — o "#viagem" que a pessoa digitou não servia para ler.
+    if (search) {
+      const term = norm(search).trim().replace(/^#/, '')
+      const hit = norm(tx.name).includes(term)
+        || norm(tx.category).includes(term)
+        || norm(tx.notes).includes(term)
+        || (tx.tags || []).some(tag => norm(tag).includes(term))
+      if (!hit) return false
+    }
     return true
   }).sort((a, b) => {
     if (sortConfig.key === 'date') {
@@ -112,6 +123,19 @@ export default function Transactions() {
   const viewNet = viewIncome - viewExpenses
 
   const usedCategories = [...new Set(transactions.map(tx => tx.category))].sort()
+
+  // As tags realmente usadas, das mais frequentes para as menos. Categorias são
+  // uma lista fixa de 14; tags são o corte que a pessoa inventa — #rolê,
+  // #viagem-floripa — e sem esta faixa não havia como voltar nelas.
+  const usedTags = (() => {
+    const counts = new Map()
+    for (const tx of transactions) {
+      for (const tag of tx.tags || []) counts.set(tag, (counts.get(tag) || 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([tag, count]) => ({ tag, count }))
+  })()
 
   const filteredIds = filtered.map(tx => tx.id)
   const allSelected = filteredIds.length > 0 && filteredIds.every(id => selected.has(id))
@@ -217,9 +241,36 @@ export default function Transactions() {
           <option value="pending">{t('tx.pending')}</option>
         </select>
         <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setAddModal(true)}>
-          <i className="fi fi-rr-plus" /> Nova Transação
+          <i className="fi fi-rr-plus" /> {t('txModal.newTitle')}
         </button>
       </div>
+
+      {/* Tags em uso: um toque responde "quanto gastei em #viagem-floripa" */}
+      {usedTags.length > 0 && (
+        <div className="tag-filter-bar">
+          <span className="tag-filter-label">{t('txModal.tags')}</span>
+          <div className="tag-filter-chips">
+            {usedTags.map(({ tag, count }) => (
+              <button
+                key={tag}
+                type="button"
+                className={`tag-filter-chip${filterTag === tag ? ' active' : ''}`}
+                onClick={() => setTag(filterTag === tag ? '' : tag)}
+                aria-pressed={filterTag === tag}
+              >
+                #{tag}
+                <span className="tag-filter-count">{count}</span>
+              </button>
+            ))}
+          </div>
+          {filterTag && (
+            <button type="button" className="tag-filter-clear" onClick={() => setTag('')}>
+              <i className="fi fi-rr-cross-small" aria-hidden="true" />
+              {t('tx.clearTag')}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -391,6 +442,12 @@ export default function Transactions() {
         <TransactionModal
           initial={editItem} wallets={wallets} creditCards={creditCards} categories={categories}
           onSave={(data) => updateTransaction(editItem.id, data)}
+          // Só em transação já salva: o acerto grava uma receita apontando
+          // para ela, e sem id não há para onde apontar.
+          onSettle={(form, participant) => {
+            settleSplit(editItem.id, { ...editItem, ...form }, participant)
+            setEditItem(null)
+          }}
           onClose={() => setEditItem(null)}
         />
       )}

@@ -2,17 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CatIcon, useApp } from '../context/AppContext'
 import { resolveWalletIcon } from '../utils/walletIcons'
+import { norm } from '../utils/text'
 
 // Busca global (Ctrl/⌘+K).
 //
 // Até aqui, achar uma transação exigia abrir a tela certa e montar filtros —
 // e não havia busca nenhuma sobre carteiras, cartões, objetivos ou
 // recorrências. A paleta procura em tudo de uma vez e também navega.
-
-// Normaliza para busca: sem acento e sem caixa, para "alimentacao" achar
-// "Alimentação".
-const norm = (s) => String(s ?? '')
-  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 const MAX_PER_GROUP = 5
 
@@ -53,14 +49,25 @@ export default function CommandPalette({ open, onClose, onNavigate, screens }) {
 
     if (!term) return groups
 
+    // O "#" é opcional: quem digita "#role" e quem digita "role" procuram a
+    // mesma coisa.
+    const bare = term.replace(/^#/, '')
+
     const txItems = transactions
-      .filter(x => norm(x.name).includes(term) || norm(x.category).includes(term) || norm(x.notes).includes(term))
+      .filter(x => norm(x.name).includes(bare)
+        || norm(x.category).includes(bare)
+        || norm(x.notes).includes(bare)
+        || (x.tags || []).some(tag => norm(tag).includes(bare)))
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
       .slice(0, MAX_PER_GROUP)
       .map(x => ({
         kind: 'transaction', id: `tx:${x.id}`, category: x.category,
         title: x.name,
-        subtitle: `${formatDate(x.date)} · ${x.category}`,
+        subtitle: [
+          formatDate(x.date),
+          x.category,
+          ...(x.tags || []).filter(tag => norm(tag).includes(bare)).map(tag => `#${tag}`),
+        ].join(' · '),
         amount: x.amount, type: x.type,
         action: () => onNavigate('transactions'),
       }))

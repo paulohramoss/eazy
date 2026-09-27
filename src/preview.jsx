@@ -22,6 +22,12 @@ import TrendChart from './components/charts/TrendChart'
 import DonutChart from './components/charts/DonutChart'
 import EmptyState from './components/EmptyState'
 import ScreenSkeleton from './components/Skeleton'
+import QuickAdd from './components/QuickAdd'
+import SplitEditor from './components/SplitEditor'
+import StreakBadge from './components/StreakBadge'
+import { ToastProvider } from './components/Toast'
+import { CATEGORIES } from './utils/categories'
+import { buildEqualSplit } from './utils/split'
 
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun']
 
@@ -54,9 +60,37 @@ const bigNumbers = [
   { name: 'Reserva', value: 98765.43 },
 ]
 
+// Histórico fake com hábito embutido (Ifood 3×, Uber 2×) e dias seguidos, para
+// os chips de "De novo" e o streak terem o que mostrar.
+const today = new Date()
+const daysAgo = (n) => {
+  const d = new Date(today)
+  d.setDate(d.getDate() - n)
+  return d.toISOString().split('T')[0]
+}
+
+const fakeTransactions = [
+  { id: '1', name: 'Ifood',  amount: 32, category: 'Alimentação', type: 'expense', date: daysAgo(0), status: 'completed', tags: ['role'] },
+  { id: '2', name: 'Uber',   amount: 14, category: 'Transporte',  type: 'expense', date: daysAgo(1), status: 'completed', tags: [] },
+  { id: '3', name: 'Ifood',  amount: 28, category: 'Alimentação', type: 'expense', date: daysAgo(2), status: 'completed', tags: [] },
+  { id: '4', name: 'Uber',   amount: 12, category: 'Transporte',  type: 'expense', date: daysAgo(3), status: 'completed', tags: [] },
+  { id: '5', name: 'Ifood',  amount: 35, category: 'Alimentação', type: 'expense', date: daysAgo(4), status: 'completed', tags: ['viagem-floripa'] },
+]
+
 function makeCtx(language = 'pt-BR') {
   const fmt = createFormatters(language, 'BRL')
-  return { ...fmt, t: createTranslator(language), settings: { language, currency: 'BRL' } }
+  return {
+    ...fmt,
+    t: createTranslator(language),
+    settings: { language, currency: 'BRL' },
+    // Campos que as peças novas leem. Valores fixos: aqui se confere o visual,
+    // não a conta — a conta tem teste próprio em utils/.
+    transactions: fakeTransactions,
+    categories: CATEGORIES,
+    wallets: [{ id: 'w1', name: 'Nubank' }],
+    daysLeft: 11,
+    addTransaction: async () => {},
+  }
 }
 
 function Section({ title, children, cols = 2 }) {
@@ -152,6 +186,98 @@ function Gallery() {
       <Section title="Skeleton — Transações" cols={1}>
         <ScreenSkeleton screen="transactions" label="Carregando" />
       </Section>
+
+      {/* As peças do lançamento rápido, dos insights e da divisão de conta.
+          Estreite a janela (ou abra no celular) para conferir o mobile: é a
+          única forma de julgar alvo de toque e quebra de linha. */}
+      <Section title="Insights — faixa do topo" cols={1}>
+        <div className="insight-strip">
+          <div className="insight insight--good">
+            <i className="fi fi-rr-check-circle" />
+            <span>Sobram R$ 180,00 para os 11 dias que faltam — R$ 16,36 por dia.</span>
+          </div>
+          <div className="insight insight--warn">
+            <i className="fi fi-rr-triangle-warning" />
+            <span>Alimentação está 40% acima da sua média: R$ 420,00 até agora.</span>
+          </div>
+          <div className="insight insight--bad">
+            <i className="fi fi-rr-exclamation" />
+            <span>Você já gastou R$ 200,00 a mais do que entrou, e ainda faltam 11 dias no mês.</span>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Streak — indicador do header" cols={1}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <StreakBadge />
+          <span className="streak-badge at-risk">
+            <i className="fi fi-rr-flame" /><span className="streak-count">5</span>
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            ativo · em risco (hoje ainda em branco)
+          </span>
+        </div>
+      </Section>
+
+      <Section title="Tags — faixa de filtro" cols={1}>
+        <div className="tag-filter-bar">
+          <span className="tag-filter-label">Tags</span>
+          <div className="tag-filter-chips">
+            <button className="tag-filter-chip active">#role<span className="tag-filter-count">4</span></button>
+            <button className="tag-filter-chip">#viagem-floripa<span className="tag-filter-count">12</span></button>
+            <button className="tag-filter-chip">#vaquinha<span className="tag-filter-count">2</span></button>
+            <button className="tag-filter-chip">#faculdade<span className="tag-filter-count">7</span></button>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Primeiro uso — Visão Geral vazia" cols={1}>
+        <div className="card overview-first-run">
+          <div className="overview-first-run-icon"><i className="fi fi-rr-plus" /></div>
+          <h2 className="overview-first-run-title">Comece lançando um gasto</h2>
+          <p className="overview-first-run-text">
+            Assim que houver o primeiro lançamento, esta tela mostra seu saldo, para
+            onde o dinheiro está indo e quanto ainda dá para gastar no mês.
+          </p>
+          <button className="btn btn-primary overview-first-run-cta">
+            <i className="fi fi-rr-plus" /> Lançar meu primeiro gasto
+          </button>
+          <p className="overview-first-run-hint">
+            Dica: o botão + abre o lançamento rápido — digite “almoço 32” e pronto.
+          </p>
+        </div>
+      </Section>
+
+      <Section title="Divisão de conta" cols={1}>
+        <Card><SplitDemo /></Card>
+      </Section>
+
+      <Section title="Lançamento rápido" cols={1}>
+        <QuickAddDemo />
+      </Section>
+    </>
+  )
+}
+
+// Estado próprio: o editor é controlado, e sem alguém segurando o valor não dá
+// para ver o que acontece ao adicionar ou remover gente.
+function SplitDemo() {
+  const [split, setSplit] = useState(() => buildEqualSplit(120, ['Ana', 'Bia', 'Caio']))
+  return <SplitEditor amount={120} split={split} onChange={setSplit} onSettle={() => {}} />
+}
+
+function QuickAddDemo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button className="btn btn-primary" onClick={() => setOpen(true)}>
+        <i className="fi fi-rr-plus" /> Abrir lançamento rápido
+      </button>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+        Tente “almoço 32”, “uber 12,50 ontem”, “freela 800”, “2 cafés R$ 18”.
+        Salvar não grava nada aqui.
+      </p>
+      {open && <QuickAdd onClose={() => setOpen(false)} onExpand={() => setOpen(false)} />}
     </>
   )
 }
@@ -165,6 +291,7 @@ function Preview() {
   document.documentElement.setAttribute('data-theme', theme)
 
   return (
+    <ToastProvider>
     <AppContext.Provider value={makeCtx(lang)}>
       <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', padding: 24 }}>
         <div style={{ display: 'flex', gap: 10, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -181,6 +308,7 @@ function Preview() {
         <Gallery />
       </div>
     </AppContext.Provider>
+    </ToastProvider>
   )
 }
 

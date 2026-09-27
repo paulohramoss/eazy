@@ -197,6 +197,47 @@ describe('validação de transações', () => {
     await seed('transactions', 't1', owned(ALICE, { ...TX, status: 'pending' }))
     await assertSucceeds(updateDoc(doc(db(ALICE), 'transactions/t1'), { status: 'completed' }))
   })
+
+  // ── divisão de conta ──
+  const SPLIT = { participants: [{ name: 'Bia', amount: 30, settled: false }] }
+
+  it('aceita o formato exato que o SplitEditor grava', async () => {
+    await assertSucceeds(create({ ...TX, split: SPLIT }))
+  })
+
+  it('aceita divisão ausente ou nula', async () => {
+    await assertSucceeds(create({ ...TX, split: null }))
+    await assertSucceeds(create(TX))
+  })
+
+  it('aceita lista de participantes vazia', async () => {
+    await assertSucceeds(create({ ...TX, split: { participants: [] } }))
+  })
+
+  it('rejeita divisão que não é mapa', async () => {
+    await assertFails(create({ ...TX, split: 'Bia deve 30' }))
+    await assertFails(create({ ...TX, split: [{ name: 'Bia' }] }))
+  })
+
+  it('rejeita participantes que não são lista', async () => {
+    await assertFails(create({ ...TX, split: { participants: 'Bia' } }))
+  })
+
+  it('rejeita chave desconhecida dentro da divisão', async () => {
+    // hasOnly: sem isso, o cliente poderia inflar o documento com o que quisesse.
+    await assertFails(create({ ...TX, split: { participants: [], extra: 'x' } }))
+  })
+
+  it('rejeita mais participantes que o teto', async () => {
+    const many = Array.from({ length: 21 }, (_, i) => ({ name: `P${i}`, amount: 1, settled: false }))
+    await assertFails(create({ ...TX, split: { participants: many } }))
+  })
+
+  it('valida a divisão também no update — é por onde o acerto passa', async () => {
+    await seed('transactions', 't1', owned(ALICE, TX))
+    await assertFails(updateDoc(doc(db(ALICE), 'transactions/t1'), { split: 'qualquer coisa' }))
+    await assertSucceeds(updateDoc(doc(db(ALICE), 'transactions/t1'), { split: SPLIT }))
+  })
 })
 
 // ─── Formatos que o app realmente grava ──────────────────────────────────────

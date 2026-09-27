@@ -83,6 +83,19 @@ service cloud.firestore {
     }
 
     // ── transactions ─────────────────────────────────────────────────────────
+
+    // Divisão de conta. O limite de 20 pessoas não é regra de negócio: é teto
+    // para o documento não crescer sem limite via cliente. A validação para na
+    // forma (mapa com lista) — checar cada participante exigiria percorrer a
+    // lista, que as regras não fazem, então o app é quem garante o conteúdo.
+    function validSplit(v) {
+      return v == null
+        || (v is map
+            && v.keys().hasOnly(['participants'])
+            && v.participants is list
+            && v.participants.size() <= 20);
+    }
+
     function validTransaction(d) {
       return isMoney(d.amount)
         && isIsoDate(d.date)
@@ -94,7 +107,8 @@ service cloud.firestore {
         && (!('walletId' in d)     || isText(d.walletId, 128))
         && (!('cardId' in d)       || isText(d.cardId, 128))
         && (!('goalId' in d)       || isText(d.goalId, 128))
-        && (!('recurrenceId' in d) || isText(d.recurrenceId, 128));
+        && (!('recurrenceId' in d) || isText(d.recurrenceId, 128))
+        && (!('split' in d)        || validSplit(d.split));
     }
 
     match /transactions/{docId} {

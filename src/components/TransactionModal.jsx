@@ -4,19 +4,25 @@ import { advance, FREQUENCIES } from '../utils/date'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import Receipts from './Receipts'
+import SplitEditor from './SplitEditor'
 
 const EMPTY_FORM = {
   type: 'expense', name: '', category: 'Alimentação', amount: '',
   date: new Date().toISOString().split('T')[0],
-  walletId: '', cardId: '', status: 'completed', notes: '', tags: [],
+  walletId: '', cardId: '', status: 'completed', notes: '', tags: [], split: null,
 }
 
-export default function TransactionModal({ initial, onSave, onClose, wallets, creditCards, categories }) {
+// `initial` é edição de uma transação existente; `draft` é um lançamento novo
+// que já chega preenchido (vindo do lançamento rápido). A distinção importa:
+// parcelamento e recorrência só aparecem em lançamento novo, e comprovante só
+// em transação já salva.
+export default function TransactionModal({ initial, draft, onSave, onSettle, onClose, wallets, creditCards, categories }) {
   const { getCardCurrentUsed, formatCurrency: fmt, currencySymbol, t, formatDate } = useApp()
-  const [form, setForm] = useState(initial
-    ? { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
-    : { ...EMPTY_FORM, walletId: wallets[0]?.id || '' }
-  )
+  const [form, setForm] = useState(() => {
+    if (initial) return { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
+    if (draft) return { ...EMPTY_FORM, ...draft, amount: draft.amount ?? '', tags: draft.tags || [] }
+    return { ...EMPTY_FORM, walletId: wallets[0]?.id || '' }
+  })
   const [repeatMode, setRepeatMode] = useState('unique')
   const [repeatCount, setRepeatCount] = useState(12)
   const [frequency, setFrequency] = useState('monthly')
@@ -227,6 +233,19 @@ export default function TransactionModal({ initial, onSave, onClose, wallets, cr
           )}
         </div>
       )}
+      {/* Dividir só faz sentido em despesa: ninguém racha um salário. */}
+      {form.type === 'expense' && (
+        <div className="form-group">
+          <label className="form-label">{t('split.label')}</label>
+          <SplitEditor
+            amount={Number(form.amount) || 0}
+            split={form.split}
+            onChange={next => set('split', next)}
+            onSettle={onSettle ? (p) => onSettle(form, p) : undefined}
+          />
+        </div>
+      )}
+
       <div className="form-group">
         <label className="form-label">{t('txModal.tags')}</label>
         <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
