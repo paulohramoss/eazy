@@ -242,13 +242,28 @@
    Tags eram gravadas e exibidas, mas não filtravam nada. Esta faixa é a
    leitura que faltava: um toque isola "#viagem-floripa" e o resumo do topo
    já responde quanto foi. */
+/* Ocupa o espaço que sobra da linha, com o botão "Nova Transação" fixo à
+   direita. Sem margin-bottom: o espaçamento agora é o gap da .filter-bar. */
+.filter-bar-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.filter-bar-add {
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .tag-filter-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
-  padding: 0 2px;
   min-width: 0;
+  padding: 0 2px;
 }
 
 .tag-filter-label {
@@ -325,11 +340,20 @@
 }
 
 @media (max-width: 768px) {
-  .tag-filter-bar {
-    margin-bottom: 12px;
+  .tag-filter-label { display: none; }
+
+  /* No celular a linha não comporta chips + botão lado a lado: o botão vai
+     para baixo, largura cheia, como as outras ações principais do app. */
+  .filter-bar-end {
+    flex-wrap: wrap;
+    flex-basis: 100%;
   }
 
-  .tag-filter-label { display: none; }
+  .filter-bar-add {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+  }
 }
 
 /* ─── Faixa de insight (Visão Geral) ──────────────────────

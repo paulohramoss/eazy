@@ -240,37 +240,41 @@ export default function Transactions() {
           <option value="completed">{t('tx.completed')}</option>
           <option value="pending">{t('tx.pending')}</option>
         </select>
-        <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setAddModal(true)}>
-          <i className="fi fi-rr-plus" /> {t('txModal.newTitle')}
-        </button>
-      </div>
-
-      {/* Tags em uso: um toque responde "quanto gastei em #viagem-floripa" */}
-      {usedTags.length > 0 && (
-        <div className="tag-filter-bar">
-          <span className="tag-filter-label">{t('txModal.tags')}</span>
-          <div className="tag-filter-chips">
-            {usedTags.map(({ tag, count }) => (
-              <button
-                key={tag}
-                type="button"
-                className={`tag-filter-chip${filterTag === tag ? ' active' : ''}`}
-                onClick={() => setTag(filterTag === tag ? '' : tag)}
-                aria-pressed={filterTag === tag}
-              >
-                #{tag}
-                <span className="tag-filter-count">{count}</span>
-              </button>
-            ))}
-          </div>
-          {filterTag && (
-            <button type="button" className="tag-filter-clear" onClick={() => setTag('')}>
-              <i className="fi fi-rr-cross-small" aria-hidden="true" />
-              {t('tx.clearTag')}
-            </button>
+        {/* Tags e botão dividem a mesma linha. Antes o botão caía sozinho numa
+            linha só dele (margin-left:auto + wrap da filter-bar) e abria um vão
+            entre os filtros e as tags. */}
+        <div className="filter-bar-end">
+          {usedTags.length > 0 && (
+            <div className="tag-filter-bar">
+              <span className="tag-filter-label">{t('txModal.tags')}</span>
+              <div className="tag-filter-chips">
+                {usedTags.map(({ tag, count }) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className={`tag-filter-chip${filterTag === tag ? ' active' : ''}`}
+                    onClick={() => setTag(filterTag === tag ? '' : tag)}
+                    aria-pressed={filterTag === tag}
+                  >
+                    #{tag}
+                    <span className="tag-filter-count">{count}</span>
+                  </button>
+                ))}
+              </div>
+              {filterTag && (
+                <button type="button" className="tag-filter-clear" onClick={() => setTag('')}>
+                  <i className="fi fi-rr-cross-small" aria-hidden="true" />
+                  {t('tx.clearTag')}
+                </button>
+              )}
+            </div>
           )}
+
+          <button className="btn btn-primary filter-bar-add" onClick={() => setAddModal(true)}>
+            <i className="fi fi-rr-plus" /> {t('txModal.newTitle')}
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
