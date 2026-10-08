@@ -10,9 +10,16 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
   sendEmailVerification,
+  getAdditionalUserInfo,
 } from 'firebase/auth'
+import { apiPost } from '../utils/api'
 
 const AuthContext = createContext(null)
+
+// Boas-vindas via Resend (api/welcome-email). Fire-and-forget: falha no envio
+// não pode travar o cadastro, e o servidor garante um envio por conta.
+const sendWelcome = (name) =>
+  apiPost('/api/welcome-email', { name }).catch(err => console.error('[welcome email]', err))
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
@@ -36,6 +43,7 @@ export function AuthProvider({ children }) {
     // endereço real de uma digitada errado, e a recuperação de senha nunca
     // chegaria ao dono. Falhar aqui não deve impedir o cadastro.
     sendEmailVerification(cred.user).catch(err => console.error('[verify email]', err))
+    sendWelcome(name)
     // Refresh user so displayName is available
     setUser({ ...cred.user, displayName: name })
     return cred
@@ -50,8 +58,11 @@ export function AuthProvider({ children }) {
     return sendEmailVerification(auth.currentUser)
   }
 
-  const signInGoogle = () =>
-    signInWithPopup(auth, new GoogleAuthProvider())
+  const signInGoogle = async () => {
+    const cred = await signInWithPopup(auth, new GoogleAuthProvider())
+    if (getAdditionalUserInfo(cred)?.isNewUser) sendWelcome(cred.user.displayName)
+    return cred
+  }
 
   const logOut = () => signOut(auth)
 

@@ -10,7 +10,7 @@ const esc = (v) => String(v ?? '')
 const ICONS = {
   transaction: '💸', budget: '⚠️', card_limit: '💳', card_closing: '📅',
   card_due: '🔔', goal_reached: '🏆', goal_reminder: '🎯',
-  weekly_report: '📊', monthly_report: '📈', test: '🔔',
+  weekly_report: '📊', monthly_report: '📈', test: '🔔', welcome: '👋',
 }
 
 export const SUBJECTS = {
@@ -24,6 +24,7 @@ export const SUBJECTS = {
   weekly_report:  () => `📊 Seu resumo semanal — EAZY Finance`,
   monthly_report: () => `📈 Resumo do mês — EAZY Finance`,
   test:           () => `🔔 Teste de notificação — EAZY Finance`,
+  welcome:        () => `👋 Boas-vindas ao EAZY Finance`,
 }
 
 export function subjectFor(type, data = {}) {
@@ -77,6 +78,10 @@ export function buildHtml(type, data = {}, { appUrl = '' } = {}) {
       title: 'Resumo mensal — EAZY Finance',
       body: `Seu mês financeiro em resumo.<br>Receitas: <b>${esc(data.income || 'R$ 0')}</b> · Despesas: <b>${esc(data.expenses || 'R$ 0')}</b> · Saldo: <b>${esc(data.balance || 'R$ 0')}</b>`,
     },
+    welcome: {
+      title: `Boas-vindas${data.name ? `, ${esc(data.name)}` : ''}!`,
+      body: `Sua conta no EAZY Finance foi criada. Comece cadastrando suas carteiras e as primeiras transações — o resto a gente organiza.${appUrl ? `<br><br><a href="${esc(appUrl)}" style="display:inline-block;background:#0A0A0A;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:600">Abrir o app</a>` : ''}`,
+    },
     test: {
       title: 'Notificação de teste — EAZY Finance',
       body: 'Suas notificações por e-mail estão funcionando corretamente! ✅',
@@ -100,7 +105,9 @@ export function buildHtml(type, data = {}, { appUrl = '' } = {}) {
       ${data.note ? `<p style="margin:12px 0 0;font-size:13px;color:#888;font-style:italic">${esc(data.note)}</p>` : ''}
     </div>
     <div style="padding:20px 32px;border-top:1px solid #F2F2F2;font-size:12px;color:#888;text-align:center;">
-      Você recebe este e-mail porque ativou as notificações no EAZY Finance.<br>
+      ${type === 'welcome'
+        ? 'Você recebe este e-mail porque criou uma conta no EAZY Finance.'
+        : 'Você recebe este e-mail porque ativou as notificações no EAZY Finance.'}<br>
       <a href="${esc(prefsUrl)}" style="color:#0053EF;text-decoration:none">Gerenciar preferências</a>
     </div>
   </div>
