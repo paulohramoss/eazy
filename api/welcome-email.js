@@ -3,8 +3,12 @@
 // O destinatário sai do token (nunca do corpo), então o endpoint não serve de
 // relay. E é idempotente: o log em notificationLog/welcome garante um envio por
 // conta, mesmo que o cliente chame de novo (reload, login Google repetido).
+//
+// Conta de e-mail/senha ainda não verificada recebe o botão de confirmação
+// aqui mesmo — um e-mail só no cadastro, em vez de boas-vindas + verificação.
+import { adminAuth } from './_lib/firebaseAdmin.js'
 import { applyCors, rateLimit, requireUser } from './_lib/http.js'
-import { sendNotificationEmail } from './_lib/mailer.js'
+import { appUrl, sendNotificationEmail } from './_lib/mailer.js'
 import { alreadySent, markSent } from './_lib/notifyServer.js'
 
 export default async function handler(req, res) {
@@ -34,14 +38,20 @@ export default async function handler(req, res) {
     // cliente manda o nome que acabou de definir. Vai escapado no template.
     const name = String(user.name || req.body?.name || '').slice(0, 80)
 
+    let verifyUrl = null
+    if (!user.email_verified && user.firebase?.sign_in_provider === 'password') {
+      verifyUrl = await adminAuth().generateEmailVerificationLink(
+        user.email, appUrl() ? { url: appUrl() } : undefined)
+    }
+
     await sendNotificationEmail({
       to: user.email,
       type: 'welcome',
-      data: { name },
+      data: { name, verifyUrl },
       idempotencyKey: `welcome-${user.uid}`,
     })
     await markSent(user.uid, 'welcome', { type: 'welcome' })
-    return res.status(200).json({ success: true })
+    return res.status(200).json({ success: true, verification: Boolean(verifyUrl) })
   } catch (err) {
     console.error('[welcome-email]', err.message)
     return res.status(500).json({ error: 'Não foi possível enviar o e-mail.' })

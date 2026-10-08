@@ -30,6 +30,10 @@ export async function apiPost(path, body) {
   const res = await apiFetch(path, { method: 'POST', body: JSON.stringify(body) })
   let json = null
   try { json = await res.json() } catch { /* resposta vazia ou não-JSON */ }
-  if (!res.ok) throw new Error(json?.error || json?.message || `Erro ${res.status}`)
+  if (!res.ok) {
+    const err = new Error(json?.error || json?.message || `Erro ${res.status}`)
+    err.status = res.status
+    throw err
+  }
   return json
 }

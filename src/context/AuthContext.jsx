@@ -16,10 +16,25 @@ import { apiPost } from '../utils/api'
 
 const AuthContext = createContext(null)
 
-// Boas-vindas via Resend (api/welcome-email). Fire-and-forget: falha no envio
-// não pode travar o cadastro, e o servidor garante um envio por conta.
+// Boas-vindas (api/welcome-email). Fire-and-forget: falha no envio não pode
+// travar o cadastro, e o servidor garante um envio por conta.
 const sendWelcome = (name) =>
   apiPost('/api/welcome-email', { name }).catch(err => console.error('[welcome email]', err))
+
+// E-mails de conta pelo template do app (api/auth-email). Se a função falhar
+// por outro motivo que não rate limit, cai no envio padrão do Firebase — feio,
+// mas o usuário não fica sem o link.
+async function viaServer(body, fallback) {
+  try {
+    await apiPost('/api/auth-email', body)
+  } catch (err) {
+    if (err.status === 429) {
+      throw Object.assign(new Error(err.message), { code: 'auth/too-many-requests' })
+    }
+    console.error('[auth email]', err)
+    await fallback()
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
@@ -41,9 +56,13 @@ export function AuthProvider({ children }) {
     await updateProfile(cred.user, { displayName: name })
     // Verificação de e-mail: sem isto não havia como distinguir uma conta com
     // endereço real de uma digitada errado, e a recuperação de senha nunca
-    // chegaria ao dono. Falhar aqui não deve impedir o cadastro.
-    sendEmailVerification(cred.user).catch(err => console.error('[verify email]', err))
-    sendWelcome(name)
+    // chegaria ao dono. O e-mail de boas-vindas já leva o botão de confirmar;
+    // se ele falhar, sai ao menos a verificação padrão do Firebase. Nada disso
+    // pode impedir o cadastro.
+    apiPost('/api/welcome-email', { name }).catch(err => {
+      console.error('[welcome email]', err)
+      sendEmailVerification(cred.user).catch(e => console.error('[verify email]', e))
+    })
     // Refresh user so displayName is available
     setUser({ ...cred.user, displayName: name })
     return cred
@@ -51,11 +70,13 @@ export function AuthProvider({ children }) {
 
   // Recuperação de senha. Antes, quem esquecia a senha ficava permanentemente
   // sem acesso à conta — não havia caminho nenhum na interface.
-  const resetPassword = (email) => sendPasswordResetEmail(auth, email)
+  const resetPassword = (email) =>
+    viaServer({ type: 'reset', email }, () => sendPasswordResetEmail(auth, email))
 
   const resendVerification = () => {
-    if (!auth.currentUser) throw new Error('Nenhum usuário autenticado')
-    return sendEmailVerification(auth.currentUser)
+    const current = auth.currentUser
+    if (!current) throw new Error('Nenhum usuário autenticado')
+    return viaServer({ type: 'verify' }, () => sendEmailVerification(current))
   }
 
   const signInGoogle = async () => {
