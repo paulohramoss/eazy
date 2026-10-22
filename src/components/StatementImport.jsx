@@ -18,6 +18,16 @@ const FORMAT_LABEL = { pdf: 'PDF', ofx: 'OFX', csv: 'CSV' }
 const KIND_LABEL = { card: 'Fatura de cartão', account: 'Extrato de conta', pix: 'Comprovante de Pix' }
 const SKIP_LABEL = { payment: 'Pagamento da fatura', refunded: 'Estornado', duplicate: 'Já lançado' }
 
+const collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true })
+const SORTERS = {
+  date: (a, b) => a.date.localeCompare(b.date),
+  name: (a, b) => collator.compare(a.name, b.name),
+  category: (a, b) => collator.compare(a.category, b.category),
+  // Valor absoluto: ordenar por valor é procurar o maior lançamento, seja
+  // gasto ou entrada.
+  amount: (a, b) => a.amount - b.amount,
+}
+
 const signature = (tx) =>
   [tx.date, tx.type, Number(tx.amount).toFixed(2), (tx.name || '').trim().toLowerCase()].join('|')
 
@@ -47,6 +57,7 @@ export default function StatementImport({ onClose }) {
   // no vencimento ou no dia do pagamento.
   const [dateMode, setDateMode] = useState('each')
   const [singleDate, setSingleDate] = useState('')
+  const [sort, setSort] = useState({ key: 'date', dir: 'asc' })
 
   const read = async (f, pwd) => {
     setStage('loading')
@@ -130,8 +141,31 @@ export default function StatementImport({ onClose }) {
   const destList = dest.type === 'card' ? creditCards : wallets
   // O que fica de fora (pagamento, estorno, repetido) vai para o fim: o topo da
   // lista é o que vai ser lançado.
-  const sorted = useMemo(() => [...rows].sort((a, b) =>
-    (a.skip ? 1 : 0) - (b.skip ? 1 : 0) || a.date.localeCompare(b.date) || a.id - b.id), [rows])
+  // A ordenação escolhida vale dentro de cada grupo; os ignorados continuam
+  // no fim para não se misturarem ao que vai ser lançado.
+  const sorted = useMemo(() => {
+    const cmp = SORTERS[sort.key]
+    const dir = sort.dir === 'asc' ? 1 : -1
+    return [...rows].sort((a, b) =>
+      (a.skip ? 1 : 0) - (b.skip ? 1 : 0) || dir * cmp(a, b) || a.id - b.id)
+  }, [rows, sort])
+
+  const toggleSort = (key) => setSort(s => (s.key === key
+    ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+    // Valor começa do maior: é o que se procura primeiro numa fatura.
+    : { key, dir: key === 'amount' ? 'desc' : 'asc' }))
+
+  const sortHeader = (key, label, className = '') => (
+    <button
+      type="button"
+      className={`stmt-sort ${className}${sort.key === key ? ' active' : ''}`}
+      onClick={() => toggleSort(key)}
+      aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      {label}
+      <i className={`fi ${sort.key === key ? (sort.dir === 'asc' ? 'fi-rr-angle-small-up' : 'fi-rr-angle-small-down') : 'fi-rr-sort'}`} aria-hidden="true" />
+    </button>
+  )
   const totalOk = result?.total && Math.abs(result.total.expected - result.total.computed) < 0.01
 
   const footer = stage === 'review' || stage === 'saving' ? (
@@ -294,10 +328,10 @@ export default function StatementImport({ onClose }) {
           <div className="stmt-table" role="table">
             <div className="stmt-row stmt-head" role="row">
               <Checkbox checked={allSelected} onChange={toggleAll} label="Selecionar todos" indeterminate={!allSelected && selected.length > 0} />
-              <span>Data</span>
-              <span>Descrição</span>
-              <span>Categoria</span>
-              <span className="stmt-amount">Valor</span>
+              {sortHeader('date', 'Data')}
+              {sortHeader('name', 'Descrição')}
+              {sortHeader('category', 'Categoria')}
+              {sortHeader('amount', 'Valor', 'stmt-amount')}
             </div>
             {sorted.map(r => (
               <div key={r.id} className={`stmt-row${r.selected ? '' : ' off'}`} role="row">

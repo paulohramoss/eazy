@@ -224,3 +224,20 @@
 }
 .stmt-date-input:hover { border-color: var(--border); }
 .stmt-date-input:focus { border-color: var(--accent); outline: none; color: var(--text-primary); }
+
+.stmt-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.stmt-sort.stmt-amount { justify-content: flex-end; }
+.stmt-sort i { font-size: 11px; opacity: .45; }
+.stmt-sort:hover,
+.stmt-sort.active { color: var(--text-primary); }
+.stmt-sort.active i { opacity: 1; color: var(--accent); }
