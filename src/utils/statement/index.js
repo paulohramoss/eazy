@@ -185,5 +185,8 @@ export async function parseStatementFile(file, { password, today } = {}) {
     throw new Error('Não encontrei lançamentos neste arquivo. Se for PDF, confira se é o extrato ou a fatura exportada pelo banco.')
   }
 
-  return { format, kind: raw.kind, bank: raw.bank || '', invalid: raw.invalid || 0, ...finalizeStatement(raw) }
+  return {
+    format, kind: raw.kind, bank: raw.bank || '', dueDate: raw.dueDate || null,
+    invalid: raw.invalid || 0, ...finalizeStatement(raw),
+  }
 }

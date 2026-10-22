@@ -115,7 +115,7 @@
 }
 .stmt-row {
   display: grid;
-  grid-template-columns: 28px 84px minmax(0, 1fr) 150px 110px;
+  grid-template-columns: 28px 118px minmax(0, 1fr) 150px 110px;
   gap: 10px;
   align-items: center;
   padding: 8px 12px;
@@ -208,3 +208,19 @@
 
 /* Botão de importar ao lado do de nova transação: só o primeiro empurra para a direita. */
 .filter-bar-add + .filter-bar-add { margin-left: 0; }
+
+.stmt-single-date { width: auto; min-width: 160px; }
+.stmt-date-input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  padding: 3px 4px;
+  margin-left: -4px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  color-scheme: inherit;
+}
+.stmt-date-input:hover { border-color: var(--border); }
+.stmt-date-input:focus { border-color: var(--accent); outline: none; color: var(--text-primary); }

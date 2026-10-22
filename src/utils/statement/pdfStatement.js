@@ -342,6 +342,10 @@ export function parsePdfStatement(pages, { today } = {}) {
 
   let kind = detectKind(fullText)
   const bank = detectBank(fullText)
+  // Vencimento da fatura: sugestão de data única para lançar tudo, já que a
+  // data impressa em cada linha é a da compra.
+  const due = fullText.match(/vencimento\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/i)
+  const dueDate = due ? isoFrom(due[3], due[2], due[1]) : null
 
   const fullDates = [...fullText.matchAll(FULL_DATE)]
     .map(m => isoFrom(m[3], m[2], m[1]))
@@ -354,8 +358,8 @@ export function parsePdfStatement(pages, { today } = {}) {
     // Um "extrato de Pix" com vários lançamentos não é comprovante: cai na
     // leitura de tabela, que dá conta de muitas linhas.
     const table = parseTable(pages, { kind: 'account', ref })
-    if (table.entries.length > 1) return { kind: 'account', bank, ...table }
-    if (pix.entries.length) return { kind, bank, ...pix }
+    if (table.entries.length > 1) return { kind: 'account', bank, dueDate, ...table }
+    if (pix.entries.length) return { kind, bank, dueDate, ...pix }
     kind = 'account'
   }
 
@@ -363,5 +367,5 @@ export function parsePdfStatement(pages, { today } = {}) {
   // Fatura lista a compra como valor positivo; aqui todo mundo fala "saída é
   // negativo", então o sinal é invertido uma vez, na saída.
   if (kind === 'card') table.entries.forEach(e => { e.amount = -e.amount })
-  return { kind, bank, ...table }
+  return { kind, bank, dueDate, ...table }
 }

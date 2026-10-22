@@ -264,3 +264,9 @@ describe('categorize', () => {
     expect(cat('PIX RECEBIDO FULANO', 'income')).toBe('Outros Rendimentos')
   })
 })
+
+describe('vencimento', () => {
+  it('lê o vencimento da fatura para sugerir data única', () => {
+    expect(parsePdfStatement(fatura, { today: '2026-10-22' }).dueDate).toBe('2026-10-03')
+  })
+})

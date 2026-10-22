@@ -4,6 +4,7 @@ import { useToast } from './Toast'
 import Modal from './Modal'
 import Checkbox from './Checkbox'
 import { norm } from '../utils/text'
+import { isoDate } from '../utils/date'
 import { ACCEPTED_FILES, PdfPasswordError, categorize, parseStatementFile } from '../utils/statement'
 
 // Importação de extrato: o arquivo do banco entra (fatura ou extrato em PDF,
@@ -41,6 +42,11 @@ export default function StatementImport({ onClose }) {
   const [rows, setRows] = useState([])
   const [dest, setDest] = useState({ type: 'wallet', id: '' })
   const [dragging, setDragging] = useState(false)
+  // 'each': cada linha com a própria data (editável). 'single': tudo numa data
+  // só — a fatura imprime a data da compra, e muita gente prefere lançar tudo
+  // no vencimento ou no dia do pagamento.
+  const [dateMode, setDateMode] = useState('each')
+  const [singleDate, setSingleDate] = useState('')
 
   const read = async (f, pwd) => {
     setStage('loading')
@@ -64,6 +70,8 @@ export default function StatementImport({ onClose }) {
       setDest(isCard && creditCards.length
         ? { type: 'card', id: guessDestination(creditCards, parsed.bank) }
         : { type: 'wallet', id: guessDestination(wallets, parsed.bank) })
+      setDateMode('each')
+      setSingleDate(parsed.dueDate || isoDate())
       setResult(parsed)
       setStage('review')
     } catch (err) {
@@ -100,7 +108,7 @@ export default function StatementImport({ onClose }) {
     setStage('saving')
     try {
       const list = selected.map(r => ({
-        date: r.date,
+        date: dateMode === 'single' ? singleDate : r.date,
         name: r.name,
         amount: r.amount,
         type: r.type,
@@ -252,6 +260,37 @@ export default function StatementImport({ onClose }) {
             )}
           </div>
 
+          <div className="stmt-dest">
+            <div className="stmt-dest-toggle" role="radiogroup" aria-label="Data dos lançamentos">
+              {[['each', 'Data de cada compra'], ['single', 'Uma data para todos']].map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={dateMode === mode}
+                  className={dateMode === mode ? 'active' : ''}
+                  onClick={() => setDateMode(mode)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {dateMode === 'single' ? (
+              <input
+                type="date"
+                className="form-input stmt-single-date"
+                value={singleDate}
+                onChange={e => e.target.value && setSingleDate(e.target.value)}
+                aria-label="Data para todos os lançamentos"
+              />
+            ) : (
+              <span className="stmt-hint">Clique na data de uma linha para alterar só ela.</span>
+            )}
+            {dateMode === 'single' && result.dueDate === singleDate && (
+              <span className="stmt-hint">Vencimento da fatura</span>
+            )}
+          </div>
+
           <div className="stmt-table" role="table">
             <div className="stmt-row stmt-head" role="row">
               <Checkbox checked={allSelected} onChange={toggleAll} label="Selecionar todos" indeterminate={!allSelected && selected.length > 0} />
@@ -263,7 +302,17 @@ export default function StatementImport({ onClose }) {
             {sorted.map(r => (
               <div key={r.id} className={`stmt-row${r.selected ? '' : ' off'}`} role="row">
                 <Checkbox checked={r.selected} onChange={() => setRow(r.id, { selected: !r.selected })} label={`Importar ${r.name}`} />
-                <span className="stmt-date">{formatDate(r.date)}</span>
+                {dateMode === 'single' ? (
+                  <span className="stmt-date">{formatDate(singleDate)}</span>
+                ) : (
+                  <input
+                    type="date"
+                    className="stmt-date-input"
+                    value={r.date}
+                    onChange={e => e.target.value && setRow(r.id, { date: e.target.value })}
+                    aria-label={`Data de ${r.name}`}
+                  />
+                )}
                 <span className="stmt-name">
                   <input
                     className="stmt-name-input"
