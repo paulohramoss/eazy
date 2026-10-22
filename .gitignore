@@ -38,3 +38,4 @@ serviceAccount*.json
 firebase-adminsdk*.json
 .firebase/
 .vercel/
+scripts/brand/splash-links.html

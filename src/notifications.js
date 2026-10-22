@@ -42,7 +42,7 @@ export async function requestPushPermission() {
 
 // ─── Push local (app aberto) ──────────────────────────────────────────────────
 
-export function showLocalNotification(title, body, icon = '/logo.png') {
+export function showLocalNotification(title, body, icon = '/pwa-192x192.png') {
   if (Notification.permission !== 'granted') return
   new Notification(title, { body, icon })
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { createTranslator, detectLanguage } from '../i18n'
+import { BrandMark, BrandWordmark } from './BrandLogo'
 
 const ERR = {
   'auth/user-not-found':           'E-mail não encontrado.',
@@ -104,11 +105,9 @@ export default function Login() {
 
   const Brand = () => (
     <div className="login-logo">
-      <div className="login-logo-icon">
-        <i className="fi fi-rr-sack-dollar" />
-      </div>
+      <BrandMark className="login-logo-mark" size={48} alt="" />
       <div>
-        <div className="login-app-name">Eazy<em>Finance</em></div>
+        <BrandWordmark className="login-app-wordmark" alt="Eazy" />
         <div className="login-app-sub">{t('login.tagline')}</div>
       </div>
     </div>

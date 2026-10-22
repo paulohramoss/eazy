@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react'
-import logoImg from './assets/image.png'
+import { BrandLockup, BrandMark } from './components/BrandLogo'
 import { createPortal } from 'react-dom'
 import Calculator from './components/Calculator'
 import CurrencyConverter from './components/CurrencyConverter'
@@ -379,9 +379,10 @@ function Dashboard() {
       {/* Sidebar */}
       <aside className="sidebar" aria-label={t('nav.more')}>
         <div className="sidebar-logo">
-          <div className="sidebar-logo-wrap">
-            <img src={logoImg} alt="Eazy" />
-          </div>
+          {/* Aberto: tile + "eazy". Recolhido (trilho de 76px): só o tile —
+              o CSS troca um pelo outro junto com os rótulos do menu. */}
+          <BrandLockup className="sidebar-logo-full" />
+          <BrandMark className="sidebar-logo-mark" size={36} alt="" />
           <button
             type="button"
             className={`sidebar-pin${sidebarPinned ? ' active' : ''}`}
@@ -445,6 +446,8 @@ function Dashboard() {
       {/* Main */}
       <main className="main">
         <header className="header">
+          {/* No mobile a sidebar vira tab bar e perde o logo: ele mora aqui. */}
+          <BrandMark className="header-mark" size={30} alt="Eazy" />
           <div className="header-left">
             <h1>{title}</h1>
             <p>
