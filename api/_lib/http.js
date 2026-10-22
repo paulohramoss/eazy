@@ -16,8 +16,16 @@ function allowedOrigins() {
   const fromEnv = (process.env.ALLOWED_ORIGINS || '')
     .split(',').map(s => s.trim()).filter(Boolean)
   const isProd = process.env.VERCEL_ENV === 'production'
-  const preview = process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []
-  return isProd ? [...fromEnv, ...preview] : [...fromEnv, ...preview, ...DEV_ORIGINS]
+  // VERCEL_URL é o endereço único do deploy (eazydash-abc123.vercel.app), não
+  // o que o usuário abre. O domínio de produção e o da branch vêm em variáveis
+  // próprias da Vercel — sem elas, esquecer ALLOWED_ORIGINS derrubava o envio
+  // de e-mail em produção com "Origem não permitida".
+  const vercel = [
+    process.env.VERCEL_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_BRANCH_URL,
+  ].filter(Boolean).map(host => `https://${host}`)
+  return isProd ? [...fromEnv, ...vercel] : [...fromEnv, ...vercel, ...DEV_ORIGINS]
 }
 
 // Devolve false quando a origem não é permitida — o handler deve parar aí.

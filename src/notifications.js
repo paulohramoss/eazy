@@ -32,7 +32,12 @@ export async function requestPushPermission() {
 
     const token = await getToken(messaging, {
       vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js'),
+      // Escopo próprio (o mesmo que o SDK usaria sozinho): só existe um
+      // service worker por escopo, e registrar este em '/' tomava o lugar do
+      // sw.js do PWA — o app perdia o offline e, quando o PWA se registrava de
+      // novo, o push em segundo plano parava.
+      serviceWorkerRegistration: await navigator.serviceWorker.register(
+        '/firebase-messaging-sw.js', { scope: '/firebase-cloud-messaging-push-scope' }),
     })
     return { ok: true, token }
   } catch (err) {

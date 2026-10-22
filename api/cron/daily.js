@@ -15,8 +15,9 @@ import { adminDb } from '../_lib/firebaseAdmin.js'
 import { isCronRequest } from '../_lib/http.js'
 import { advanceISO, cardCycleStartISO, partsInTz, todayISO } from '../_lib/dates.js'
 import { alreadySent, deliver, fmtMoney, markSent } from '../_lib/notifyServer.js'
+import { appUrl } from '../_lib/mailer.js'
 
-const APP_URL = (process.env.ALLOWED_ORIGINS || '').split(',')[0]?.trim() || ''
+const APP_URL = appUrl()
 const link = (screen) => (APP_URL ? `${APP_URL}/#/${screen}` : undefined)
 
 const byUser = (col, uid) => adminDb().collection(col).where('userId', '==', uid)

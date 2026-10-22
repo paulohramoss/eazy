@@ -134,6 +134,7 @@ export default function Alerts() {
     setTestLoading(true)
     setTestResult(null)
     const results = []
+    let failed = false
 
     if (settings.pushEnabled) {
       showLocalNotification('EAZY Finance', t('alerts.pushWorking'))
@@ -147,6 +148,7 @@ export default function Alerts() {
         data: {},
       })
       results.push(r.ok ? t('alerts.emailSent') : t('alerts.emailFail', { error: r.error }))
+      if (!r.ok) failed = true
       if (!r.ok) setEmailStatus({ type: 'err', msg: t('alerts.emailFailLong', { error: r.error }) })
       else setEmailStatus({ type: 'ok', msg: t('alerts.emailSentTo', { address: settings.emailAddress }) })
     }
@@ -154,7 +156,9 @@ export default function Alerts() {
     if (!settings.pushEnabled && !settings.emailEnabled) {
       setTestResult({ type: 'info', msg: t('alerts.enableOneChannel') })
     } else {
-      setTestResult({ type: 'ok', msg: results.join(' · ') })
+      // Falha em qualquer canal pinta o aviso de erro — antes um "Origem não
+      // permitida" aparecia em verde, com ícone de sucesso.
+      setTestResult({ type: failed ? 'err' : 'ok', msg: results.join(' · ') })
     }
 
     setTestLoading(false)

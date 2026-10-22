@@ -48,9 +48,11 @@ async function sendViaResend({ from, to, subject, html, text, idempotencyKey }) 
   return res.json()
 }
 
-// URL pública do app: primeira origem de ALLOWED_ORIGINS. Usada nos links dos
-// e-mails e como destino depois de verificar e-mail/redefinir senha.
-export const appUrl = () => (process.env.ALLOWED_ORIGINS || '').split(',')[0]?.trim() || ''
+// URL pública do app: primeira origem de ALLOWED_ORIGINS, ou o domínio de
+// produção que a Vercel informa. Usada nos links e no logo dos e-mails e como
+// destino depois de verificar e-mail/redefinir senha.
+export const appUrl = () => (process.env.ALLOWED_ORIGINS || '').split(',')[0]?.trim()
+  || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
 
 export async function sendNotificationEmail({ to, type = 'test', data = {}, subject, idempotencyKey }) {
   const built = buildEmail(type, data, { appUrl: appUrl() })
