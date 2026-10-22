@@ -19,7 +19,10 @@
   position: relative;
   isolation: isolate;
   width: min(860px, 100%);
-  min-height: 530px;
+  /* Os painéis são absolutos, então o cartão não cresce com eles: a altura
+     precisa caber o cadastro (nome + e-mail + senha + Google), o mais alto.
+     Com 530px ele vazava e o logo e o botão do Google eram cortados. */
+  min-height: 620px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 22px;
@@ -65,15 +68,18 @@
   flex-shrink: 0;
 }
 
+/* Wordmark + slogan somam a altura do ícone (48px), para o bloco ficar
+   centrado ao lado dele em vez de passar por cima. */
 .login-app-wordmark {
-  height: 34px;
-  margin-bottom: 2px;
+  display: block;
+  height: 30px;
 }
 
 .login-app-sub {
   font-size: 12px;
+  line-height: 16px;
   color: var(--text-muted);
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .login-hero,
@@ -176,7 +182,10 @@
   left: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* "safe": se ainda assim não couber (mensagem de erro longa, zoom do
+     navegador), alinha pelo topo e rola, em vez de cortar as duas pontas. */
+  justify-content: safe center;
+  overflow-y: auto;
   gap: 18px;
   padding: 34px 38px;
   background: var(--bg-secondary);
