@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { createTranslator, detectLanguage } from '../i18n'
 import { BrandMark, BrandWordmark } from './BrandLogo'
@@ -25,7 +25,20 @@ export default function Login() {
   // A tela roda antes de existir usuário, então o idioma vem do cache local /
   // do navegador em vez das preferências do Firestore.
   const t = useMemo(() => createTranslator(detectLanguage()), [])
-  const [tab, setTab]       = useState('login')   // 'login' | 'register' | 'reset'
+  // 'login' | 'register' | 'reset'. A landing (/conheca) manda "Começar agora"
+  // para /?cadastro=1: quem chega por ela ainda não tem conta.
+  const [tab, setTab]       = useState(() =>
+    new URLSearchParams(window.location.search).get('cadastro') === '1' ? 'register' : 'login')
+
+  // Tira o ?cadastro=1 da barra: recarregar a página depois de sair da conta
+  // não deve cair no cadastro de novo.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('cadastro')) return
+    params.delete('cadastro')
+    const query = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
+  }, [])
   const [name, setName]     = useState('')
   const [email, setEmail]   = useState('')
   const [password, setPass] = useState('')

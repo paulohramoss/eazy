@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { fileURLToPath } from 'node:url'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -20,6 +21,9 @@ export default defineConfig(({ mode }) => {
         // o Safari só as lê na instalação e elas pesam ~1,4 MB.
         workbox: {
           globPatterns: ['**/*.{js,css,html,svg}'],
+          // A landing (/conheca) é página própria: sem isto, quem já instalou o
+          // app teria a navegação interceptada e cairia no index.html do app.
+          navigateFallbackDenylist: [/^\/conheca/, /^\/landing/],
         },
         manifest: {
           name: 'Eazy Finance',
@@ -76,6 +80,17 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
+    // Duas páginas no build: o app (index.html) e a landing (landing.html,
+    // servida em /conheca pelo rewrite do vercel.json). O preview.html segue
+    // só em dev.
+    build: {
+      rolldownOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          landing: fileURLToPath(new URL('./landing.html', import.meta.url)),
+        },
+      },
+    },
     server: {
       proxy: {
         // Espelha o api/bolsai.js de produção. A chave vem do .env local —

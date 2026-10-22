@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eazy — Seu dinheiro em 5 segundos</title>
+  <meta name="description" content="Controle financeiro pessoal sem planilha: lance gastos digitando como fala, importe a fatura do banco e acompanhe cartões, orçamento e objetivos. Grátis, no celular e no computador." />
+  <meta name="theme-color" content="#FFF9EF" />
+  <!-- A landing só tem versão clara (creme da marca). "only light" impede o
+       modo escuro forçado do Chrome de inverter cores e logo. -->
+  <meta name="color-scheme" content="only light" />
+  <link rel="icon" href="/favicon.ico" sizes="48x48" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="canonical" href="https://eazydash.vercel.app/conheca" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Eazy" />
+  <meta property="og:title" content="Eazy — Seu dinheiro em 5 segundos" />
+  <meta property="og:description" content="Lance gastos digitando como fala, importe a fatura do banco e veja para onde o dinheiro vai. Sem planilha." />
+  <meta property="og:url" content="https://eazydash.vercel.app/conheca" />
+  <meta property="og:image" content="https://eazydash.vercel.app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://eazydash.vercel.app/og-image.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+
+  <header class="nav" id="topo">
+    <div class="wrap nav-inner">
+      <a class="nav-brand" href="#topo" aria-label="Eazy — início da página">
+        <img src="/src/assets/brand/eazy-lockup.svg" alt="Eazy" width="90" height="40" />
+      </a>
+      <nav class="nav-links" aria-label="Seções">
+        <a href="#recursos">Recursos</a>
+        <a href="#extrato">Importar extrato</a>
+        <a href="#como">Como funciona</a>
+        <a href="#perguntas">Perguntas</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-ghost" href="/">Entrar</a>
+        <a class="btn btn-primary" href="/?cadastro=1">Começar agora</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="conteudo">
+
+    <!-- ─── Hero ─────────────────────────────────────────────── -->
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow"><i class="fi fi-rr-bolt"></i> Controle financeiro sem planilha</span>
+          <h1>Seu dinheiro em <span class="hl">5 segundos</span>.</h1>
+          <p class="lead">
+            Digite <b>“almoço 32”</b> e pronto: o Eazy entende o valor, a categoria e a data.
+            Importe a fatura do banco, acompanhe cartões, orçamento e objetivos — tudo num lugar só.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="/?cadastro=1">
+              Começar agora <i class="fi fi-rr-arrow-right"></i>
+            </a>
+            <a class="btn btn-ghost btn-lg" href="#recursos">Ver o que dá pra fazer</a>
+          </div>
+          <ul class="hero-facts">
+            <li><i class="fi fi-rr-check"></i> Grátis</li>
+            <li><i class="fi fi-rr-check"></i> Sem conectar o banco</li>
+            <li><i class="fi fi-rr-check"></i> Celular e computador</li>
+          </ul>
+        </div>
+
+        <!-- Ilustração da interface, feita em HTML: escala em qualquer tela e
+             não envelhece com print. -->
+        <div class="mock" aria-hidden="true">
+          <div class="mock-card mock-balance">
+            <span class="mock-label">Saldo total</span>
+            <strong class="mock-big">R$ 4.837,20</strong>
+            <div class="mock-row">
+              <span class="pill pill-green"><i class="fi fi-rr-arrow-small-up"></i> Receitas R$ 6.100</span>
+              <span class="pill pill-red"><i class="fi fi-rr-arrow-small-down"></i> Gastos R$ 3.912</span>
+            </div>
+            <div class="bars">
+              <span style="--h:55%"></span><span style="--h:72%"></span><span style="--h:40%"></span>
+              <span style="--h:86%"></span><span style="--h:62%"></span><span class="now" style="--h:48%"></span>
+            </div>
+          </div>
+
+          <div class="mock-card mock-quick">
+            <div class="quick-input">
+              <i class="fi fi-rr-bolt"></i>
+              <span class="typing">uber 12,50 ontem</span>
+            </div>
+            <div class="quick-result">
+              <span class="chip"><i class="fi fi-rr-car"></i> Transporte</span>
+              <span class="chip">Ontem</span>
+              <span class="chip chip-red">− R$ 12,50</span>
+            </div>
+          </div>
+
+          <div class="mock-card mock-list">
+            <div class="tx"><i class="fi fi-rr-fork ic ic-orange"></i><span>iFood<small>Alimentação</small></span><b class="neg">− R$ 48,90</b></div>
+            <div class="tx"><i class="fi fi-rr-briefcase ic ic-green"></i><span>Salário<small>Salário</small></span><b class="pos">+ R$ 5.200,00</b></div>
+            <div class="tx"><i class="fi fi-rr-gamepad ic ic-purple"></i><span>Spotify<small>Lazer · Nubank</small></span><b class="neg">− R$ 21,90</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Faixa de garantias ───────────────────────────────── -->
+    <section class="strip" aria-label="Resumo">
+      <div class="wrap strip-inner">
+        <span><i class="fi fi-rr-mobile-notch"></i> Instala como app no celular</span>
+        <span><i class="fi fi-rr-wifi-slash"></i> Funciona offline</span>
+        <span><i class="fi fi-rr-moon"></i> Tema claro e escuro</span>
+        <span><i class="fi fi-rr-globe"></i> Português, inglês e espanhol</span>
+        <span><i class="fi fi-rr-shield-check"></i> Seus dados só seus</span>
+      </div>
+    </section>
+
+    <!-- ─── Três destaques ───────────────────────────────────── -->
+    <section class="section" id="recursos">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">O que muda no seu dia</span>
+          <h2>Anotar gasto deixa de ser tarefa.</h2>
+          <p>Três coisas que fazem o Eazy diferente de uma planilha — e de um app que você abandona na segunda semana.</p>
+        </div>
+
+        <div class="highlights">
+          <article class="hl-card">
+            <div class="hl-icon"><i class="fi fi-rr-bolt"></i></div>
+            <h3>Lançamento rápido</h3>
+            <p>Escreva do jeito que fala: <em>“mercado 230”</em>, <em>“recebi 800 do freela”</em>, <em>“uber 12,50 ontem”</em>. O Eazy separa valor, categoria, data e se é entrada ou saída — e aprende com o que você corrige.</p>
+            <ul>
+              <li>Atalhos com os gastos que mais se repetem</li>
+              <li>Compartilhe o texto do app do banco direto para o Eazy</li>
+            </ul>
+          </article>
+
+          <article class="hl-card hl-card-blue" id="extrato">
+            <div class="hl-icon"><i class="fi fi-rr-file-invoice-dollar"></i></div>
+            <h3>Importe a fatura do banco</h3>
+            <p>Arraste o PDF da fatura, o OFX ou o CSV do extrato, ou um comprovante de Pix. Cada gasto vem lido e categorizado — você só confere e lança.</p>
+            <ul>
+              <li>Confere a soma com o total da fatura</li>
+              <li>Ignora pagamento da fatura e anula estornos</li>
+              <li>Reconhece parcelas e não lança o que já existe</li>
+            </ul>
+          </article>
+
+          <article class="hl-card">
+            <div class="hl-icon"><i class="fi fi-rr-bell-ring"></i></div>
+            <h3>Avisos na hora certa</h3>
+            <p>Receba no celular ou por e-mail quando a fatura está para vencer, o orçamento de uma categoria estourou ou o cartão chegou perto do limite.</p>
+            <ul>
+              <li>Você escolhe quais avisos quer receber</li>
+              <li>Resumo semanal e mensal opcionais</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Tudo que tem dentro ──────────────────────────────── -->
+    <section class="section section-alt">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Tudo que tem dentro</span>
+          <h2>Um app para o dinheiro inteiro.</h2>
+          <p>Da conta corrente ao investimento, do cafezinho à meta de viagem.</p>
+        </div>
+
+        <div class="features">
+          <div class="feature"><i class="fi fi-rr-dashboard"></i><h3>Visão geral</h3><p>Saldo, receitas e gastos do mês comparados com o anterior, e alertas do que pede atenção.</p></div>
+          <div class="feature"><i class="fi fi-rr-exchange"></i><h3>Transações</h3><p>Busca, filtros, tags e comprovantes anexados. Parcelado e recorrente em um clique.</p></div>
+          <div class="feature"><i class="fi fi-rr-bank"></i><h3>Carteiras</h3><p>Conta corrente, poupança, dinheiro e investimento, cada uma com o próprio saldo.</p></div>
+          <div class="feature"><i class="fi fi-rr-credit-card"></i><h3>Cartões de crédito</h3><p>Limite usado no ciclo atual, dia de fechamento e vencimento de cada cartão.</p></div>
+          <div class="feature"><i class="fi fi-rr-piggy-bank"></i><h3>Orçamento</h3><p>Defina quanto quer gastar por categoria e veja quanto ainda sobra no mês.</p></div>
+          <div class="feature"><i class="fi fi-rr-star"></i><h3>Objetivos</h3><p>Viagem, reserva, carro: guarde aos poucos e acompanhe quanto falta.</p></div>
+          <div class="feature"><i class="fi fi-rr-chart-line-up"></i><h3>Investimentos</h3><p>Ações, FIIs e ETFs da B3 com cotação atualizada e rentabilidade da carteira.</p></div>
+          <div class="feature"><i class="fi fi-rr-calendar"></i><h3>Calendário financeiro</h3><p>Contas, faturas e recebimentos do mês num calendário só.</p></div>
+          <div class="feature"><i class="fi fi-rr-refresh"></i><h3>Recorrências</h3><p>Aluguel, assinaturas e salário lançados sozinhos, com pausa quando quiser.</p></div>
+          <div class="feature"><i class="fi fi-rr-chart-pie"></i><h3>Análise</h3><p>Para onde o dinheiro foi, por categoria e por mês, em gráficos claros.</p></div>
+          <div class="feature"><i class="fi fi-rr-users"></i><h3>Dividir a conta</h3><p>Rachou o jantar? Registre a parte de cada um e marque quando pagarem.</p></div>
+          <div class="feature"><i class="fi fi-rr-flame"></i><h3>Sequência de dias</h3><p>Um empurrão para manter o hábito de registrar todo dia.</p></div>
+          <div class="feature"><i class="fi fi-rr-file-invoice-dollar"></i><h3>Importar extrato</h3><p>Fatura em PDF, OFX, CSV e comprovante de Pix, lidos e categorizados para você conferir.</p></div>
+          <div class="feature"><i class="fi fi-rr-bell"></i><h3>Alertas</h3><p>Push no celular e e-mail para fatura, orçamento, limite do cartão e metas.</p></div>
+          <div class="feature"><i class="fi fi-rr-calculator"></i><h3>Calculadora e conversor</h3><p>Conta rápida e conversão de moedas sem sair do app.</p></div>
+          <div class="feature"><i class="fi fi-rr-cloud-download"></i><h3>Backup e exportação</h3><p>Leve seus dados quando quiser, em JSON completo ou CSV para o Excel.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Como funciona ────────────────────────────────────── -->
+    <section class="section" id="como">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Como funciona</span>
+          <h2>Do cadastro ao primeiro gasto em um minuto.</h2>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="step-n">1</span>
+            <h3>Crie sua conta</h3>
+            <p>Com e-mail e senha ou com a sua conta Google.</p>
+          </li>
+          <li>
+            <span class="step-n">2</span>
+            <h3>Cadastre sua carteira</h3>
+            <p>Diga onde está seu dinheiro e quanto tem hoje — são três passos.</p>
+          </li>
+          <li>
+            <span class="step-n">3</span>
+            <h3>Lance ou importe</h3>
+            <p>Digite o primeiro gasto ou traga a fatura do banco de uma vez.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ─── Segurança ────────────────────────────────────────── -->
+    <section class="section section-alt">
+      <div class="wrap trust">
+        <div>
+          <span class="eyebrow">Privacidade</span>
+          <h2>Você no controle dos seus dados.</h2>
+        </div>
+        <ul class="trust-list">
+          <li><i class="fi fi-rr-lock"></i><div><b>Nunca pedimos a senha do banco.</b> A importação é por arquivo que você mesmo baixa.</div></li>
+          <li><i class="fi fi-rr-shield-check"></i><div><b>Cada conta vê só o que é dela.</b> Seus lançamentos ficam protegidos na nuvem e sincronizados entre aparelhos.</div></li>
+          <li><i class="fi fi-rr-cloud-download"></i><div><b>Seus dados saem quando você quiser.</b> Exportação completa a qualquer momento.</div></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ─── Perguntas ────────────────────────────────────────── -->
+    <section class="section" id="perguntas">
+      <div class="wrap faq-wrap">
+        <div class="section-head">
+          <span class="eyebrow">Perguntas</span>
+          <h2>Antes de começar.</h2>
+        </div>
+        <div class="faq">
+          <details>
+            <summary>Quanto custa?</summary>
+            <p>Nada. Crie a conta e use todos os recursos.</p>
+          </details>
+          <details>
+            <summary>Preciso conectar minha conta do banco?</summary>
+            <p>Não. Você lança à mão ou importa o arquivo que o próprio banco gera (PDF da fatura, OFX ou CSV do extrato). O Eazy nunca acessa o seu banco.</p>
+          </details>
+          <details>
+            <summary>Funciona com o meu banco?</summary>
+            <p>A importação lê OFX e CSV de qualquer banco e PDFs com texto — fatura de cartão, extrato de conta e comprovante de Pix. PDF escaneado (imagem) não é lido.</p>
+          </details>
+          <details>
+            <summary>Tem aplicativo para celular?</summary>
+            <p>O Eazy abre no navegador e pode ser instalado na tela inicial do Android e do iPhone, com ícone próprio e funcionando offline.</p>
+          </details>
+          <details>
+            <summary>Dá para usar em mais de um aparelho?</summary>
+            <p>Sim. Entre com a mesma conta e tudo fica sincronizado.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── CTA final ────────────────────────────────────────── -->
+    <section class="final">
+      <div class="wrap final-inner">
+        <img class="final-mark" src="/src/assets/brand/eazy-mark.svg" alt="" width="72" height="72" />
+        <h2>Comece hoje. Leva menos de um minuto.</h2>
+        <p>Crie sua conta grátis e lance o primeiro gasto agora.</p>
+        <a class="btn btn-lime btn-lg" href="/?cadastro=1">Começar agora <i class="fi fi-rr-arrow-right"></i></a>
+        <a class="final-login" href="/">Já tenho conta — entrar</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <img src="/src/assets/brand/eazy-lockup.svg" alt="Eazy" width="72" height="32" />
+      <span>© <span id="ano">2026</span> Eazy · Tranquilidade financeira</span>
+      <a href="/">Abrir o app</a>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/landing/main.js"></script>
+</body>
+
+</html>
