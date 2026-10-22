@@ -57,29 +57,23 @@
   transform: translateX(-100%);
 }
 
+/* Lockup em cima, slogan embaixo, os dois rente à esquerda do painel. */
 .login-logo {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   flex-shrink: 0;
 }
 
-.login-logo-mark {
-  flex-shrink: 0;
-}
-
-/* Wordmark + slogan somam a altura do ícone (48px), para o bloco ficar
-   centrado ao lado dele em vez de passar por cima. */
-.login-app-wordmark {
-  display: block;
-  height: 30px;
+.login-lockup {
+  height: 48px;
 }
 
 .login-app-sub {
   font-size: 12px;
   line-height: 16px;
   color: var(--text-muted);
-  margin-top: 2px;
 }
 
 .login-hero,

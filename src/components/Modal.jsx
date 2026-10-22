@@ -9,7 +9,19 @@ export default function Modal({ title, onClose, children, footer, size = 'md' })
   const previouslyFocused = useRef(null)
 
   useEffect(() => {
-    const handle = (e) => { if (e.key === 'Escape') onClose() }
+    // Com um modal aberto sobre outro (ex.: "aplicar a quais lançamentos?"
+    // sobre o formulário), o Esc fecha só o de cima.
+    const handle = (e) => {
+      if (e.key !== 'Escape') return
+      const overlays = document.querySelectorAll('.modal-overlay')
+      const mine = modalRef.current?.closest('.modal-overlay')
+      if (mine && overlays[overlays.length - 1] !== mine) return
+      // Consome o evento: com tecla de verdade o React pode remover este modal
+      // antes de o ouvinte do modal de baixo rodar, e aí o de baixo se acharia
+      // o do topo e fecharia junto.
+      e.stopImmediatePropagation()
+      onClose()
+    }
     document.addEventListener('keydown', handle)
     return () => document.removeEventListener('keydown', handle)
   }, [onClose])

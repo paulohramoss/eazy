@@ -7,6 +7,7 @@ import { useToast } from './Toast'
 import Checkbox from './Checkbox'
 import { isoDate } from '../utils/date'
 import CurrencyInput from './CurrencyInput'
+import ColorPicker from './ColorPicker'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const WALLET_TYPES = [
@@ -22,7 +23,6 @@ const TYPE_KEYS = Object.fromEntries(WALLET_TYPES.map(wt => [wt.value, wt.labelK
 // próprio item. Não é codificação de dados: os gráficos usam os tokens
 // validados em styles/charts.css. Preto, lima e cinza são escolhas legítimas
 // aqui e reprovariam lá; não unifique as duas listas.
-const PRESET_COLORS = ['#0053EF', '#CFF330', '#0A0A0A', '#E8382A', '#18A058', '#F59E0B', '#3370F5', '#BBBBBB', '#555555', '#EEF3FF', '#B8DC1A', '#141414']
 
 const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON }
 
@@ -100,35 +100,7 @@ function WalletModal({ initial, onSave, onClose }) {
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">{t('wallet.color')}</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {PRESET_COLORS.map(color => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => set('color', color)}
-              style={{
-                width: 28, height: 28, borderRadius: '50%', background: color, cursor: 'pointer',
-                border: form.color === color ? '3px solid white' : '3px solid transparent',
-                outline: form.color === color ? `2px solid ${color}` : 'none',
-              }}
-            />
-          ))}
-          <label title={t('wallet.customColor')} style={{ position: 'relative', width: 28, height: 28, cursor: 'pointer' }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%', cursor: 'pointer',
-              background: `conic-gradient(red, yellow, lime, cyan, blue, magenta, red)`,
-              border: !PRESET_COLORS.includes(form.color) ? '3px solid white' : '3px solid transparent',
-              outline: !PRESET_COLORS.includes(form.color) ? `2px solid ${form.color}` : 'none',
-            }} />
-            <input
-              type="color"
-              value={form.color}
-              onChange={e => set('color', e.target.value)}
-              style={{ position: 'absolute', opacity: 0, width: 0, height: 0, top: 0, left: 0 }}
-            />
-          </label>
-        </div>
+        <ColorPicker label={t('wallet.color')} value={form.color} onChange={c => set('color', c)} />
       </div>
     </Modal>
   )

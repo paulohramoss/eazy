@@ -596,9 +596,9 @@ function Dashboard() {
           draft={fullAddDraft}
           wallets={wallets} creditCards={creditCards} categories={categories}
           onSave={(data, mode, count, frequency) => {
-            if (mode === 'unique') addTransaction(data)
-            else if (mode === 'recurring') createRecurringSeries(data, frequency, count)
-            else addMultipleTransactions(data, mode, count)
+            if (mode === 'unique') return addTransaction(data)
+            if (mode === 'recurring') return createRecurringSeries(data, frequency, count)
+            return addMultipleTransactions(data, mode, count)
           }}
           onClose={() => setFullAddDraft(null)}
         />

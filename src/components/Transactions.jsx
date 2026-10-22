@@ -6,6 +6,8 @@ import Modal from './Modal'
 import Checkbox from './Checkbox'
 import TransactionModal from './TransactionModal'
 import StatementImport from './StatementImport'
+import SeriesScopeModal from './SeriesScopeModal'
+import { membersInScope, seriesMembers, seriesOf } from '../utils/series'
 import EmptyState from './EmptyState'
 import { resolveWalletIcon } from '../utils/walletIcons'
 
@@ -40,7 +42,7 @@ function ConfirmModal({ name, count, onConfirm, onClose }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit, categories, formatCurrency: fmt, formatDate, t } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit, updateTransactionSeries, deleteTransactionSeries, categories, formatCurrency: fmt, formatDate, t } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')
@@ -74,6 +76,16 @@ export default function Transactions() {
 
   const [addModal, setAddModal] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+
+  // Lançamento que faz parte de recorrência ou parcelamento: quantos irmãos
+  // tem, para a pergunta "só este / próximos / todos" na edição e exclusão.
+  const seriesInfo = (tx) => {
+    const own = seriesOf(tx)
+    if (!own) return null
+    const members = seriesMembers(tx, transactions)
+    if (members.length < 2) return null
+    return { kind: own.kind, totalCount: members.length, futureCount: membersInScope(tx, members, 'future').length }
+  }
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
   const [bulkConfirm, setBulkConfirm] = useState(false)
@@ -443,16 +455,19 @@ export default function Transactions() {
       {addModal && (
         <TransactionModal wallets={wallets} creditCards={creditCards} categories={categories}
           onSave={(data, mode, count, frequency) => {
-            if (mode === 'unique') addTransaction(data)
-            else if (mode === 'recurring') createRecurringSeries(data, frequency, count)
-            else addMultipleTransactions(data, mode, count)
+            if (mode === 'unique') return addTransaction(data)
+            if (mode === 'recurring') return createRecurringSeries(data, frequency, count)
+            return addMultipleTransactions(data, mode, count)
           }}
           onClose={() => setAddModal(false)} />
       )}
       {editItem && (
         <TransactionModal
           initial={editItem} wallets={wallets} creditCards={creditCards} categories={categories}
-          onSave={(data) => updateTransaction(editItem.id, data)}
+          series={seriesInfo(editItem)}
+          onSave={(data, _mode, _count, _frequency, scope) => scope
+            ? updateTransactionSeries(editItem, data, scope)
+            : updateTransaction(editItem.id, data)}
           // Só em transação já salva: o acerto grava uma receita apontando
           // para ela, e sem id não há para onde apontar.
           onSettle={(form, participant) => {
@@ -462,13 +477,22 @@ export default function Transactions() {
           onClose={() => setEditItem(null)}
         />
       )}
-      {delItem && (
+      {delItem && (seriesInfo(delItem) ? (
+        <SeriesScopeModal
+          kind={seriesInfo(delItem).kind}
+          action="delete"
+          futureCount={seriesInfo(delItem).futureCount}
+          totalCount={seriesInfo(delItem).totalCount}
+          onChoose={scope => { deleteTransactionSeries(delItem, scope).catch(console.error); setDelItem(null) }}
+          onClose={() => setDelItem(null)}
+        />
+      ) : (
         <ConfirmModal
           name={delItem.name}
           onConfirm={() => deleteTransaction(delItem.id)}
           onClose={() => setDelItem(null)}
         />
-      )}
+      ))}
       {bulkConfirm && (
         <ConfirmModal
           count={selectedCount}

@@ -6,6 +6,7 @@ import { cacheLanguage, createFormatters, createTranslator } from '../i18n'
 import { walletStats } from '../utils/balances'
 import { buildInsights, categoryAverages, daysLeftInMonth } from '../utils/insights'
 import { receivables, settleParticipant } from '../utils/split'
+import { membersInScope, planRecurrenceEdit, planSeriesEdit, seriesMembers } from '../utils/series'
 import { db } from '../firebase'
 import {
   collection, query, where, onSnapshot,
@@ -425,6 +426,10 @@ export function AppProvider({ children }) {
       ? splitInstallments(data.amount, count)
       : Array.from({ length: count }, () => Number(data.amount))
 
+    // Identificador comum às parcelas: é o que permite editar ou excluir a
+    // compra inteira depois. Antes o único vínculo era o "(i/N)" no nome.
+    const installmentGroup = doc(collection(db, COL.transactions)).id
+
     for (let i = 0; i < count; i++) {
       // addMonths encolhe o dia quando o mês de destino é mais curto, então a
       // parcela de uma compra feita dia 31 cai em 28/fev em vez de escorregar
@@ -434,6 +439,7 @@ export function AppProvider({ children }) {
         amount: amounts[i],
         date: addMonths(startDate, i),
         name: `${data.name} (${i + 1}/${count})`,
+        installmentGroup,
       }
       batch.set(doc(collection(db, COL.transactions)), base(txData))
     }
@@ -478,6 +484,40 @@ export function AppProvider({ children }) {
 
   const updateTransaction = useCallback((id, data) =>
     updateDoc(doc(db, COL.transactions, id), data), [])
+
+  // Edição de lançamento de série (recorrência ou parcelamento) com o escopo
+  // que a pessoa escolheu: só este, este e os próximos, ou todos. O cálculo do
+  // que muda em cada documento fica em utils/series; aqui é um batch só, para
+  // a série nunca ficar metade editada.
+  const updateTransactionSeries = useCallback(async (original, edited, scope) => {
+    const members = seriesMembers(original, transactions)
+    const rule = original.recurrenceId ? recurrences.find(r => r.id === original.recurrenceId) : null
+    const plan = planSeriesEdit(original, edited, members, scope, { frequency: rule?.frequency })
+
+    const batch = writeBatch(db)
+    plan.forEach(({ id, patch }) => batch.update(doc(db, COL.transactions, id), patch))
+    // Daqui pra frente e todos também valem para as ocorrências que o job
+    // diário ainda vai criar.
+    if (rule && scope !== 'one') {
+      const rulePatch = planRecurrenceEdit(original, edited, rule)
+      if (Object.keys(rulePatch).length) batch.update(doc(db, COL.recurrences, rule.id), rulePatch)
+    }
+    await batch.commit()
+  }, [transactions, recurrences])
+
+  // Exclusão com escopo. Em recorrência, apagar daqui pra frente desativa a
+  // regra (senão o job recriaria o que acabou de ser apagado) e apagar todos
+  // remove a regra junto.
+  const deleteTransactionSeries = useCallback(async (tx, scope) => {
+    const members = seriesMembers(tx, transactions)
+    const targets = membersInScope(tx, members, scope)
+    const batch = writeBatch(db)
+    targets.forEach(m => batch.delete(doc(db, COL.transactions, m.id)))
+    const rule = tx.recurrenceId ? recurrences.find(r => r.id === tx.recurrenceId) : null
+    if (rule && scope === 'all') batch.delete(doc(db, COL.recurrences, rule.id))
+    else if (rule && scope === 'future') batch.update(doc(db, COL.recurrences, rule.id), { active: false })
+    await batch.commit()
+  }, [transactions, recurrences])
 
   /**
    * Alguém pagou a parte dele de volta.
@@ -703,9 +743,12 @@ export function AppProvider({ children }) {
   const toggleRecurrence = useCallback((id, active) =>
     updateDoc(doc(db, COL.recurrences, id), { active: !!active }), [])
 
-  // Cria a regra e, se a data de início já chegou, lança a primeira ocorrência
-  // na hora — esperar o cron da madrugada seguinte faria a transação sumir da
-  // tela logo depois de o usuário salvá-la.
+  // Cria a regra e lança a primeira ocorrência na hora; as seguintes ficam
+  // com o job diário. Antes, com início no futuro, só a regra era gravada: a
+  // transação não aparecia em lugar nenhum até o dia chegar (e em ambiente
+  // local, onde o job não roda, nunca), e quem criava achava que não tinha
+  // salvo. Ocorrência futura entra como pendente, igual ao lançamento rápido:
+  // ainda não saiu nem entrou dinheiro.
   const createRecurringSeries = useCallback(async (data, frequency = 'monthly', count = 0) => {
     const startDate = data.date || isoDate()
     const repetitions = Number(count) || 0
@@ -713,6 +756,7 @@ export function AppProvider({ children }) {
 
     const todayStr = isoDate()
     const startsToday = startDate <= todayStr
+    const status = startsToday ? (data.status || 'completed') : 'pending'
 
     const batch = writeBatch(db)
     const recRef = doc(collection(db, COL.recurrences))
@@ -725,22 +769,24 @@ export function AppProvider({ children }) {
       walletId: data.walletId || '',
       cardId: data.cardId || '',
       notes: data.notes || '',
+      // Status e tags escolhidos no formulário valem para as próximas
+      // ocorrências também (o job diário copia da regra).
+      status: data.status || 'completed',
+      tags: data.tags || [],
       frequency,
       startDate,
       endDate,
-      nextDate: startsToday ? advance(startDate, frequency) : startDate,
+      nextDate: advance(startDate, frequency),
       active: true,
     }))
 
-    if (startsToday) {
-      batch.set(doc(collection(db, COL.transactions)), base({
-        ...data,
-        amount: Number(data.amount),
-        date: startDate,
-        status: data.status || 'completed',
-        recurrenceId: recRef.id,
-      }))
-    }
+    batch.set(doc(collection(db, COL.transactions)), base({
+      ...data,
+      amount: Number(data.amount),
+      date: startDate,
+      status,
+      recurrenceId: recRef.id,
+    }))
 
     await batch.commit()
 
@@ -965,6 +1011,7 @@ export function AppProvider({ children }) {
     pctChange, getCardCurrentUsed, formatCurrency, currencySymbol,
     formatNumber, formatDate, formatLongDate, t, locale: i18n.locale,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit,
+    updateTransactionSeries, deleteTransactionSeries,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
     addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution,
@@ -985,6 +1032,7 @@ export function AppProvider({ children }) {
     getCardCurrentUsed, formatCurrency, currencySymbol,
     formatNumber, formatDate, formatLongDate, t, i18n,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit,
+    updateTransactionSeries, deleteTransactionSeries,
     addWallet, updateWallet, deleteWallet, bulkDeleteWallets,
     addBudget, updateBudget, deleteBudget,
     addGoal, updateGoal, deleteGoal, contributeGoal, undoContribution,

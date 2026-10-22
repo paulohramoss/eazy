@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
 import { BrandLockup } from './BrandLogo'
+import ColorPicker from './ColorPicker'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const WALLET_TYPES = [
@@ -11,7 +12,6 @@ const WALLET_TYPES = [
   { value: 'cash',       labelKey: 'wallet.type.cash',       icon: 'fi-rr-money-bill-wave' },
 ]
 
-const COLORS = ['#0053EF', '#CFF330', '#18A058', '#E8382A', '#F59E0B', '#0A0A0A']
 
 export default function Onboarding() {
   const { addWallet, addTransaction, categories, currencySymbol, wallets, dbError, t } = useApp()
@@ -135,16 +135,7 @@ export default function Onboarding() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">{t('wallet.color')}</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {COLORS.map(c => (
-                  <button key={c} type="button" onClick={() => setW('color', c)} style={{
-                    width: 32, height: 32, borderRadius: '50%', background: c, cursor: 'pointer',
-                    border: wallet.color === c ? '3px solid white' : '3px solid transparent',
-                    outline: wallet.color === c ? `2px solid ${c}` : 'none',
-                  }} />
-                ))}
-              </div>
+              <ColorPicker label={t('wallet.color')} value={wallet.color} onChange={c => setW('color', c)} />
             </div>
 
             <button className="btn btn-primary" style={{ padding: 16, fontSize: 16 }}

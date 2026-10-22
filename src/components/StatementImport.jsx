@@ -19,6 +19,10 @@ const KIND_LABEL = { card: 'Fatura de cartão', account: 'Extrato de conta', pix
 const SKIP_LABEL = { payment: 'Pagamento da fatura', refunded: 'Estornado', duplicate: 'Já lançado' }
 
 const collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true })
+// Os mesmos dois status do formulário de transação.
+const STATUSES = ['completed', 'pending']
+const STATUS_KEY = { completed: 'tx.completed', pending: 'tx.pending' }
+
 const SORTERS = {
   date: (a, b) => a.date.localeCompare(b.date),
   name: (a, b) => collator.compare(a.name, b.name),
@@ -26,6 +30,7 @@ const SORTERS = {
   // Valor absoluto: ordenar por valor é procurar o maior lançamento, seja
   // gasto ou entrada.
   amount: (a, b) => a.amount - b.amount,
+  status: (a, b) => a.status.localeCompare(b.status),
 }
 
 const signature = (tx) =>
@@ -40,7 +45,7 @@ const guessDestination = (list, bank) => {
 }
 
 export default function StatementImport({ onClose }) {
-  const { transactions, wallets, creditCards, categories, importTransactions, formatCurrency: fmt, formatDate } = useApp()
+  const { transactions, wallets, creditCards, categories, importTransactions, formatCurrency: fmt, formatDate, t } = useApp()
   const toast = useToast()
   const inputRef = useRef(null)
 
@@ -74,7 +79,7 @@ export default function StatementImport({ onClose }) {
           ? e.category
           : categorize(e, { categories, history }).category
         const skip = e.skip || (existing.has(signature(e)) ? 'duplicate' : null)
-        return { ...e, category, skip, selected: !skip }
+        return { ...e, category, skip, selected: !skip, status: 'completed' }
       }))
 
       const isCard = parsed.kind === 'card'
@@ -105,6 +110,11 @@ export default function StatementImport({ onClose }) {
 
   const setRow = (id, patch) => setRows(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)))
 
+  // Status comum a todas as linhas, ou null quando alguma foi trocada à mão —
+  // aí nenhum botão do atalho aparece marcado.
+  const bulkStatus = rows.length && rows.every(r => r.status === rows[0].status) ? rows[0].status : null
+  const setAllStatus = (status) => setRows(rs => rs.map(r => ({ ...r, status })))
+
   const selected = rows.filter(r => r.selected)
   const totals = useMemo(() => selected.reduce((acc, r) => {
     acc[r.type] += r.amount
@@ -125,7 +135,7 @@ export default function StatementImport({ onClose }) {
         type: r.type,
         category: r.category,
         notes: r.notes,
-        status: 'completed',
+        status: r.status,
         walletId: dest.type === 'wallet' ? dest.id : '',
         cardId: dest.type === 'card' ? dest.id : '',
       }))
@@ -325,12 +335,36 @@ export default function StatementImport({ onClose }) {
             )}
           </div>
 
+          {/* Atalho para o caso comum: fatura ainda não paga entra toda como
+              pendente. Cada linha continua podendo ter o próprio status. */}
+          <div className="stmt-dest">
+            <span className="stmt-dest-label">{t('tx.status')}</span>
+            <div className="stmt-dest-toggle" role="radiogroup" aria-label={t('tx.status')}>
+              {STATUSES.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  role="radio"
+                  aria-checked={bulkStatus === s}
+                  className={bulkStatus === s ? 'active' : ''}
+                  onClick={() => setAllStatus(s)}
+                >
+                  {t(STATUS_KEY[s])}
+                </button>
+              ))}
+            </div>
+            <span className="stmt-hint">
+              {bulkStatus ? 'Vale para todos; mude uma linha na coluna Status.' : 'Status diferentes por linha.'}
+            </span>
+          </div>
+
           <div className="stmt-table" role="table">
             <div className="stmt-row stmt-head" role="row">
               <Checkbox checked={allSelected} onChange={toggleAll} label="Selecionar todos" indeterminate={!allSelected && selected.length > 0} />
               {sortHeader('date', 'Data')}
               {sortHeader('name', 'Descrição')}
               {sortHeader('category', 'Categoria')}
+              {sortHeader('status', t('tx.status'))}
               {sortHeader('amount', 'Valor', 'stmt-amount')}
             </div>
             {sorted.map(r => (
@@ -368,6 +402,14 @@ export default function StatementImport({ onClose }) {
                   aria-label="Categoria"
                 >
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select
+                  className={`stmt-cat stmt-status stmt-status-${r.status}`}
+                  value={r.status}
+                  onChange={e => setRow(r.id, { status: e.target.value })}
+                  aria-label={t('tx.status')}
+                >
+                  {STATUSES.map(s => <option key={s} value={s}>{t(STATUS_KEY[s])}</option>)}
                 </select>
                 <span className={`stmt-amount ${r.type}`}>
                   {r.type === 'expense' ? '−' : '+'}{fmt(r.amount)}

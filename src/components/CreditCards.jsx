@@ -5,11 +5,14 @@ import DeleteWithTransactionsModal from './DeleteWithTransactionsModal'
 import EmptyState from './EmptyState'
 import { useToast } from './Toast'
 import CurrencyInput from './CurrencyInput'
+import ColorPicker from './ColorPicker'
 
+// Cartão costuma ser escuro ou da cor do banco: os tons de grafite vêm
+// primeiro, depois o espectro. Qualquer outra cor entra pelo hexadecimal.
 const CARD_COLORS = [
-  '#0053EF', '#0A0A0A', '#1E1E1E', '#2A2A2A',
-  '#141414', '#E8382A', '#18A058', '#555555',
-  '#3370F5', '#0040C4', '#888888', '#BBBBBB',
+  '#0A0A0A', '#141414', '#1E1E1E', '#2A2A2A', '#555555', '#888888', '#BBBBBB',
+  '#0040C4', '#0053EF', '#3370F5', '#0EA5E9', '#14B8A6', '#18A058', '#CFF330',
+  '#F59E0B', '#F97316', '#E8382A', '#EC4899', '#8B5CF6', '#6366F1',
 ]
 
 const CARD_FLAGS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outro']
@@ -100,36 +103,7 @@ function CardModal({ initial, onSave, onClose }) {
           </div>
         </div>
         <div className="form-group">
-          <label className="form-label">{t('card.color')}</label>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            {CARD_COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => set('color', c)}
-                style={{
-                  width: 28, height: 28, borderRadius: 6, background: c, border: 'none', cursor: 'pointer',
-                  outline: form.color === c ? '2px solid var(--accent)' : '2px solid transparent',
-                  outlineOffset: 2,
-                }}
-              />
-            ))}
-            <label title={t('card.customColor')} style={{
-              width: 28, height: 28, borderRadius: 6, border: '2px dashed var(--border)',
-              cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              outline: !CARD_COLORS.includes(form.color) ? '2px solid var(--accent)' : '2px solid transparent',
-              outlineOffset: 2, flexShrink: 0, background: !CARD_COLORS.includes(form.color) ? form.color : 'transparent',
-            }}>
-              <input
-                type="color"
-                value={form.color}
-                onChange={e => set('color', e.target.value)}
-                style={{ opacity: 0, width: 1, height: 1, position: 'absolute' }}
-              />
-              {CARD_COLORS.includes(form.color) && (
-                <i className="fi fi-rr-paint-brush" style={{ fontSize: 13, color: 'var(--text-muted)', pointerEvents: 'none' }} />
-              )}
-            </label>
-          </div>
+          <ColorPicker label={t('card.color')} value={form.color} onChange={c => set('color', c)} palette={CARD_COLORS} shape="square" />
         </div>
         <div>
           <label className="form-label" style={{ marginBottom: 8, display: 'block' }}>{t('card.preview')}</label>

@@ -26,6 +26,8 @@ import QuickAdd from './components/QuickAdd'
 import SplitEditor from './components/SplitEditor'
 import StreakBadge from './components/StreakBadge'
 import StatementImport from './components/StatementImport'
+import ColorPicker from './components/ColorPicker'
+import TransactionModal from './components/TransactionModal'
 import { ToastProvider } from './components/Toast'
 import { CATEGORIES } from './utils/categories'
 import { buildEqualSplit } from './utils/split'
@@ -92,6 +94,7 @@ function makeCtx(language = 'pt-BR') {
     daysLeft: 11,
     addTransaction: async () => {},
     creditCards: [{ id: 'c1', name: 'Mastercard Sicoob' }],
+    getCardCurrentUsed: () => 0,
     importTransactions: async (list) => { console.log('[preview] importTransactions', list); return list.length },
   }
 }
@@ -287,6 +290,43 @@ function QuickAddDemo() {
 
 // Importação de extrato: abre o modal de verdade; o arquivo escolhido é lido
 // no navegador e o "Lançar" só registra no console.
+// Seletor de cor nas duas formas (redonda: carteira/investimento; quadrada:
+// cartão), com uma cor fora da paleta na segunda para ver o estado 'livre'.
+function ColorPreview() {
+  const [a, setA] = useState('#0053EF')
+  const [b, setB] = useState('#1A1A2E')
+  return (
+    <Section title="Seletor de cor">
+      <Card><ColorPicker label="Cor" value={a} onChange={setA} /></Card>
+      <Card><ColorPicker label="Cor do cartão" value={b} onChange={setB} shape="square" /></Card>
+    </Section>
+  )
+}
+
+// Nova transação com gravação simulada: 'falhar' imita uma recusa do
+// Firestore, para ver a mensagem de erro sem precisar de conta.
+function TxModalPreview() {
+  const [mode, setMode] = useState(null)
+  const save = () => mode === 'fail'
+    ? Promise.reject(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }))
+    : new Promise(resolve => setTimeout(resolve, 400))
+  return (
+    <Section title="Nova transação" cols={1}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-secondary" onClick={() => setMode('ok')}>Abrir (grava ok)</button>
+        <button className="btn btn-secondary" onClick={() => setMode('fail')}>Abrir (servidor recusa)</button>
+        <button className="btn btn-secondary" onClick={() => setMode('series')}>Editar salário recorrente</button>
+      </div>
+      {mode && (
+        <TransactionModal wallets={[{ id: 'w1', name: 'Nubank' }]} creditCards={[]} categories={CATEGORIES}
+          initial={mode === 'series' ? { name: 'Salário', amount: 5500, type: 'income', category: 'Salário', date: '2026-12-06', walletId: 'w1', cardId: '', status: 'pending', notes: '', tags: ['salario'], recurrenceId: 'r1' } : undefined}
+          series={mode === 'series' ? { kind: 'recurrence', futureCount: 11, totalCount: 12 } : undefined}
+          onSave={(...args) => { window.__lastSave = args; return save() }} onClose={() => setMode(null)} />
+      )}
+    </Section>
+  )
+}
+
 function ImportPreview() {
   const [open, setOpen] = useState(false)
   return (
@@ -320,6 +360,8 @@ function Preview() {
             <option value="es">es</option>
           </select>
         </div>
+        <TxModalPreview />
+        <ColorPreview />
         <ImportPreview />
         <Gallery />
       </div>

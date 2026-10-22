@@ -108,6 +108,7 @@ service cloud.firestore {
         && (!('cardId' in d)       || isText(d.cardId, 128))
         && (!('goalId' in d)       || isText(d.goalId, 128))
         && (!('recurrenceId' in d) || isText(d.recurrenceId, 128))
+        && (!('installmentGroup' in d) || isText(d.installmentGroup, 128))
         && (!('split' in d)        || validSplit(d.split));
     }
 
@@ -239,6 +240,7 @@ service cloud.firestore {
         && d.frequency in ['weekly', 'monthly', 'yearly']
         && isIsoDate(d.startDate)
         && isIsoDate(d.nextDate)
+        && (!('status' in d)   || d.status in ['completed', 'pending'])
         && (!('endDate' in d)  || isIsoDate(d.endDate) || d.endDate == '')
         && (!('name' in d)     || isText(d.name, 200))
         && (!('category' in d) || isText(d.category, 100))

@@ -49,8 +49,10 @@ async function runRecurrences(uid, today) {
         walletId: rec.walletId || '',
         cardId: rec.cardId || '',
         notes: rec.notes || '',
+        tags: rec.tags || [],
         date: next,
-        status: 'completed',
+        // O dia chegou: vale o status escolhido na criação da série.
+        status: rec.status || 'completed',
         recurrenceId: docSnap.id,
         userId: uid,
         allowedUsers: [uid],

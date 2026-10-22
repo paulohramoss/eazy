@@ -1,28 +1,45 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { advance, FREQUENCIES } from '../utils/date'
+import { advance, FREQUENCIES, isoDate } from '../utils/date'
+import { useToast } from './Toast'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import Receipts from './Receipts'
 import SplitEditor from './SplitEditor'
+import SeriesScopeModal from './SeriesScopeModal'
 
-const EMPTY_FORM = {
+// Quanto esperar a confirmação do servidor antes de tratar a escrita como
+// enfileirada offline. Recusa de regra (permission-denied) chega bem antes.
+const SERVER_ACK_TIMEOUT = 6000
+
+// Função, não constante: a data era calculada uma vez ao carregar o módulo
+// (app aberto de um dia para o outro lançava com a data de ontem) e em UTC
+// (depois das 21h no Brasil já vinha como amanhã — e no último dia do mês
+// caía fora do filtro da lista, parecendo que não tinha salvado).
+const emptyForm = () => ({
   type: 'expense', name: '', category: 'Alimentação', amount: '',
-  date: new Date().toISOString().split('T')[0],
+  date: isoDate(),
   walletId: '', cardId: '', status: 'completed', notes: '', tags: [], split: null,
-}
+})
 
 // `initial` é edição de uma transação existente; `draft` é um lançamento novo
 // que já chega preenchido (vindo do lançamento rápido). A distinção importa:
 // parcelamento e recorrência só aparecem em lançamento novo, e comprovante só
 // em transação já salva.
-export default function TransactionModal({ initial, draft, onSave, onSettle, onClose, wallets, creditCards, categories }) {
+export default function TransactionModal({ initial, draft, series, onSave, onSettle, onClose, wallets, creditCards, categories }) {
   const { getCardCurrentUsed, formatCurrency: fmt, currencySymbol, t, formatDate } = useApp()
+  const toast = useToast()
   const [form, setForm] = useState(() => {
     if (initial) return { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
-    if (draft) return { ...EMPTY_FORM, ...draft, amount: draft.amount ?? '', tags: draft.tags || [] }
-    return { ...EMPTY_FORM, walletId: wallets[0]?.id || '' }
+    if (draft) return { ...emptyForm(), ...draft, amount: draft.amount ?? '', tags: draft.tags || [] }
+    return { ...emptyForm(), walletId: wallets[0]?.id || '' }
   })
+  // Antes o Salvar sem descrição ou valor simplesmente não fazia nada, e um
+  // erro do Firestore sumia depois de o modal já ter fechado. Agora os dois
+  // aparecem aqui, e o modal só fecha quando a gravação confirma.
+  const [tried, setTried] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [repeatMode, setRepeatMode] = useState('unique')
   const [repeatCount, setRepeatCount] = useState(12)
   const [frequency, setFrequency] = useState('monthly')
@@ -48,14 +65,52 @@ export default function TransactionModal({ initial, draft, onSave, onSettle, onC
   const cardAvailable = selectedCard ? (selectedCard.limit || 0) - cardUsed + originalAmount : Infinity
   const limitExceeded = selectedCard && form.type === 'expense' && newAmount > cardAvailable
 
-  const handleSave = () => {
-    if (!form.name.trim() || !form.amount || Number(form.amount) <= 0) return
-    if (limitExceeded) return
-    onSave({ ...form, amount: Number(form.amount) }, repeatMode, Number(repeatCount), frequency)
-    onClose()
+  const nameMissing = !form.name.trim()
+  const amountMissing = !(Number(form.amount) > 0)
+
+  // Edição de um lançamento que tem irmãos (recorrência ou parcelas): antes
+  // de gravar pergunta se vale só para ele, para os próximos ou para todos.
+  const [askScope, setAskScope] = useState(false)
+  const needsScope = !!(initial && series && series.totalCount > 1)
+
+  const handleSave = async (scope) => {
+    setTried(true)
+    setSaveError('')
+    if (nameMissing || amountMissing || limitExceeded || saving) return
+    if (needsScope && !scope) { setAskScope(true); return }
+    setAskScope(false)
+    setSaving(true)
+    try {
+      const write = Promise.resolve(onSave({ ...form, amount: Number(form.amount) }, repeatMode, Number(repeatCount), frequency, scope))
+      // Sem internet o Firestore aplica a escrita no cache local na hora, mas
+      // a promessa só resolve quando o servidor confirma. Esperar por ela
+      // deixaria o botão em "Salvando..." até a conexão voltar.
+      const outcome = await Promise.race([
+        write.then(() => 'saved'),
+        new Promise(resolve => setTimeout(() => resolve('queued'), SERVER_ACK_TIMEOUT)),
+      ])
+      if (outcome === 'queued') {
+        write.catch(err => console.error('[TransactionModal] gravação adiada falhou', err))
+        toast.info(t('txModal.savedOffline'))
+      } else if (repeatMode === 'recurring') {
+        toast.success(t('txModal.savedRecurring', { date: formatDate(form.date) }))
+      } else if (form.date.slice(0, 7) !== isoDate().slice(0, 7)) {
+        // A lista abre filtrada no mês atual: sem isto, um lançamento de
+        // outro mês parecia não ter sido salvo.
+        toast.success(t('txModal.savedOtherMonth', { date: formatDate(form.date) }))
+      } else {
+        toast.success(t('txModal.saved'))
+      }
+      onClose()
+    } catch (err) {
+      console.error('[TransactionModal]', err)
+      setSaveError(t('txModal.saveFailed', { error: err?.code || err?.message || String(err) }))
+      setSaving(false)
+    }
   }
 
   return (
+    <>
     <Modal
       title={t(initial ? 'txModal.editTitle' : 'txModal.newTitle')}
       onClose={onClose}
@@ -64,13 +119,18 @@ export default function TransactionModal({ initial, draft, onSave, onSettle, onC
           <button className="btn btn-secondary" onClick={onClose}>{t('action.cancel')}</button>
           <button
             className="btn btn-primary"
-            onClick={handleSave}
-            disabled={limitExceeded}
+            onClick={() => handleSave()}
+            disabled={limitExceeded || saving}
             style={limitExceeded ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
-          >{t('action.save')}</button>
+          >{saving ? t('txModal.saving') : t('action.save')}</button>
         </>
       }
     >
+      {saveError && (
+        <div className="form-error-box" role="alert">
+          <i className="fi fi-rr-cross-circle" aria-hidden="true" /> {saveError}
+        </div>
+      )}
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">{t('txModal.type')}</label>
@@ -89,12 +149,25 @@ export default function TransactionModal({ initial, draft, onSave, onSettle, onC
       </div>
       <div className="form-group">
         <label className="form-label">{t('tx.description')}</label>
-        <input className="form-input" placeholder={t('txModal.namePlaceholder')} value={form.name} onChange={e => set('name', e.target.value)} />
+        <input
+          className={`form-input${tried && nameMissing ? ' input-error' : ''}`}
+          placeholder={t('txModal.namePlaceholder')}
+          value={form.name}
+          onChange={e => set('name', e.target.value)}
+          aria-invalid={tried && nameMissing}
+        />
+        {tried && nameMissing && <div className="form-error">{t('txModal.nameRequired')}</div>}
       </div>
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">{t('txModal.value', { symbol: currencySymbol })}</label>
-          <CurrencyInput className="form-input" value={form.amount} onChange={v => set('amount', v)} />
+          <CurrencyInput
+            className={`form-input${tried && amountMissing ? ' input-error' : ''}`}
+            value={form.amount}
+            onChange={v => set('amount', v)}
+            aria-invalid={tried && amountMissing}
+          />
+          {tried && amountMissing && <div className="form-error">{t('txModal.amountRequired')}</div>}
         </div>
         <div className="form-group">
           <label className="form-label">{t('tx.date')}</label>
@@ -279,5 +352,16 @@ export default function TransactionModal({ initial, draft, onSave, onSettle, onC
         <textarea className="form-textarea" placeholder={t('txModal.notesPlaceholder')} value={form.notes} onChange={e => set('notes', e.target.value)} />
       </div>
     </Modal>
+    {askScope && (
+      <SeriesScopeModal
+        kind={series.kind}
+        action="edit"
+        futureCount={series.futureCount}
+        totalCount={series.totalCount}
+        onChoose={scope => handleSave(scope)}
+        onClose={() => setAskScope(false)}
+      />
+    )}
+    </>
   )
 }

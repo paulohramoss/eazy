@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { createTranslator, detectLanguage } from '../i18n'
-import { BrandMark, BrandWordmark } from './BrandLogo'
+import { BrandLockup } from './BrandLogo'
 
 const ERR = {
   'auth/user-not-found':           'E-mail não encontrado.',
@@ -117,12 +117,13 @@ export default function Login() {
   )
 
   const Brand = () => (
+    // Lockup do kit (ícone + "eazy" já compostos) em vez de montar os dois
+    // aqui: o "eazy" é letreiro com o "y" descendo, e ao lado de um ícone
+    // solto o texto sempre parecia flutuar. O slogan vai embaixo, alinhado
+    // à borda esquerda do ícone.
     <div className="login-logo">
-      <BrandMark className="login-logo-mark" size={48} alt="" />
-      <div>
-        <BrandWordmark className="login-app-wordmark" alt="Eazy" />
-        <div className="login-app-sub">{t('login.tagline')}</div>
-      </div>
+      <BrandLockup className="login-lockup" alt="Eazy" />
+      <div className="login-app-sub">{t('login.tagline')}</div>
     </div>
   )
 

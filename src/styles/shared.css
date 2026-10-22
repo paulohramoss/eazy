@@ -534,7 +534,7 @@
 
 /* ─── Marca (BrandLogo.jsx) ─────────────────────────────────
    Peças com o "eazy" vêm em par claro/escuro; mostra a do tema ativo.
-   A altura vem de quem usa (.sidebar-logo-full, .login-app-wordmark…) e a
+   A altura vem de quem usa (.sidebar-logo-full, .login-lockup…) e a
    largura acompanha a proporção do SVG. */
 .brand-themed {
   display: inline-block;

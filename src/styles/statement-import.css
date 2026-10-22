@@ -1,6 +1,6 @@
 /* Importação de extrato (StatementImport.jsx) */
 
-.modal-xl { width: min(880px, 100%); }
+.modal-xl { width: min(980px, 100%); }
 
 .stmt-drop {
   display: flex;
@@ -115,7 +115,7 @@
 }
 .stmt-row {
   display: grid;
-  grid-template-columns: 28px 118px minmax(0, 1fr) 150px 110px;
+  grid-template-columns: 28px 118px minmax(0, 1fr) 140px 112px 104px;
   gap: 10px;
   align-items: center;
   padding: 8px 12px;
@@ -194,14 +194,16 @@
     grid-template-columns: 28px minmax(0, 1fr) auto;
     grid-template-areas:
       "check name amount"
-      "check date cat";
+      "check date cat"
+      "check .    status";
     row-gap: 4px;
   }
   .stmt-row > :nth-child(1) { grid-area: check; }
   .stmt-row > :nth-child(2) { grid-area: date; }
   .stmt-row > :nth-child(3) { grid-area: name; }
   .stmt-row > :nth-child(4) { grid-area: cat; justify-self: end; max-width: 160px; }
-  .stmt-row > :nth-child(5) { grid-area: amount; }
+  .stmt-row > :nth-child(5) { grid-area: status; justify-self: end; max-width: 160px; }
+  .stmt-row > :nth-child(6) { grid-area: amount; }
   .stmt-head > :nth-child(n+2) { display: none; }
   .stmt-table { max-height: 52vh; }
 }
@@ -241,3 +243,9 @@
 .stmt-sort:hover,
 .stmt-sort.active { color: var(--text-primary); }
 .stmt-sort.active i { opacity: 1; color: var(--accent); }
+
+.stmt-dest-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+/* Pendente em âmbar, concluído neutro: mesma leitura do badge da lista. */
+.stmt-status { font-weight: 600; }
+.stmt-status-pending { color: var(--accent-yellow); border-color: rgba(245, 158, 11, .45); }
