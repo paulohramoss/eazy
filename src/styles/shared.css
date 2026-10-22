@@ -531,3 +531,28 @@
 .toggle.on::after {
   transform: translateX(18px);
 }
+
+/* ─── Marca (BrandLogo.jsx) ─────────────────────────────────
+   Peças com o "eazy" vêm em par claro/escuro; mostra a do tema ativo.
+   A altura vem de quem usa (.sidebar-logo-full, .login-app-wordmark…) e a
+   largura acompanha a proporção do SVG. */
+.brand-themed {
+  display: inline-block;
+  line-height: 0;
+}
+
+.brand-themed img {
+  height: 100%;
+  width: auto;
+  user-select: none;
+}
+
+.brand-themed__dark { display: none; }
+
+[data-theme="dark"] .brand-themed__light { display: none; }
+[data-theme="dark"] .brand-themed__dark  { display: inline; }
+
+.brand-mark {
+  display: block;
+  user-select: none;
+}

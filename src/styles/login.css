@@ -61,29 +61,13 @@
   flex-shrink: 0;
 }
 
-.login-logo-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  color: var(--btn-text);
+.login-logo-mark {
   flex-shrink: 0;
 }
 
-.login-app-name {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  line-height: 1.1;
-}
-
-.login-app-name em {
-  color: var(--accent);
-  font-style: normal;
+.login-app-wordmark {
+  height: 34px;
+  margin-bottom: 2px;
 }
 
 .login-app-sub {

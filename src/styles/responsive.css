@@ -29,6 +29,10 @@
     min-width: 0;
   }
 
+  .header .header-mark {
+    display: block;
+  }
+
   .header-left h1 {
     font-size: 16px;
     white-space: nowrap;

@@ -17,8 +17,8 @@ messaging.onBackgroundMessage(payload => {
   const { title, body, icon } = payload.notification || {}
   self.registration.showNotification(title || 'EAZY Finance', {
     body: body || '',
-    icon: icon || '/logo.png',
-    badge: '/logo.png',
+    icon: icon || '/pwa-192x192.png',
+    badge: '/badge-96x96.png',
     data: payload.data,
     requireInteraction: false,
   })

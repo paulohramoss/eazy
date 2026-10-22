@@ -34,7 +34,7 @@ export async function deliver({ uid, prefs, type, title, body, data = {}, emailT
         token: prefs.fcmToken,
         notification: { title, body },
         webpush: {
-          notification: { icon: '/logo.png' },
+          notification: { icon: '/pwa-192x192.png', badge: '/badge-96x96.png' },
           // Abre direto na tela relevante — o roteador por hash torna isso
           // possível.
           fcmOptions: data.link ? { link: data.link } : undefined,
