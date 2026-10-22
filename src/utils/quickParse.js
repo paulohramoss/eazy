@@ -288,6 +288,23 @@ export function parseQuickEntry(input, opts = {}) {
 }
 
 /**
+ * Só a parte de categoria do lançamento rápido: histórico primeiro, palavra-
+ * chave depois. A importação de extrato usa para não manter uma segunda tabela
+ * de palavras que discordaria desta.
+ *
+ * @returns {{category:string, type?:string, source:'history'|'keyword'}|null}
+ */
+export function suggestCategory(name, { categories = CATEGORIES, history = [] } = {}) {
+  const past = matchHistory(name, history)
+  if (past && categories.includes(past.category) && past.category !== GOAL_CATEGORY) {
+    return { category: past.category, type: past.type, source: 'history' }
+  }
+  const words = String(name ?? '').split(/[^\p{L}\p{N}]+/u).map(norm).filter(Boolean)
+  const byKeyword = matchCategory(words, categories)
+  return byKeyword ? { category: byKeyword, source: 'keyword' } : null
+}
+
+/**
  * Os lançamentos que mais se repetem numa janela recente, para virarem chips
  * de um toque. Deriva do que já está em memória — nenhuma leitura nova.
  *

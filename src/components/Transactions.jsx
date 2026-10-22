@@ -5,6 +5,7 @@ import { norm } from '../utils/text'
 import Modal from './Modal'
 import Checkbox from './Checkbox'
 import TransactionModal from './TransactionModal'
+import StatementImport from './StatementImport'
 import EmptyState from './EmptyState'
 import { resolveWalletIcon } from '../utils/walletIcons'
 
@@ -72,6 +73,7 @@ export default function Transactions() {
   }
 
   const [addModal, setAddModal] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
   const [bulkConfirm, setBulkConfirm] = useState(false)
@@ -270,6 +272,9 @@ export default function Transactions() {
             </div>
           )}
 
+          <button className="btn btn-secondary filter-bar-add" onClick={() => setImportOpen(true)}>
+            <i className="fi fi-rr-file-invoice-dollar" /> Importar extrato
+          </button>
           <button className="btn btn-primary filter-bar-add" onClick={() => setAddModal(true)}>
             <i className="fi fi-rr-plus" /> {t('txModal.newTitle')}
           </button>
@@ -432,6 +437,8 @@ export default function Transactions() {
           </ul>
         </>)}
       </div>
+
+      {importOpen && <StatementImport onClose={() => setImportOpen(false)} />}
 
       {addModal && (
         <TransactionModal wallets={wallets} creditCards={creditCards} categories={categories}

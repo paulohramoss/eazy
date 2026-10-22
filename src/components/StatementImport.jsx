@@ -1,0 +1,305 @@
+import { useMemo, useRef, useState } from 'react'
+import { useApp } from '../context/AppContext'
+import { useToast } from './Toast'
+import Modal from './Modal'
+import Checkbox from './Checkbox'
+import { norm } from '../utils/text'
+import { ACCEPTED_FILES, PdfPasswordError, categorize, parseStatementFile } from '../utils/statement'
+
+// Importação de extrato: o arquivo do banco entra (fatura ou extrato em PDF,
+// OFX, CSV, comprovante de Pix) e sai uma lista de lançamentos já com
+// categoria, para a pessoa conferir e lançar de uma vez.
+//
+// Nada é gravado antes da revisão: leitura de PDF é heurística, e um valor
+// errado no saldo custa mais que um clique a mais.
+
+const FORMAT_LABEL = { pdf: 'PDF', ofx: 'OFX', csv: 'CSV' }
+const KIND_LABEL = { card: 'Fatura de cartão', account: 'Extrato de conta', pix: 'Comprovante de Pix' }
+const SKIP_LABEL = { payment: 'Pagamento da fatura', refunded: 'Estornado', duplicate: 'Já lançado' }
+
+const signature = (tx) =>
+  [tx.date, tx.type, Number(tx.amount).toFixed(2), (tx.name || '').trim().toLowerCase()].join('|')
+
+// O cartão ou a conta cujo nome lembra o banco do arquivo ("Sicoob" acha o
+// cartão "Mastercard Sicoob"). Sem pista, o primeiro da lista.
+const guessDestination = (list, bank) => {
+  if (!list.length) return ''
+  const b = norm(bank)
+  return (b && list.find(item => norm(item.name).includes(b)))?.id || list[0].id
+}
+
+export default function StatementImport({ onClose }) {
+  const { transactions, wallets, creditCards, categories, importTransactions, formatCurrency: fmt, formatDate } = useApp()
+  const toast = useToast()
+  const inputRef = useRef(null)
+
+  const [file, setFile] = useState(null)
+  const [stage, setStage] = useState('pick') // pick | loading | password | review | saving
+  const [error, setError] = useState('')
+  const [password, setPassword] = useState('')
+  const [result, setResult] = useState(null)
+  const [rows, setRows] = useState([])
+  const [dest, setDest] = useState({ type: 'wallet', id: '' })
+  const [dragging, setDragging] = useState(false)
+
+  const read = async (f, pwd) => {
+    setStage('loading')
+    setError('')
+    try {
+      const parsed = await parseStatementFile(f, { password: pwd })
+
+      // Mais recente primeiro: é o hábito atual que deve ganhar.
+      const history = [...transactions].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      const existing = new Set(transactions.map(signature))
+
+      setRows(parsed.entries.map(e => {
+        const category = e.category && categories.includes(e.category)
+          ? e.category
+          : categorize(e, { categories, history }).category
+        const skip = e.skip || (existing.has(signature(e)) ? 'duplicate' : null)
+        return { ...e, category, skip, selected: !skip }
+      }))
+
+      const isCard = parsed.kind === 'card'
+      setDest(isCard && creditCards.length
+        ? { type: 'card', id: guessDestination(creditCards, parsed.bank) }
+        : { type: 'wallet', id: guessDestination(wallets, parsed.bank) })
+      setResult(parsed)
+      setStage('review')
+    } catch (err) {
+      if (err instanceof PdfPasswordError) {
+        setStage('password')
+        setError(err.wrong ? 'Senha incorreta. Tente de novo.' : '')
+        return
+      }
+      setError(err.message || 'Não consegui ler o arquivo.')
+      setStage('pick')
+    }
+  }
+
+  const pick = (f) => {
+    if (!f) return
+    setFile(f)
+    setPassword('')
+    read(f)
+  }
+
+  const setRow = (id, patch) => setRows(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)))
+
+  const selected = rows.filter(r => r.selected)
+  const totals = useMemo(() => selected.reduce((acc, r) => {
+    acc[r.type] += r.amount
+    return acc
+  }, { expense: 0, income: 0 }), [selected])
+
+  const allSelected = rows.length > 0 && rows.every(r => r.selected)
+  const toggleAll = () => setRows(rs => rs.map(r => ({ ...r, selected: !allSelected })))
+
+  const save = async () => {
+    if (!selected.length) return
+    setStage('saving')
+    try {
+      const list = selected.map(r => ({
+        date: r.date,
+        name: r.name,
+        amount: r.amount,
+        type: r.type,
+        category: r.category,
+        notes: r.notes,
+        status: 'completed',
+        walletId: dest.type === 'wallet' ? dest.id : '',
+        cardId: dest.type === 'card' ? dest.id : '',
+      }))
+      const count = await importTransactions(list)
+      toast.success(`${count} lançamento${count > 1 ? 's' : ''} importado${count > 1 ? 's' : ''}.`)
+      onClose()
+    } catch (err) {
+      setError(err.message || 'Falha ao gravar.')
+      setStage('review')
+    }
+  }
+
+  const destList = dest.type === 'card' ? creditCards : wallets
+  // O que fica de fora (pagamento, estorno, repetido) vai para o fim: o topo da
+  // lista é o que vai ser lançado.
+  const sorted = useMemo(() => [...rows].sort((a, b) =>
+    (a.skip ? 1 : 0) - (b.skip ? 1 : 0) || a.date.localeCompare(b.date) || a.id - b.id), [rows])
+  const totalOk = result?.total && Math.abs(result.total.expected - result.total.computed) < 0.01
+
+  const footer = stage === 'review' || stage === 'saving' ? (
+    <>
+      <button className="btn btn-secondary" onClick={() => { setStage('pick'); setResult(null); setRows([]) }}>
+        Outro arquivo
+      </button>
+      <button className="btn btn-primary" disabled={!selected.length || stage === 'saving'} onClick={save}>
+        <i className="fi fi-rr-check" />
+        {stage === 'saving' ? 'Lançando...' : `Lançar ${selected.length}`}
+      </button>
+    </>
+  ) : null
+
+  return (
+    <Modal title="Importar extrato" onClose={onClose} footer={footer} size="xl">
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPTED_FILES}
+        style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; pick(f) }}
+      />
+
+      {(stage === 'pick' || stage === 'loading') && (
+        <>
+          <button
+            type="button"
+            className={`stmt-drop${dragging ? ' dragging' : ''}`}
+            disabled={stage === 'loading'}
+            onClick={() => inputRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]) }}
+          >
+            <i className={`fi ${stage === 'loading' ? 'fi-rr-spinner stmt-spin' : 'fi-rr-cloud-upload'}`} />
+            <strong>{stage === 'loading' ? `Lendo ${file?.name}...` : 'Arraste o arquivo do banco ou clique para escolher'}</strong>
+            <span>Fatura do cartão ou extrato em PDF, OFX, CSV e comprovante de Pix em PDF</span>
+          </button>
+          <p className="stmt-hint">
+            Os gastos são lidos e categorizados automaticamente. Você confere tudo antes de lançar:
+            pagamento da fatura, estornos e lançamentos repetidos já vêm desmarcados.
+          </p>
+        </>
+      )}
+
+      {stage === 'password' && (
+        <form
+          className="stmt-password"
+          onSubmit={e => { e.preventDefault(); if (password) read(file, password) }}
+        >
+          <i className="fi fi-rr-lock" />
+          <div>
+            <strong>{file?.name} é protegido por senha</strong>
+            <span>Bancos costumam usar os primeiros dígitos do CPF do titular.</span>
+          </div>
+          <input
+            className="form-input"
+            type="password"
+            autoFocus
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Senha do PDF"
+            aria-label="Senha do PDF"
+          />
+          <button className="btn btn-primary" type="submit" disabled={!password}>Abrir</button>
+        </form>
+      )}
+
+      {error && (
+        <div className="stmt-alert stmt-alert-error">
+          <i className="fi fi-rr-cross-circle" /> {error}
+        </div>
+      )}
+
+      {(stage === 'review' || stage === 'saving') && result && (
+        <>
+          <div className="stmt-summary">
+            <div>
+              <span className="stmt-pill">{FORMAT_LABEL[result.format]}</span>
+              <span className="stmt-pill">{KIND_LABEL[result.kind]}</span>
+              {result.bank && <span className="stmt-pill">{result.bank}</span>}
+              <span className="stmt-file">{file?.name}</span>
+            </div>
+            {result.total && (
+              <div className={`stmt-alert ${totalOk ? 'stmt-alert-ok' : 'stmt-alert-warn'}`}>
+                <i className={`fi ${totalOk ? 'fi-rr-check' : 'fi-rr-exclamation'}`} />
+                {totalOk
+                  ? `Conferido: a soma lida bate com o total da fatura (${fmt(result.total.expected)}).`
+                  : `Atenção: total da fatura ${fmt(result.total.expected)}, soma lida ${fmt(result.total.computed)}. Confira as linhas antes de lançar.`}
+              </div>
+            )}
+            {result.invalid > 0 && (
+              <div className="stmt-alert stmt-alert-warn">
+                <i className="fi fi-rr-exclamation" /> {result.invalid} linha(s) sem data ou valor foram ignoradas.
+              </div>
+            )}
+          </div>
+
+          <div className="stmt-dest">
+            <div className="stmt-dest-toggle" role="radiogroup" aria-label="Destino">
+              {[['wallet', 'Conta'], ['card', 'Cartão de crédito']].map(([type, label]) => (
+                <button
+                  key={type}
+                  type="button"
+                  role="radio"
+                  aria-checked={dest.type === type}
+                  className={dest.type === type ? 'active' : ''}
+                  onClick={() => setDest({ type, id: guessDestination(type === 'card' ? creditCards : wallets, result.bank) })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select
+              className="form-select"
+              value={dest.id}
+              onChange={e => setDest(d => ({ ...d, id: e.target.value }))}
+              aria-label="Lançar em"
+            >
+              {dest.type === 'wallet' && <option value="">Sem conta</option>}
+              {destList.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            {dest.type === 'card' && !creditCards.length && (
+              <span className="stmt-hint">Nenhum cartão cadastrado — os gastos entram sem cartão.</span>
+            )}
+          </div>
+
+          <div className="stmt-table" role="table">
+            <div className="stmt-row stmt-head" role="row">
+              <Checkbox checked={allSelected} onChange={toggleAll} label="Selecionar todos" indeterminate={!allSelected && selected.length > 0} />
+              <span>Data</span>
+              <span>Descrição</span>
+              <span>Categoria</span>
+              <span className="stmt-amount">Valor</span>
+            </div>
+            {sorted.map(r => (
+              <div key={r.id} className={`stmt-row${r.selected ? '' : ' off'}`} role="row">
+                <Checkbox checked={r.selected} onChange={() => setRow(r.id, { selected: !r.selected })} label={`Importar ${r.name}`} />
+                <span className="stmt-date">{formatDate(r.date)}</span>
+                <span className="stmt-name">
+                  <input
+                    className="stmt-name-input"
+                    value={r.name}
+                    onChange={e => setRow(r.id, { name: e.target.value })}
+                    aria-label="Descrição"
+                  />
+                  {(r.skip || r.notes) && (
+                    <small>
+                      {r.skip && <span className={`stmt-badge stmt-badge-${r.skip}`}>{SKIP_LABEL[r.skip]}</span>}
+                      {r.notes}
+                    </small>
+                  )}
+                </span>
+                <select
+                  className="stmt-cat"
+                  value={r.category}
+                  onChange={e => setRow(r.id, { category: e.target.value })}
+                  aria-label="Categoria"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <span className={`stmt-amount ${r.type}`}>
+                  {r.type === 'expense' ? '−' : '+'}{fmt(r.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="stmt-totals">
+            <span>{selected.length} de {rows.length} selecionados</span>
+            <span className="expense">Gastos {fmt(totals.expense)}</span>
+            {totals.income > 0 && <span className="income">Entradas {fmt(totals.income)}</span>}
+          </div>
+        </>
+      )}
+    </Modal>
+  )
+}

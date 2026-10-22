@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext'
 import Toggle from './Toggle'
 import { useToast } from './Toast'
 import { LANGUAGES } from '../i18n'
+import StatementImport from './StatementImport'
 
 const THEME_OPTIONS = [
   { value: 'light',  label: 'Claro',   icon: 'fi-rr-sun' },
@@ -28,15 +29,14 @@ function Section({ icon, title, children }) {
 
 export default function Settings() {
   const { settings, resolvedTheme, updateSettings, categories, addCategory, removeCategory,
-          exportJSON, exportCSV, importJSON, importCSV, wallets, t } = useApp()
+          exportJSON, exportCSV, importJSON, t } = useApp()
   const [newCat, setNewCat] = useState('')
   const toast = useToast()
   const [importStatus, setImportStatus] = useState(null) // null | 'loading' | { ok, msg }
   const importRef = useRef(null)
 
   const [skipDuplicates, setSkipDuplicates] = useState(true)
-  const [csvWallet, setCsvWallet] = useState('')
-  const csvRef = useRef(null)
+  const [statementOpen, setStatementOpen] = useState(false)
 
   // Importar o mesmo arquivo duas vezes duplicava tudo em silêncio. Agora as
   // repetições são detectadas por data+tipo+valor+descrição e o resultado diz
@@ -61,13 +61,6 @@ export default function Settings() {
     e.target.value = ''
     if (!file) return
     await runImport(file, importJSON)
-  }
-
-  const handleImportCSV = async (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    await runImport(file, importCSV, { walletId: csvWallet })
   }
 
   const handleAddCategory = () => {
@@ -279,9 +272,9 @@ export default function Settings() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               Dados sincronizados na nuvem via Firestore. Exporte como JSON (backup completo) ou CSV (só transações, abre no Excel).
-              Na importação, o JSON restaura um backup do próprio app e o CSV traz o extrato do banco —
-              são aceitos os cabeçalhos Data, Descrição, Valor, Tipo e Categoria, com valores em
-              formato brasileiro ou americano.
+              Na importação, o JSON restaura um backup do próprio app. Para trazer gastos do banco, use
+              Importar extrato: fatura ou extrato em PDF, OFX, CSV e comprovante de Pix são lidos e
+              categorizados automaticamente, e você revisa antes de lançar.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -293,7 +286,6 @@ export default function Settings() {
                 </button>
               </div>
               <input ref={importRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={handleImport} />
-              <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleImportCSV} />
 
               <div className="toggle-row" style={{ padding: '10px 0' }}>
                 <div className="toggle-info">
@@ -303,22 +295,6 @@ export default function Settings() {
                   </div>
                 </div>
                 <Toggle on={skipDuplicates} onChange={setSkipDuplicates} />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="csv-wallet">{t('settings.csvWallet')}</label>
-                <select
-                  id="csv-wallet"
-                  className="form-select"
-                  value={csvWallet}
-                  onChange={e => setCsvWallet(e.target.value)}
-                >
-                  <option value="">{t('settings.noWallet')}</option>
-                  {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-                <div className="form-hint">
-                  O CSV de banco não traz a conta; escolha aqui para os saldos ficarem certos.
-                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
@@ -335,10 +311,10 @@ export default function Settings() {
                   className="btn btn-secondary"
                   style={{ flex: 1 }}
                   disabled={importStatus === 'loading'}
-                  onClick={() => { setImportStatus(null); csvRef.current?.click() }}
+                  onClick={() => { setImportStatus(null); setStatementOpen(true) }}
                 >
-                  <i className="fi fi-rr-file-spreadsheet" />
-                  Importar CSV
+                  <i className="fi fi-rr-file-invoice-dollar" />
+                  Importar extrato
                 </button>
               </div>
               {importStatus && importStatus !== 'loading' && (
@@ -373,6 +349,8 @@ export default function Settings() {
         </Section>
 
       </div>
+
+      {statementOpen && <StatementImport onClose={() => setStatementOpen(false)} />}
     </div>
   )
 }

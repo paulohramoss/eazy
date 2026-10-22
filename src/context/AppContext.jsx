@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, useMemo, useCallback, u
 import { useAuth } from './AuthContext'
 import { addMonths, advance, isoDate } from '../utils/date'
 import { splitInstallments } from '../utils/installments'
-import { normalizeDate, parseAmount, parseCSV } from '../utils/csv'
 import { cacheLanguage, createFormatters, createTranslator } from '../i18n'
 import { walletStats } from '../utils/balances'
 import { buildInsights, categoryAverages, daysLeftInMonth } from '../utils/insights'
@@ -879,74 +878,27 @@ export function AppProvider({ children }) {
     return stats
   }, [base, transactions, wallets, creditCards, budgets, goals])
 
-  // Importação de CSV — a via realista de trazer o extrato do banco. Aceita o
-  // CSV exportado pelo próprio app e os cabeçalhos mais comuns de banco.
-  const importCSV = useCallback(async (file, { skipDuplicates = true, walletId = '' } = {}) => {
-    const text = (await file.text()).replace(/^\uFEFF/, '')
-    const rows = parseCSV(text)
-    if (rows.length < 2) throw new Error('CSV vazio ou sem linhas de dados')
-
-    const header = rows[0].map(h => h.trim().toLowerCase())
-    const findCol = (...names) => header.findIndex(h => names.some(n => h.includes(n)))
-
-    const iDate   = findCol('data', 'date')
-    const iName   = findCol('descri', 'histór', 'histor', 'name', 'lançamento', 'lancamento')
-    const iAmount = findCol('valor', 'amount', 'quantia')
-    const iType   = findCol('tipo', 'type')
-    const iCat    = findCol('categoria', 'category')
-    const iNotes  = findCol('observ', 'notes', 'memo')
-
-    if (iDate < 0 || iAmount < 0) {
-      throw new Error('Não encontrei as colunas de data e valor. Cabeçalhos esperados: Data, Descrição, Valor.')
-    }
-
-    const existing = new Set(transactions.map(txSignature))
-    const parsed = []
-    const stats = { imported: 0, skipped: 0, invalid: 0 }
-
-    for (const row of rows.slice(1)) {
-      if (!row.length || row.every(c => !c.trim())) continue
-
-      const date = normalizeDate(row[iDate])
-      const amountRaw = row[iAmount]
-      const amount = parseAmount(amountRaw)
-
-      if (!date || amount == null) { stats.invalid++; continue }
-
-      // Sem coluna de tipo, o sinal do valor decide — é a convenção de extrato.
-      const typeCell = iType >= 0 ? (row[iType] || '').toLowerCase() : ''
-      const type = typeCell
-        ? (typeCell.includes('receit') || typeCell.includes('entrada') || typeCell.includes('credit') || typeCell.includes('income') ? 'income' : 'expense')
-        : (amount < 0 ? 'expense' : 'income')
-
-      const tx = {
-        date,
-        name: (iName >= 0 ? row[iName] : '').trim() || 'Importado',
-        amount: Math.abs(amount),
-        type,
-        category: (iCat >= 0 ? row[iCat] : '').trim() || 'Outros',
-        notes: (iNotes >= 0 ? row[iNotes] : '').trim(),
-        status: 'completed',
-        walletId,
-        cardId: '',
-      }
-
-      const sig = txSignature(tx)
-      if (skipDuplicates && existing.has(sig)) { stats.skipped++; continue }
-      existing.add(sig)
-      parsed.push(tx)
-      stats.imported++
-    }
-
+  // Lançamentos já lidos e revisados na tela de importação de extrato (PDF,
+  // OFX, CSV). A leitura do arquivo mora em utils/statement; aqui só grava.
+  const importTransactions = useCallback(async (list) => {
     const CHUNK_SIZE = 450
-    for (let i = 0; i < parsed.length; i += CHUNK_SIZE) {
+    for (let i = 0; i < list.length; i += CHUNK_SIZE) {
       const batch = writeBatch(db)
-      parsed.slice(i, i + CHUNK_SIZE).forEach(tx => batch.set(doc(collection(db, COL.transactions)), base(tx)))
+      list.slice(i, i + CHUNK_SIZE).forEach(tx => batch.set(doc(collection(db, COL.transactions)), base({
+        date: tx.date,
+        name: tx.name,
+        amount: Number(tx.amount),
+        type: tx.type,
+        category: tx.category || 'Outros',
+        notes: tx.notes || '',
+        status: tx.status || 'completed',
+        walletId: tx.walletId || '',
+        cardId: tx.cardId || '',
+      })))
       await batch.commit()
     }
-
-    return stats
-  }, [base, transactions])
+    return list.length
+  }, [base])
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
@@ -1021,7 +973,7 @@ export function AppProvider({ children }) {
     addAlert, updateAlert, deleteAlert,
     addRecurrence, updateRecurrence, deleteRecurrence, toggleRecurrence, createRecurringSeries,
     updateSettings, toggleTheme, addCategory, removeCategory,
-    exportJSON, exportCSV, importJSON, importCSV,
+    exportJSON, exportCSV, importJSON, importTransactions,
   }), [
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
     recurrences, nextRecurrences,
@@ -1041,7 +993,7 @@ export function AppProvider({ children }) {
     addAlert, updateAlert, deleteAlert,
     addRecurrence, updateRecurrence, deleteRecurrence, toggleRecurrence, createRecurringSeries,
     updateSettings, toggleTheme, addCategory, removeCategory,
-    exportJSON, exportCSV, importJSON, importCSV,
+    exportJSON, exportCSV, importJSON, importTransactions,
   ])
 
   return (

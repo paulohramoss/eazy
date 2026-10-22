@@ -25,6 +25,7 @@ import ScreenSkeleton from './components/Skeleton'
 import QuickAdd from './components/QuickAdd'
 import SplitEditor from './components/SplitEditor'
 import StreakBadge from './components/StreakBadge'
+import StatementImport from './components/StatementImport'
 import { ToastProvider } from './components/Toast'
 import { CATEGORIES } from './utils/categories'
 import { buildEqualSplit } from './utils/split'
@@ -90,6 +91,8 @@ function makeCtx(language = 'pt-BR') {
     wallets: [{ id: 'w1', name: 'Nubank' }],
     daysLeft: 11,
     addTransaction: async () => {},
+    creditCards: [{ id: 'c1', name: 'Mastercard Sicoob' }],
+    importTransactions: async (list) => { console.log('[preview] importTransactions', list); return list.length },
   }
 }
 
@@ -282,6 +285,18 @@ function QuickAddDemo() {
   )
 }
 
+// Importação de extrato: abre o modal de verdade; o arquivo escolhido é lido
+// no navegador e o "Lançar" só registra no console.
+function ImportPreview() {
+  const [open, setOpen] = useState(false)
+  return (
+    <Section title="Importar extrato" cols={1}>
+      <div><button className="btn btn-secondary" onClick={() => setOpen(true)}>Abrir importação</button></div>
+      {open && <StatementImport onClose={() => setOpen(false)} />}
+    </Section>
+  )
+}
+
 function Preview() {
   // Tema e idioma vêm da URL para o screenshot headless conseguir capturar as
   // variantes sem clicar em nada: ?theme=dark&lang=en-US
@@ -305,6 +320,7 @@ function Preview() {
             <option value="es">es</option>
           </select>
         </div>
+        <ImportPreview />
         <Gallery />
       </div>
     </AppContext.Provider>

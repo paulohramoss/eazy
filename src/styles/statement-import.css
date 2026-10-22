@@ -1,0 +1,210 @@
+/* Importação de extrato (StatementImport.jsx) */
+
+.modal-xl { width: min(880px, 100%); }
+
+.stmt-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 36px 20px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.stmt-drop:hover:not(:disabled),
+.stmt-drop.dragging {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), .06);
+}
+.stmt-drop i { font-size: 30px; color: var(--accent); }
+.stmt-drop strong { font-size: 15px; color: var(--text-primary); }
+.stmt-drop span { font-size: 13px; }
+.stmt-drop:disabled { cursor: progress; }
+
+.stmt-spin { animation: stmt-spin 1s linear infinite; }
+@keyframes stmt-spin { to { transform: rotate(360deg); } }
+
+.stmt-hint { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+.stmt-password {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stmt-password > i { font-size: 22px; color: var(--accent); }
+.stmt-password strong { display: block; font-size: 14px; }
+.stmt-password span { font-size: 12px; color: var(--text-muted); }
+.stmt-password .form-input,
+.stmt-password .btn { grid-column: 1 / -1; }
+
+.stmt-alert {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.stmt-alert i { margin-top: 2px; }
+.stmt-alert-ok    { background: rgba(var(--green-rgb), .1); color: var(--accent-green); }
+.stmt-alert-error { background: rgba(var(--red-rgb), .1);   color: var(--accent-red); }
+.stmt-alert-warn  { background: rgba(232, 160, 20, .12);    color: var(--accent-yellow, #b7791f); }
+
+.stmt-summary { display: flex; flex-direction: column; gap: 10px; }
+.stmt-summary > div:first-child { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stmt-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.stmt-file {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.stmt-dest { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.stmt-dest .form-select { flex: 1; min-width: 180px; }
+.stmt-dest-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+}
+.stmt-dest-toggle button {
+  border: 0;
+  background: transparent;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.stmt-dest-toggle button.active {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+}
+
+.stmt-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.stmt-row {
+  display: grid;
+  grid-template-columns: 28px 84px minmax(0, 1fr) 150px 110px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-light, var(--border));
+  font-size: 13px;
+}
+.stmt-row.off { opacity: .5; }
+.stmt-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-top: 0;
+  background: var(--bg-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.stmt-date { color: var(--text-secondary); white-space: nowrap; }
+.stmt-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stmt-name-input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  padding: 3px 6px;
+  margin-left: -6px;
+  font: inherit;
+  color: var(--text-primary);
+}
+.stmt-name-input:hover { border-color: var(--border); }
+.stmt-name-input:focus { border-color: var(--accent); outline: none; background: var(--bg-primary); }
+.stmt-name small {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stmt-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+.stmt-badge-duplicate { background: rgba(var(--accent-rgb), .12); color: var(--accent); }
+.stmt-badge-refunded  { background: rgba(var(--green-rgb), .12);  color: var(--accent-green); }
+.stmt-cat {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.stmt-amount { text-align: right; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stmt-amount.expense { color: var(--accent-red); }
+.stmt-amount.income  { color: var(--accent-green); }
+
+.stmt-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.stmt-totals .expense { color: var(--accent-red); font-weight: 600; }
+.stmt-totals .income  { color: var(--accent-green); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .stmt-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check name amount"
+      "check date cat";
+    row-gap: 4px;
+  }
+  .stmt-row > :nth-child(1) { grid-area: check; }
+  .stmt-row > :nth-child(2) { grid-area: date; }
+  .stmt-row > :nth-child(3) { grid-area: name; }
+  .stmt-row > :nth-child(4) { grid-area: cat; justify-self: end; max-width: 160px; }
+  .stmt-row > :nth-child(5) { grid-area: amount; }
+  .stmt-head > :nth-child(n+2) { display: none; }
+  .stmt-table { max-height: 52vh; }
+}
+
+/* Botão de importar ao lado do de nova transação: só o primeiro empurra para a direita. */
+.filter-bar-add + .filter-bar-add { margin-left: 0; }

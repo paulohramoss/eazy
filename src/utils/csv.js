@@ -103,3 +103,51 @@ export function parseAmount(raw) {
 
   return negative ? -n : n
 }
+
+/**
+ * Extrato em CSV → lançamentos no mesmo formato dos outros leitores (valor com
+ * sinal, negativo é saída). Aceita o CSV exportado pelo próprio app e os
+ * cabeçalhos mais comuns de banco.
+ */
+export function parseCSVStatement(text) {
+  const rows = parseCSV(text.replace(/^\uFEFF/, ''))
+  if (rows.length < 2) throw new Error('CSV vazio ou sem linhas de dados')
+
+  const header = rows[0].map(h => h.trim().toLowerCase())
+  const findCol = (...names) => header.findIndex(h => names.some(n => h.includes(n)))
+
+  const iDate   = findCol('data', 'date')
+  const iName   = findCol('descri', 'histór', 'histor', 'name', 'lançamento', 'lancamento', 'estabelecimento', 'title')
+  const iAmount = findCol('valor', 'amount', 'quantia')
+  const iType   = findCol('tipo', 'type')
+  const iCat    = findCol('categoria', 'category')
+  const iNotes  = findCol('observ', 'notes', 'memo')
+
+  if (iDate < 0 || iAmount < 0) {
+    throw new Error('Não encontrei as colunas de data e valor. Cabeçalhos esperados: Data, Descrição, Valor.')
+  }
+
+  const entries = []
+  let invalid = 0
+  for (const row of rows.slice(1)) {
+    const date = normalizeDate(row[iDate])
+    const amount = parseAmount(row[iAmount])
+    if (!date || amount == null || amount === 0) { invalid++; continue }
+
+    // Sem coluna de tipo, o sinal do valor decide — é a convenção de extrato.
+    const typeCell = iType >= 0 ? (row[iType] || '').toLowerCase() : ''
+    const income = typeCell
+      ? /receit|entrada|credit|income/.test(typeCell)
+      : amount > 0
+
+    entries.push({
+      date,
+      description: (iName >= 0 ? row[iName] : '').trim() || 'Importado',
+      amount: income ? Math.abs(amount) : -Math.abs(amount),
+      category: (iCat >= 0 ? row[iCat] : '').trim(),
+      notes: (iNotes >= 0 ? row[iNotes] : '').trim(),
+    })
+  }
+
+  return { kind: 'account', bank: '', entries, invalid }
+}
