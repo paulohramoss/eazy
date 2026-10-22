@@ -44,7 +44,8 @@ export async function requestPushPermission() {
 
 export function showLocalNotification(title, body, icon = '/pwa-192x192.png') {
   if (Notification.permission !== 'granted') return
-  new Notification(title, { body, icon })
+  // badge: silhueta que o Android mostra na barra de status (mesma do push).
+  new Notification(title, { body, icon, badge: '/badge-96x96.png' })
 }
 
 // ─── Ouvir mensagens FCM em foreground ───────────────────────────────────────

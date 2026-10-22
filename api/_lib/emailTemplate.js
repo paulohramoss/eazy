@@ -13,7 +13,9 @@ const esc = (v) => String(v ?? '')
 
 const C = {
   ink: '#0A0A0A', text: '#3D3D3D', muted: '#8A8A8A', line: '#EFEFEF',
-  page: '#FFF9EF', card: '#FFFFFF', lime: '#CFF330', link: '#0053EF',
+  page: '#FFF9EF', card: '#FFFFFF', link: '#0053EF',
+  // Azul do wordmark em src/assets/brand/eazy-wordmark.svg.
+  brand: '#1E45FC',
 }
 
 const ICONS = {
@@ -139,6 +141,20 @@ const button = ({ label, url }) => `
   </td></tr>
 </table>`
 
+// Cabeçalho com a marca do kit (scripts/brand). Gmail e Outlook não exibem
+// SVG, então vai o PNG hospedado no próprio app — o apple-touch-icon, que é o
+// único sem transparência e não some quando o cliente escurece o e-mail.
+// O "eazy" do kit é letreiro desenhado, não fonte: imitá-lo em texto ficaria
+// fora da marca, então vai só o tile. Sem appUrl não há de onde servir a
+// imagem e fica o nome em texto, na cor do wordmark.
+function brandHeader(appUrl) {
+  if (!appUrl) {
+    return `<span style="font-size:22px;font-weight:800;color:${C.brand};letter-spacing:-0.6px">Eazy</span>`
+  }
+  return `<img src="${esc(appUrl)}/apple-touch-icon.png" width="44" height="44" alt="Eazy"
+      style="display:block;width:44px;height:44px;border:0;border-radius:11px">`
+}
+
 export function buildEmail(type, data = {}, { appUrl = '' } = {}) {
   const msg = content(type, data, appUrl)
   const isAccount = ACCOUNT_TYPES.has(type)
@@ -168,8 +184,7 @@ export function buildEmail(type, data = {}, { appUrl = '' } = {}) {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
 
     <tr><td style="padding:0 4px 20px">
-      <span style="font-size:22px;font-weight:800;color:${C.ink};letter-spacing:-0.6px">EAZY<span style="color:${C.ink};background:${C.lime};border-radius:4px;padding:0 3px;margin-left:2px">.</span></span>
-      <span style="font-size:12px;color:${C.muted};margin-left:8px">Finanças pessoais</span>
+      ${brandHeader(appUrl)}
     </td></tr>
 
     <tr><td style="background:${C.card};border:1px solid ${C.line};border-radius:20px;padding:36px 32px">

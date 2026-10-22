@@ -80,28 +80,6 @@
   display: none;
 }
 
-.logo-icon {
-  width: 36px;
-  height: 36px;
-  background: var(--accent);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-}
-
-.sidebar-logo span {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-}
-
-.sidebar-logo span em {
-  color: var(--accent-light);
-  font-style: normal;
-}
-
 .sidebar-nav {
   flex: 1;
   min-height: 0;
@@ -211,11 +189,6 @@
 
 .budget-category-icon .fi {
   font-size: 18px;
-}
-
-.logo-icon .fi {
-  font-size: 20px;
-  color: var(--btn-text);
 }
 
 .nav-flyout-icon {

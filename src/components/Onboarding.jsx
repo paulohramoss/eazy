@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
+import { BrandLockup } from './BrandLogo'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const WALLET_TYPES = [
@@ -75,6 +76,10 @@ export default function Onboarding() {
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
     }}>
       <div style={{ width: '100%', maxWidth: 480 }}>
+
+        {/* Primeira tela depois do cadastro e a única sem menu: sem isto o
+            app não mostra a marca entre o login e a visão geral. */}
+        <BrandLockup className="onboarding-logo" />
 
         {/* Progress bar */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 36 }}>
