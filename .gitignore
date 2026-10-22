@@ -28,6 +28,7 @@ dist-ssr
 # e .env.development, que as três linhas anteriores deixavam passar.
 .env*
 !.env.example
+!.env.emulators
 
 # Credenciais e cache de ferramentas
 *.pem

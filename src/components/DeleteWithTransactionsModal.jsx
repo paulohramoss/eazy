@@ -27,7 +27,9 @@ export default function DeleteWithTransactionsModal({
     targets.length > 0 && {
       value: 'move',
       icon: 'fi-rr-exchange',
-      label: t('del.move', { suffix: entityLabel }),
+      // Frase inteira por tipo: montar 'outr' + rótulo saía 'outrcarteira' e,
+      // em inglês, 'another carteira'.
+      label: t(entityLabel === 'cartão' ? 'del.moveCard' : 'del.moveWallet'),
       desc: t('del.moveDesc'),
     },
     {

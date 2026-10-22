@@ -309,4 +309,29 @@ describe('formatos reais do app', () => {
       walletId: 'w1', goalId: 'g1', date: '2026-03-10', status: 'completed',
     }))
   })
+
+  it('parcela com installmentGroup e marca de agendamento', async () => {
+    await assertSucceeds(create('transactions', {
+      ...TX, name: 'Notebook (2/3)', installmentGroup: 'grp1', scheduled: true, status: 'pending', date: '2027-01-10',
+    }))
+  })
+
+  it('scheduled que não é booleano é rejeitado', async () => {
+    await assertFails(create('transactions', { ...TX, scheduled: 'sim' }))
+  })
+
+  it('recorrência guarda status e tags escolhidos', async () => {
+    await assertSucceeds(create('recurrences', {
+      name: 'Salário', amount: 5500, type: 'income', category: 'Salário', walletId: 'w1', cardId: '',
+      notes: '', status: 'pending', tags: ['salario'], frequency: 'monthly',
+      startDate: '2026-11-06', endDate: '2027-10-06', nextDate: '2026-12-06', active: true,
+    }))
+  })
+
+  it('recorrência com status inválido é rejeitada', async () => {
+    await assertFails(create('recurrences', {
+      name: 'X', amount: 10, type: 'expense', frequency: 'monthly', status: 'talvez',
+      startDate: '2026-03-05', nextDate: '2026-04-05',
+    }))
+  })
 })

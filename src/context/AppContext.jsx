@@ -82,6 +82,10 @@ const saveBiometric = (uid, val) => localStorage.setItem(`bio_${uid}`, JSON.stri
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 const sumIncome   = (txs) => txs.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
 const sumExpenses = (txs) => txs.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
+// Pendente com data futura é agendamento: vira concluído sozinho no dia. Já
+// pendente numa data passada ou de hoje é escolha da pessoa e fica como está.
+const isScheduled = (status, date) => status === 'pending' && !!date && date > isoDate()
+
 const pctChange   = (curr, prev) => prev === 0 ? 0 : +(((curr - prev) / prev) * 100).toFixed(1)
 
 // Retorna a data de início do ciclo de faturamento atual do cartão
@@ -241,8 +245,15 @@ export function AppProvider({ children }) {
     if (!user || !transactions.length) return
 
     const todayStr = isoDate()
+    // Só o que foi agendado (pendente com data futura no momento em que foi
+    // salvo) vira concluído sozinho quando o dia chega. Pendente escolhido de
+    // propósito para uma data já passada — fatura ainda não paga, item
+    // importado — fica pendente até a pessoa mudar; antes voltava para
+    // concluído segundos depois de salvo. Documento antigo, sem o campo,
+    // segue a regra antiga (scheduled !== false).
     const toComplete = transactions.filter(tx =>
-      tx.status === 'pending' && tx.date && tx.date <= todayStr && !completedRef.current.has(tx.id))
+      tx.status === 'pending' && tx.scheduled !== false && tx.date && tx.date <= todayStr
+      && !completedRef.current.has(tx.id))
 
     if (!toComplete.length) return
 
@@ -311,6 +322,24 @@ export function AppProvider({ children }) {
       .filter(tx => {
         if (!tx.date) return false
         return new Date(tx.date + 'T00:00:00') >= cycleStart
+      })
+      .reduce((s, tx) => s + (tx.amount || 0), 0)
+  }, [creditCards, validTx])
+
+  // Só o que cai na fatura aberta: do último fechamento até o próximo.
+  // getCardCurrentUsed (acima) segue sem teto de data porque mede o limite
+  // comprometido — parcelas futuras ocupam limite, mas não estão na fatura
+  // deste mês, e mostrá-las como "Fatura do Mês" triplicava uma compra em 3x.
+  const getCardInvoice = useCallback((cardId) => {
+    const card = creditCards.find(c => c.id === cardId)
+    if (!card) return 0
+    const start = getCardCycleStart(card.closingDay || 1)
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, start.getDate())
+    return validTx
+      .filter(tx => tx.cardId === cardId && tx.type === 'expense' && tx.date)
+      .filter(tx => {
+        const d = new Date(tx.date + 'T00:00:00')
+        return d >= start && d < end
       })
       .reduce((s, tx) => s + (tx.amount || 0), 0)
   }, [creditCards, validTx])
@@ -441,7 +470,7 @@ export function AppProvider({ children }) {
         name: `${data.name} (${i + 1}/${count})`,
         installmentGroup,
       }
-      batch.set(doc(collection(db, COL.transactions)), base(txData))
+      batch.set(doc(collection(db, COL.transactions)), base({ ...txData, scheduled: isScheduled(txData.status, txData.date) }))
     }
 
     await batch.commit()
@@ -456,7 +485,7 @@ export function AppProvider({ children }) {
   }, [base, settings, checkBudgetNotify, checkCardNotify])
 
   const addTransaction = useCallback(async (data) => {
-    const ref = await addDoc(collection(db, COL.transactions), base(data))
+    const ref = await addDoc(collection(db, COL.transactions), base({ ...data, scheduled: isScheduled(data.status, data.date) }))
 
     // Notificação: nova transação
     notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
@@ -482,8 +511,14 @@ export function AppProvider({ children }) {
     return ref
   }, [base, settings, checkBudgetNotify, checkCardNotify])
 
-  const updateTransaction = useCallback((id, data) =>
-    updateDoc(doc(db, COL.transactions, id), data), [])
+  // O formulário de edição devolve o objeto inteiro, inclusive o id do
+  // documento: sem tirá-lo, cada edição gravava o próprio id como campo.
+  const updateTransaction = useCallback((id, { id: _ownId, ...data }) => {
+    void _ownId
+    return updateDoc(doc(db, COL.transactions, id), 'status' in data || 'date' in data
+      ? { ...data, scheduled: isScheduled(data.status, data.date) }
+      : data)
+  }, [])
 
   // Edição de lançamento de série (recorrência ou parcelamento) com o escopo
   // que a pessoa escolheu: só este, este e os próximos, ou todos. O cálculo do
@@ -495,7 +530,15 @@ export function AppProvider({ children }) {
     const plan = planSeriesEdit(original, edited, members, scope, { frequency: rule?.frequency })
 
     const batch = writeBatch(db)
-    plan.forEach(({ id, patch }) => batch.update(doc(db, COL.transactions, id), patch))
+    plan.forEach(({ id, patch }) => {
+      // Status ou data mudou: recalcula o agendamento com o valor final do
+      // lançamento (o patch dos irmãos traz só o que mudou).
+      if ('status' in patch || 'date' in patch) {
+        const member = members.find(m => m.id === id) || {}
+        patch = { ...patch, scheduled: isScheduled(patch.status ?? member.status, patch.date ?? member.date) }
+      }
+      batch.update(doc(db, COL.transactions, id), patch)
+    })
     // Daqui pra frente e todos também valem para as ocorrências que o job
     // diário ainda vai criar.
     if (rule && scope !== 'one') {
@@ -785,6 +828,9 @@ export function AppProvider({ children }) {
       amount: Number(data.amount),
       date: startDate,
       status,
+      // Primeira ocorrência futura: conclui sozinha no dia só se a série foi
+      // criada como concluída; criada como pendente, fica pendente.
+      scheduled: !startsToday && (data.status || 'completed') === 'completed',
       recurrenceId: recRef.id,
     }))
 
@@ -938,6 +984,7 @@ export function AppProvider({ children }) {
         category: tx.category || 'Outros',
         notes: tx.notes || '',
         status: tx.status || 'completed',
+        scheduled: isScheduled(tx.status, tx.date),
         walletId: tx.walletId || '',
         cardId: tx.cardId || '',
       })))
@@ -1008,7 +1055,7 @@ export function AppProvider({ children }) {
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
     insights, daysLeft, pendingReceivables,
-    pctChange, getCardCurrentUsed, formatCurrency, currencySymbol,
+    pctChange, getCardCurrentUsed, getCardInvoice, formatCurrency, currencySymbol,
     formatNumber, formatDate, formatLongDate, t, locale: i18n.locale,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit,
     updateTransactionSeries, deleteTransactionSeries,
@@ -1029,7 +1076,7 @@ export function AppProvider({ children }) {
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
     insights, daysLeft, pendingReceivables,
-    getCardCurrentUsed, formatCurrency, currencySymbol,
+    getCardCurrentUsed, getCardInvoice, formatCurrency, currencySymbol,
     formatNumber, formatDate, formatLongDate, t, i18n,
     addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit,
     updateTransactionSeries, deleteTransactionSeries,

@@ -1,11 +1,12 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { connectAuthEmulator, getAuth } from 'firebase/auth'
 import {
+  connectFirestoreEmulator,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
 } from 'firebase/firestore'
-import { getStorage } from 'firebase/storage'
+import { connectStorageEmulator, getStorage } from 'firebase/storage'
 import { getMessaging, getToken, onMessage } from 'firebase/messaging'
 
 // Config via env para separar dev/staging/prod sem editar código. Estes valores
@@ -36,6 +37,18 @@ export const storage = getStorage(app)
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 })
+
+// Emuladores locais (Auth, Firestore, Storage) para testar o app logado sem
+// tocar em produção. Só liga com VITE_USE_EMULATORS=1, que vem do
+// .env.emulators: "npm run emulators" num terminal e "npm run dev:emulators"
+// em outro (o Firestore precisa de Java). O projeto demo- garante que o SDK
+// nunca tenta falar com o Firebase real.
+export const usingEmulators = env.VITE_USE_EMULATORS === '1'
+if (usingEmulators) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+  connectFirestoreEmulator(db, '127.0.0.1', 8080)
+  connectStorageEmulator(storage, '127.0.0.1', 9199)
+}
 
 // FCM — VAPID key gerada no Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
 export const VAPID_KEY = env.VITE_FIREBASE_VAPID_KEY

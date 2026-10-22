@@ -7,6 +7,8 @@ import CurrencyInput from './CurrencyInput'
 import Receipts from './Receipts'
 import SplitEditor from './SplitEditor'
 import SeriesScopeModal from './SeriesScopeModal'
+import { INCOME_CATEGORIES, suggestCategory } from '../utils/quickParse'
+import { GOAL_CATEGORY } from '../utils/categories'
 
 // Quanto esperar a confirmação do servidor antes de tratar a escrita como
 // enfileirada offline. Recusa de regra (permission-denied) chega bem antes.
@@ -27,7 +29,7 @@ const emptyForm = () => ({
 // parcelamento e recorrência só aparecem em lançamento novo, e comprovante só
 // em transação já salva.
 export default function TransactionModal({ initial, draft, series, onSave, onSettle, onClose, wallets, creditCards, categories }) {
-  const { getCardCurrentUsed, formatCurrency: fmt, currencySymbol, t, formatDate } = useApp()
+  const { getCardCurrentUsed, formatCurrency: fmt, currencySymbol, t, formatDate, transactions = [] } = useApp()
   const toast = useToast()
   const [form, setForm] = useState(() => {
     if (initial) return { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
@@ -45,6 +47,23 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
   const [frequency, setFrequency] = useState('monthly')
   const [tagInput, setTagInput] = useState('')
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+
+  // Lançamento novo: categoria e tipo acompanham a descrição (histórico
+  // primeiro, palavra-chave depois — o mesmo do lançamento rápido) até a
+  // pessoa escolher à mão. Antes "Notebook" entrava em Alimentação, o padrão.
+  const [picked, setPicked] = useState(() => !!(initial || draft))
+  const pick = (k, v) => { setPicked(true); set(k, v) }
+  const setName = (name) => {
+    if (picked) return set('name', name)
+    const history = [...transactions].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    const guess = suggestCategory(name, { categories, history })
+    setForm(prev => guess && guess.category !== GOAL_CATEGORY
+      ? {
+          ...prev, name, category: guess.category,
+          type: guess.type || (INCOME_CATEGORIES.has(guess.category) ? 'income' : 'expense'),
+        }
+      : { ...prev, name })
+  }
 
   const handleCardChange = (cardId) => {
     setForm(prev => ({
@@ -71,7 +90,7 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
   // Edição de um lançamento que tem irmãos (recorrência ou parcelas): antes
   // de gravar pergunta se vale só para ele, para os próximos ou para todos.
   const [askScope, setAskScope] = useState(false)
-  const needsScope = !!(initial && series && series.totalCount > 1)
+  const needsScope = !!(initial && series && (series.totalCount > 1 || series.hasRule))
 
   const handleSave = async (scope) => {
     setTried(true)
@@ -134,7 +153,7 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">{t('txModal.type')}</label>
-          <select className="form-select" value={form.type} onChange={e => set('type', e.target.value)}>
+          <select className="form-select" value={form.type} onChange={e => pick('type', e.target.value)}>
             <option value="income">{t('txModal.income')}</option>
             <option value="expense">{t('txModal.expense')}</option>
           </select>
@@ -153,7 +172,7 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
           className={`form-input${tried && nameMissing ? ' input-error' : ''}`}
           placeholder={t('txModal.namePlaceholder')}
           value={form.name}
-          onChange={e => set('name', e.target.value)}
+          onChange={e => setName(e.target.value)}
           aria-invalid={tried && nameMissing}
         />
         {tried && nameMissing && <div className="form-error">{t('txModal.nameRequired')}</div>}
@@ -234,7 +253,7 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">{t('tx.category')}</label>
-          <select className="form-select" value={form.category} onChange={e => set('category', e.target.value)}>
+          <select className="form-select" value={form.category} onChange={e => pick('category', e.target.value)}>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -358,6 +377,7 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
         action="edit"
         futureCount={series.futureCount}
         totalCount={series.totalCount}
+        hasRule={series.hasRule}
         onChoose={scope => handleSave(scope)}
         onClose={() => setAskScope(false)}
       />

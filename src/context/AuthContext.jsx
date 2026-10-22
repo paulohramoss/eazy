@@ -68,6 +68,16 @@ export function AuthProvider({ children }) {
     return cred
   }
 
+  // Nome de exibição mora na conta de login (o AppContext deriva nome e
+  // iniciais dele). O Perfil gravava o nome nas preferências, que descartam
+  // esse campo de propósito — e mostrava "Salvo!" sem salvar nada.
+  const updateDisplayName = async (name) => {
+    const current = auth.currentUser
+    if (!current) return
+    await updateProfile(current, { displayName: name })
+    setUser({ ...current, displayName: name })
+  }
+
   // Recuperação de senha. Antes, quem esquecia a senha ficava permanentemente
   // sem acesso à conta — não havia caminho nenhum na interface.
   const resetPassword = (email) =>
@@ -90,7 +100,7 @@ export function AuthProvider({ children }) {
   if (loading) return null   // Aguarda resolução do estado de auth
 
   return (
-    <AuthContext.Provider value={{ user, signIn, signUp, signInGoogle, logOut, resetPassword, resendVerification }}>
+    <AuthContext.Provider value={{ user, signIn, signUp, signInGoogle, logOut, resetPassword, resendVerification, updateDisplayName }}>
       {children}
     </AuthContext.Provider>
   )

@@ -39,7 +39,7 @@ function resizeImage(file, maxSize = 400) {
 
 export default function Profile() {
   const { settings, updateSettings, t } = useApp()
-  const { user } = useAuth()
+  const { user, updateDisplayName } = useAuth()
 
   const [profile, setProfile] = useState({
     name:     settings.name     || '',
@@ -102,7 +102,7 @@ export default function Profile() {
     set('phone', formatBrazilMobile(e.target.value))
   }
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     if (!profile.name.trim()) return
 
     const phone = formatBrazilMobile(profile.phone)
@@ -115,6 +115,14 @@ export default function Profile() {
     }
 
     updateSettings({ ...profile, phone, smsPhone: phone })
+    if (profile.name.trim() !== (user?.displayName || '')) {
+      try {
+        await updateDisplayName(profile.name.trim())
+      } catch (err) {
+        console.error('[profile] nome', err)
+        return
+      }
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

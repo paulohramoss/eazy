@@ -53,6 +53,9 @@ async function runRecurrences(uid, today) {
         date: next,
         // O dia chegou: vale o status escolhido na criação da série.
         status: rec.status || 'completed',
+        // Criado no próprio dia: pendente aqui é escolha da série, não
+        // agendamento — o app não deve concluí-lo sozinho.
+        scheduled: false,
         recurrenceId: docSnap.id,
         userId: uid,
         allowedUsers: [uid],

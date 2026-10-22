@@ -42,7 +42,7 @@ function ConfirmModal({ name, count, onConfirm, onClose }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit, updateTransactionSeries, deleteTransactionSeries, categories, formatCurrency: fmt, formatDate, t } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit, updateTransactionSeries, deleteTransactionSeries, recurrences, categories, formatCurrency: fmt, formatDate, t } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')
@@ -83,8 +83,11 @@ export default function Transactions() {
     const own = seriesOf(tx)
     if (!own) return null
     const members = seriesMembers(tx, transactions)
-    if (members.length < 2) return null
-    return { kind: own.kind, totalCount: members.length, futureCount: membersInScope(tx, members, 'future').length }
+    // Recorrência com regra ativa conta mesmo com um lançamento só: os
+    // próximos ainda vão ser criados a partir dela.
+    const hasRule = !!(tx.recurrenceId && recurrences.some(r => r.id === tx.recurrenceId && r.active !== false))
+    if (members.length < 2 && !hasRule) return null
+    return { kind: own.kind, hasRule, totalCount: members.length, futureCount: membersInScope(tx, members, 'future').length }
   }
   const [editItem, setEditItem] = useState(null)
   const [delItem, setDelItem] = useState(null)
@@ -483,6 +486,7 @@ export default function Transactions() {
           action="delete"
           futureCount={seriesInfo(delItem).futureCount}
           totalCount={seriesInfo(delItem).totalCount}
+          hasRule={seriesInfo(delItem).hasRule}
           onChoose={scope => { deleteTransactionSeries(delItem, scope).catch(console.error); setDelItem(null) }}
           onClose={() => setDelItem(null)}
         />

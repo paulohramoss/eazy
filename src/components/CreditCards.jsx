@@ -61,9 +61,14 @@ function CardModal({ initial, onSave, onClose }) {
     : { ...EMPTY_FORM }
   )
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  // Antes o Salvar com nome ou limite vazio não fazia nada e não dizia nada.
+  const [tried, setTried] = useState(false)
+  const nameMissing = !form.name.trim()
+  const limitMissing = !(Number(form.limit) > 0)
 
   const handleSave = () => {
-    if (!form.name.trim() || !form.limit) return
+    setTried(true)
+    if (nameMissing || limitMissing) return
     onSave({ ...form, limit: Number(form.limit), closingDay: Number(form.closingDay), dueDay: Number(form.dueDay) })
     onClose()
   }
@@ -80,7 +85,8 @@ function CardModal({ initial, onSave, onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="form-group">
           <label className="form-label">{t('card.name')}</label>
-          <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder={t('card.namePlaceholder')} />
+          <input className={`form-input${tried && nameMissing ? ' input-error' : ''}`} value={form.name} onChange={e => set('name', e.target.value)} placeholder={t('card.namePlaceholder')} />
+          {tried && nameMissing && <div className="form-error">{t('form.nameRequired')}</div>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className="form-group">
@@ -91,7 +97,8 @@ function CardModal({ initial, onSave, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">{t('card.limit')}</label>
-            <CurrencyInput value={form.limit} onChange={v => set('limit', v)} className="form-input" />
+            <CurrencyInput value={form.limit} onChange={v => set('limit', v)} className={`form-input${tried && limitMissing ? ' input-error' : ''}`} />
+            {tried && limitMissing && <div className="form-error">{t('form.limitRequired')}</div>}
           </div>
           <div className="form-group">
             <label className="form-label">{t('card.closingDay')}</label>
@@ -159,7 +166,7 @@ function Invoice({ card, transactions, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function CreditCards() {
-  const { creditCards, addCreditCard, updateCreditCard, deleteCreditCard, transactions, getCardCurrentUsed, formatCurrency: fmt, locale, t } = useApp()
+  const { creditCards, addCreditCard, updateCreditCard, deleteCreditCard, transactions, getCardCurrentUsed, getCardInvoice, formatCurrency: fmt, locale, t } = useApp()
   const [modal, setModal] = useState(null)
   const [invoice, setInvoice] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -181,6 +188,9 @@ export default function CreditCards() {
 
   const totalLimit = creditCards.reduce((s, c) => s + (c.limit || 0), 0)
   const totalUsed = creditCards.reduce((s, c) => s + (usedByCard[c.id] || 0), 0)
+  // Fatura aberta: só o ciclo atual. totalUsed (limite comprometido) inclui
+  // as parcelas futuras e serve para o Disponível.
+  const totalInvoice = creditCards.reduce((s, c) => s + getCardInvoice(c.id), 0)
 
   const activeCard = creditCards.find(c => c.id === selectedId) ?? creditCards[0] ?? null
   const used = activeCard ? (usedByCard[activeCard.id] || 0) : 0
@@ -204,7 +214,7 @@ export default function CreditCards() {
       <div className="metrics-grid" style={{ marginBottom: 28 }}>
         {[
           { label: 'Limite Total', value: fmt(totalLimit), icon: 'fi-rr-credit-card', color: 'purple' },
-          { label: 'Fatura do Mês', value: fmt(totalUsed), icon: 'fi-rr-receipt', color: 'red' },
+          { label: 'Fatura do Mês', value: fmt(totalInvoice), icon: 'fi-rr-receipt', color: 'red' },
           { label: 'Disponível', value: fmt(totalLimit - totalUsed), icon: 'fi-rr-check-circle', color: 'green', negative: totalLimit - totalUsed < 0 },
           { label: 'Cartões', value: creditCards.length, icon: 'fi-rr-layers', color: 'yellow' },
         ].map(k => (

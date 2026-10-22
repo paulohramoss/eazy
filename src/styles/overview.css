@@ -273,6 +273,9 @@
 
 .can-spend-input {
   flex: 1;
+  /* Input em flex herda a largura intrínseca (~20 caracteres) e, no celular,
+     passava da borda da caixa. */
+  min-width: 0;
   border: none;
   background: transparent;
   color: var(--text-primary);

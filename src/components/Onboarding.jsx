@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
 import { BrandLockup } from './BrandLogo'
 import ColorPicker from './ColorPicker'
+import { INCOME_CATEGORIES, suggestCategory } from '../utils/quickParse'
+import { GOAL_CATEGORY } from '../utils/categories'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const WALLET_TYPES = [
@@ -32,6 +34,18 @@ export default function Onboarding() {
 
   const setW = (k, v) => setWallet(w => ({ ...w, [k]: v }))
   const setT = (k, v) => setTx(prev => ({ ...prev, [k]: v }))
+
+  // Tipo e categoria acompanham a descrição até a pessoa escolher à mão:
+  // "Mercado do mês" entrava como receita de Salário, que era o padrão fixo.
+  const [txTouched, setTxTouched] = useState(false)
+  const pickT = (k, v) => { setTxTouched(true); setT(k, v) }
+  const setTxName = (name) => {
+    if (txTouched) return setT('name', name)
+    const guess = suggestCategory(name, { categories })
+    setTx(prev => guess && guess.category !== GOAL_CATEGORY
+      ? { ...prev, name, category: guess.category, type: INCOME_CATEGORIES.has(guess.category) ? 'income' : 'expense' }
+      : { ...prev, name })
+  }
 
   const txFilled = tx.name.trim() && Number(tx.amount) > 0
   const txEmpty  = !tx.name.trim() && !Number(tx.amount)
@@ -66,7 +80,7 @@ export default function Onboarding() {
   }
 
   const bar = (n) => (
-    <div style={{ height: 4, flex: 1, borderRadius: 2,
+    <div key={n} style={{ height: 4, flex: 1, borderRadius: 2,
       background: n <= step ? 'var(--accent)' : 'var(--border)', transition: 'background .3s' }} />
   )
 
@@ -191,14 +205,14 @@ export default function Onboarding() {
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">{t('wallet.type')}</label>
-                    <select className="form-select" value={tx.type} onChange={e => setT('type', e.target.value)}>
+                    <select className="form-select" value={tx.type} onChange={e => pickT('type', e.target.value)}>
                       <option value="income">{t('txModal.income')}</option>
                       <option value="expense">{t('txModal.expense')}</option>
                     </select>
                   </div>
                   <div className="form-group">
                     <label className="form-label">{t('tx.category')}</label>
-                    <select className="form-select" value={tx.category} onChange={e => setT('category', e.target.value)}>
+                    <select className="form-select" value={tx.category} onChange={e => pickT('category', e.target.value)}>
                       {categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
@@ -207,7 +221,7 @@ export default function Onboarding() {
                   <label className="form-label">{t('tx.description')}</label>
                   <input className="form-input" autoFocus
                     placeholder={t('onb.txNamePlaceholder')}
-                    value={tx.name} onChange={e => setT('name', e.target.value)} />
+                    value={tx.name} onChange={e => setTxName(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">{t('txModal.value', { symbol: currencySymbol })}</label>

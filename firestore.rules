@@ -109,6 +109,7 @@ service cloud.firestore {
         && (!('goalId' in d)       || isText(d.goalId, 128))
         && (!('recurrenceId' in d) || isText(d.recurrenceId, 128))
         && (!('installmentGroup' in d) || isText(d.installmentGroup, 128))
+        && (!('scheduled' in d) || d.scheduled is bool)
         && (!('split' in d)        || validSplit(d.split));
     }
 

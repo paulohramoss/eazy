@@ -38,9 +38,15 @@ function WalletModal({ initial, onSave, onClose }) {
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const selectedIcon = resolveWalletIcon(form.icon, form.type)
 
+  // Nome é o único obrigatório; saldo vazio é zero. Antes os dois vazios
+  // travavam o Salvar sem nenhuma mensagem.
+  const [tried, setTried] = useState(false)
+  const nameMissing = !form.name.trim()
+
   const handleSave = () => {
-    if (!form.name.trim() || form.balance === '') return
-    onSave({ ...form, icon: selectedIcon, balance: Number(form.balance) })
+    setTried(true)
+    if (nameMissing) return
+    onSave({ ...form, icon: selectedIcon, balance: Number(form.balance) || 0 })
     onClose()
   }
 
@@ -57,7 +63,8 @@ function WalletModal({ initial, onSave, onClose }) {
     >
       <div className="form-group">
         <label className="form-label">{t('wallet.name')}</label>
-        <input className="form-input" placeholder={t('wallet.namePlaceholder')} value={form.name} onChange={e => set('name', e.target.value)} />
+        <input className={`form-input${tried && nameMissing ? ' input-error' : ''}`} placeholder={t('wallet.namePlaceholder')} value={form.name} onChange={e => set('name', e.target.value)} />
+        {tried && nameMissing && <div className="form-error">{t('form.nameRequired')}</div>}
       </div>
       <div className="form-row">
         <div className="form-group">

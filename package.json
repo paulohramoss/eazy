@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "check": "npm run lint && npm run test && npm run build",
     "test:rules": "firebase emulators:exec --only firestore --project eazy-rules-test \"vitest run --config vitest.rules.config.js\"",
-    "audit:legacy": "node scripts/audit-legacy-docs.js"
+    "audit:legacy": "node scripts/audit-legacy-docs.js",
+    "emulators": "firebase emulators:start --only auth,firestore,storage --project demo-eazy",
+    "dev:emulators": "vite --mode emulators --port 5174"
   },
   "dependencies": {
     "@flaticon/flaticon-uicons": "^3.3.1",

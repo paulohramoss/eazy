@@ -5,16 +5,31 @@ import Modal from './Modal'
 // Pergunta a quem a alteração vale quando o lançamento faz parte de uma
 // recorrência ou de um parcelamento — o mesmo padrão de agenda: só este,
 // este e os próximos, ou todos.
-export default function SeriesScopeModal({ kind, action, futureCount, totalCount, onChoose, onClose }) {
+export default function SeriesScopeModal({ kind, action, futureCount, totalCount, hasRule = false, onChoose, onClose }) {
   const { t } = useApp()
   const [scope, setScope] = useState('one')
   const isDelete = action === 'delete'
 
+  // "Este e os próximos" só aparece quando é diferente das outras duas: no
+  // último lançamento seria igual a "só este" e no primeiro, igual a "todos".
+  // Com regra ativa ele também alcança os que ainda vão ser criados.
+  const showFuture = futureCount < totalCount && (futureCount > 1 || hasRule)
+  // Recorrência não tem total fechado (a regra ainda vai gerar mais), então a
+  // contagem sai do rótulo; parcelamento mostra quantas parcelas atinge.
+  const counted = kind !== 'recurrence'
+
   const options = [
     { value: 'one', label: t('series.one'), hint: t('series.oneHint') },
-    // "Este e os próximos" igual a "só este" (último da série) não é escolha.
-    futureCount > 1 && { value: 'future', label: t('series.future', { count: futureCount }), hint: t('series.futureHint') },
-    { value: 'all', label: t('series.all', { count: totalCount }), hint: t(kind === 'recurrence' ? 'series.allHintRec' : 'series.allHintInst') },
+    showFuture && {
+      value: 'future',
+      label: counted ? t('series.future', { count: futureCount }) : t('series.futureRec'),
+      hint: t('series.futureHint'),
+    },
+    {
+      value: 'all',
+      label: counted ? t('series.all', { count: totalCount }) : t('series.allRec'),
+      hint: t(kind === 'recurrence' ? 'series.allHintRec' : 'series.allHintInst'),
+    },
   ].filter(Boolean)
 
   return (
