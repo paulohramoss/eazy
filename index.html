@@ -75,6 +75,25 @@
 <body>
   <div id="root"></div>
   <script>
+    // /conheca é a landing (landing.html), nunca o app. Se este index.html foi
+    // aberto nesse endereço, quem respondeu foi um service worker antigo —
+    // de antes de a landing existir — que devolve o app para qualquer
+    // navegação. Logado, isso jogava a pessoa direto na conta. Remove o SW e
+    // recarrega pela rede; a flag evita loop se algo der errado. O app volta a
+    // registrar o SW novo (que já exclui /conheca) na próxima abertura.
+    (function() {
+      if (!/^\/(conheca|landing)/.test(location.pathname)) return
+      var KEY = 'eazy_landing_sw_reset'
+      try { if (sessionStorage.getItem(KEY)) return; sessionStorage.setItem(KEY, '1') } catch (e) {}
+      window.__eazyLandingRedirect = true
+      var reload = function() { location.replace(location.pathname + location.search + location.hash) }
+      if (!('serviceWorker' in navigator)) return reload()
+      navigator.serviceWorker.getRegistrations()
+        .then(function(regs) { return Promise.all(regs.map(function(r) { return r.unregister() })) })
+        .then(reload, reload)
+    })()
+  </script>
+  <script>
     (function() {
       var pref
       try {
