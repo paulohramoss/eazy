@@ -14,6 +14,8 @@ import {
 } from 'firebase/firestore'
 import { notify } from '../notifications'
 import { bootLog } from '../utils/bootLog'
+import { buildBackup, parseBackup, planRestore } from '../utils/backup'
+import { csvFormat, downloadFile, exportFilename, transactionsCsv } from '../utils/exportCsv'
 import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
 import { CATEGORIES, CATEGORY_ICONS, GOAL_CATEGORY } from '../utils/categories'
 
@@ -903,101 +905,54 @@ export function AppProvider({ children }) {
 
   // ── Export / Import ────────────────────────────────────────────────────────
 
-  const _download = (content, filename, mime) => {
-    const url = URL.createObjectURL(new Blob([content], { type: mime }))
-    Object.assign(document.createElement('a'), { href: url, download: filename }).click()
-    URL.revokeObjectURL(url)
-  }
-
   const exportJSON = useCallback(() => {
-    const strip = arr => arr.map(({ id, userId, allowedUsers, createdAt, ...rest }) => rest)
-    _download(
-      JSON.stringify({ version: '1.0', exportedAt: new Date().toISOString(),
-        transactions: strip(transactions), wallets: strip(wallets), budgets: strip(budgets),
-        goals: strip(goals), investments: strip(investments), creditCards: strip(creditCards),
-      }, null, 2),
-      `eazy-backup-${new Date().toISOString().split('T')[0]}.json`,
-      'application/json'
-    )
-  }, [transactions, wallets, budgets, goals, investments, creditCards])
+    const { biometricEnabled, ...prefs } = rawSettings
+    const backup = buildBackup({
+      transactions, wallets, budgets, goals, investments, creditCards, alerts, recurrences,
+      categories, prefs,
+    })
+    downloadFile(JSON.stringify(backup, null, 2), exportFilename('backup', isoDate(), 'json'), 'application/json')
+  }, [transactions, wallets, budgets, goals, investments, creditCards, alerts, recurrences, categories, rawSettings])
 
-  const exportCSV = useCallback(() => {
-    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const header = ['Data','Descrição','Tipo','Categoria','Valor','Status','Carteira','Observações']
-    const rows = [...transactions]
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .map(tx => [
-        tx.date || '', tx.name || '',
-        tx.type === 'income' ? 'Receita' : 'Despesa',
-        tx.category || '', tx.amount ?? 0,
-        tx.status === 'completed' ? 'Concluído' : 'Pendente',
-        wallets.find(w => w.id === tx.walletId)?.name || '',
-        tx.notes || '',
-      ])
-    _download(
-      '﻿' + [header, ...rows].map(r => r.map(esc).join(',')).join('\n'),
-      `eazy-transacoes-${new Date().toISOString().split('T')[0]}.csv`,
-      'text/csv;charset=utf-8'
-    )
-  }, [transactions, wallets])
-
-  // Assinatura de conteúdo de uma transação. Serve para não reimportar o que já
-  // existe: antes, importar o mesmo backup duas vezes duplicava tudo em
-  // silêncio, e não havia como desfazer.
-  const txSignature = (tx) =>
-    [tx.date, tx.type, Number(tx.amount).toFixed(2), (tx.name || '').trim().toLowerCase()].join('|')
+  // Sem argumento, exporta tudo; a tela de Transações passa só o que está
+  // filtrado nela.
+  const exportCSV = useCallback((list = transactions) => {
+    const csv = transactionsCsv(list, {
+      wallets, creditCards,
+      format: csvFormat(i18n.locale),
+      labels: {
+        date: t('tx.date'), description: t('tx.description'), type: t('export.type'),
+        category: t('tx.category'), amount: t('tx.amount'), status: t('tx.status'),
+        wallet: t('tx.wallet'), card: t('export.card'), tags: t('txModal.tags'), notes: t('txModal.notes'),
+        income: t('txModal.income'), expense: t('txModal.expense'),
+        completed: t('tx.completed'), pending: t('tx.pending'),
+      },
+    })
+    downloadFile(csv, exportFilename('transacoes', isoDate(), 'csv'), 'text/csv;charset=utf-8')
+  }, [transactions, wallets, creditCards, i18n.locale, t])
 
   const importJSON = useCallback(async (file, { skipDuplicates = true } = {}) => {
-    const text = await file.text()
-    let data
-    try {
-      data = JSON.parse(text)
-    } catch {
-      throw new Error('Arquivo não é um JSON válido')
-    }
-    if (!data.version || !Array.isArray(data.transactions)) throw new Error('Arquivo inválido ou corrompido')
+    const backup = parseBackup(await file.text())
+    const { writes, categories: mergedCats, stats } = planRestore(backup, {
+      transactions, wallets, budgets, goals, investments, creditCards, alerts, recurrences, categories,
+    }, {
+      newId: () => doc(collection(db, COL.transactions)).id,
+      skipDuplicates,
+    })
 
-    const existing = new Set(transactions.map(txSignature))
-    const stats = { imported: 0, skipped: 0 }
-
-    const entries = []
-    const push = (items, col) => (items || []).forEach(item => entries.push({ item, col }))
-
-    for (const tx of data.transactions) {
-      if (skipDuplicates && existing.has(txSignature(tx))) { stats.skipped++; continue }
-      // Marca dentro do próprio lote também: um backup pode trazer duplicatas.
-      existing.add(txSignature(tx))
-      entries.push({ item: tx, col: COL.transactions })
-      stats.imported++
-    }
-
-    // Carteiras/cartões/categorias não são deduplicados por conteúdo — o
-    // usuário pode legitimamente ter duas contas com o mesmo nome — mas nomes
-    // já existentes são ignorados para não encher a lista de cópias.
-    const existingWallets = new Set(wallets.map(w => (w.name || '').trim().toLowerCase()))
-    push((data.wallets || []).filter(w => !existingWallets.has((w.name || '').trim().toLowerCase())), COL.wallets)
-
-    const existingCards = new Set(creditCards.map(c => (c.name || '').trim().toLowerCase()))
-    push((data.creditCards || []).filter(c => !existingCards.has((c.name || '').trim().toLowerCase())), COL.creditCards)
-
-    const existingBudgets = new Set(budgets.map(b => b.category))
-    push((data.budgets || []).filter(b => !existingBudgets.has(b.category)), COL.budgets)
-
-    const existingGoals = new Set(goals.map(g => (g.name || '').trim().toLowerCase()))
-    push((data.goals || []).filter(g => !existingGoals.has((g.name || '').trim().toLowerCase())), COL.goals)
-
-    push(data.investments, COL.investments)
-
-    // writeBatch tem teto de 500 operações — quebra em chunks pra backups grandes
+    // writeBatch tem teto de 500 operações — quebra em chunks pra backups grandes.
+    // Os ids já vêm decididos pelo plano: é assim que a transação aponta para
+    // a carteira recriada no mesmo restore.
     const CHUNK_SIZE = 450
-    for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+    for (let i = 0; i < writes.length; i += CHUNK_SIZE) {
       const batch = writeBatch(db)
-      entries.slice(i, i + CHUNK_SIZE).forEach(({ item, col }) => batch.set(doc(collection(db, col)), base(item)))
+      writes.slice(i, i + CHUNK_SIZE).forEach(({ col, id, data }) => batch.set(doc(db, COL[col], id), base(data)))
       await batch.commit()
     }
+    if (mergedCats) await updateDoc(doc(db, COL.users, uid), { categories: mergedCats })
 
     return stats
-  }, [base, transactions, wallets, creditCards, budgets, goals])
+  }, [base, uid, transactions, wallets, budgets, goals, investments, creditCards, alerts, recurrences, categories])
 
   // Lançamentos já lidos e revisados na tela de importação de extrato (PDF,
   // OFX, CSV). A leitura do arquivo mora em utils/statement; aqui só grava.

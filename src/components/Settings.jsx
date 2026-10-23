@@ -281,7 +281,7 @@ export default function Settings() {
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={exportJSON}>
                   <i className="fi fi-rr-cloud-download" /> Exportar JSON
                 </button>
-                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={exportCSV}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => exportCSV()}>
                   <i className="fi fi-rr-file-spreadsheet" /> Exportar CSV
                 </button>
               </div>

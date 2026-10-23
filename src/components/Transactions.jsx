@@ -42,7 +42,7 @@ function ConfirmModal({ name, count, onConfirm, onClose }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Transactions() {
-  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit, updateTransactionSeries, deleteTransactionSeries, recurrences, categories, formatCurrency: fmt, formatDate, t } = useApp()
+  const { transactions, wallets, creditCards, addTransaction, addMultipleTransactions, createRecurringSeries, updateTransaction, deleteTransaction, bulkDeleteTransactions, settleSplit, updateTransactionSeries, deleteTransactionSeries, recurrences, categories, exportCSV, formatCurrency: fmt, formatDate, t } = useApp()
 
   const [search, setSearch] = useState('')
   const [filterType, setType] = useState('all')
@@ -287,6 +287,14 @@ export default function Transactions() {
             </div>
           )}
 
+          {/* Exporta o que está na tela: mesmos filtros, mesma busca. */}
+          <button
+            className="btn btn-secondary filter-bar-add"
+            onClick={() => exportCSV(filtered)}
+            disabled={filtered.length === 0}
+          >
+            <i className="fi fi-rr-file-spreadsheet" /> {t('export.csv')}
+          </button>
           <button className="btn btn-secondary filter-bar-add" onClick={() => setImportOpen(true)}>
             <i className="fi fi-rr-file-invoice-dollar" /> Importar extrato
           </button>

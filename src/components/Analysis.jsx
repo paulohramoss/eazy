@@ -6,6 +6,7 @@ import EmptyState from './EmptyState'
 import { SERIES } from './charts/primitives'
 import { isoDate } from '../utils/date'
 import { DEFAULT_PERIOD, PERIODS, analyzePeriod, periodRange } from '../utils/analysis'
+import { analysisReportCsv, csvFormat, downloadFile, exportFilename } from '../utils/exportCsv'
 
 // O período escolhido sobrevive à troca de tela e ao reload: quem analisa um
 // trimestre não quer voltar para "últimos 6 meses" a cada visita.
@@ -72,6 +73,28 @@ export default function Analysis() {
   const categories = Object.entries(data.byCategory).sort((a, b) => b[1].total - a[1].total)
   const totalAll = data.expenses
 
+  // Mesmo recorte da tela. Na planilha a série sai com a data ISO (2026-10 ou
+  // 2026-10-05), que o Excel ordena e reconhece sem depender do idioma.
+  const exportReport = () => {
+    const csv = analysisReportCsv(data, {
+      start, end, periodLabel,
+      bucketLabel: (key) => key,
+      format: csvFormat(locale),
+      labels: {
+        summary: t('export.summary'), metric: t('export.metric'), value: t('export.value'),
+        period: t('export.period'), start: t('export.start'), end: t('export.end'),
+        totalIncome: t('export.totalIncome'), totalExpenses: t('export.totalExpenses'), net: t('export.net'),
+        avgIncome: t('analysis.avgIncome'), avgExpenses: t('analysis.avgExpenses'),
+        avgSavings: t('analysis.avgSavings'), savingsRate: t('analysis.savingsRate'),
+        bucket: t(data.granularity === 'day' ? 'export.day' : 'export.month'),
+        income: t('txModal.income'), expenses: t('txModal.expense'), savings: t('export.balance'),
+        category: t('tx.category'), txCount: t('analysis.txCount'), totalSpent: t('analysis.totalSpent'),
+        avgTicket: t('analysis.avgTicket'), share: t('export.share'),
+      },
+    })
+    downloadFile(csv, exportFilename('relatorio', `${start}_a_${end}`, 'csv'), 'text/csv;charset=utf-8')
+  }
+
   return (
     <div className="screen">
       {/* Período */}
@@ -102,6 +125,11 @@ export default function Analysis() {
             title={t('tx.dateTo')}
             aria-label={t('tx.dateTo')}
           />
+        </div>
+        <div className="filter-bar-end">
+          <button className="btn btn-secondary filter-bar-add" onClick={exportReport}>
+            <i className="fi fi-rr-file-spreadsheet" /> {t('export.report')}
+          </button>
         </div>
       </div>
 
