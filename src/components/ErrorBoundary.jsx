@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { isChunkLoadError, reloadOnce } from '../utils/chunkReload'
 
 // Sem isto qualquer erro de render numa tela (inclusive nas carregadas por
 // lazy) desmontava a árvore inteira e deixava a página em branco, sem nenhuma
@@ -12,6 +13,8 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('[ErrorBoundary]', error, info?.componentStack)
+    // Chunk de deploy antigo que escapou do lazyWithReload: o reload resolve.
+    if (isChunkLoadError(error)) reloadOnce()
   }
 
   // A tela é trocada pelo roteador sem remontar o boundary; sem este reset o

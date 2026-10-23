@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react'
 import { BrandLockup, BrandMark } from './components/BrandLogo'
 import { createPortal } from 'react-dom'
 import Calculator from './components/Calculator'
@@ -12,25 +12,26 @@ import { useAuth } from './context/AuthContext'
 import { AppProvider, useApp } from './context/AppContext'
 import Login from './components/Login'
 import ErrorBoundary from './components/ErrorBoundary'
+import { lazyWithReload } from './utils/chunkReload'
 import VerifyEmailBanner from './components/VerifyEmailBanner'
 import CommandPalette from './components/CommandPalette'
 import ScreenSkeleton from './components/Skeleton'
 import { consumeLaunchParams, navigate as routerNavigate, routeFromHash, useHashRoute } from './utils/router'
 import { createTranslator, detectLanguage } from './i18n'
 
-const Overview          = lazy(() => import('./components/Overview'))
-const Transactions      = lazy(() => import('./components/Transactions'))
-const Analysis          = lazy(() => import('./components/Analysis'))
-const Wallets           = lazy(() => import('./components/Wallets'))
-const Budget            = lazy(() => import('./components/Budget'))
-const Goals             = lazy(() => import('./components/Goals'))
-const Investments       = lazy(() => import('./components/Investments'))
-const Settings          = lazy(() => import('./components/Settings'))
-const Profile           = lazy(() => import('./components/Profile'))
-const CreditCards       = lazy(() => import('./components/CreditCards'))
-const Alerts            = lazy(() => import('./components/Alerts'))
-const FinancialCalendar = lazy(() => import('./components/FinancialCalendar'))
-const Recurrences       = lazy(() => import('./components/Recurrences'))
+const Overview          = lazyWithReload(() => import('./components/Overview'))
+const Transactions      = lazyWithReload(() => import('./components/Transactions'))
+const Analysis          = lazyWithReload(() => import('./components/Analysis'))
+const Wallets           = lazyWithReload(() => import('./components/Wallets'))
+const Budget            = lazyWithReload(() => import('./components/Budget'))
+const Goals             = lazyWithReload(() => import('./components/Goals'))
+const Investments       = lazyWithReload(() => import('./components/Investments'))
+const Settings          = lazyWithReload(() => import('./components/Settings'))
+const Profile           = lazyWithReload(() => import('./components/Profile'))
+const CreditCards       = lazyWithReload(() => import('./components/CreditCards'))
+const Alerts            = lazyWithReload(() => import('./components/Alerts'))
+const FinancialCalendar = lazyWithReload(() => import('./components/FinancialCalendar'))
+const Recurrences       = lazyWithReload(() => import('./components/Recurrences'))
 
 // ─── Navigation Config ────────────────────────────────────────────────────────
 
