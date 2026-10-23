@@ -58,10 +58,24 @@ export async function requireUser(req, res) {
     res.status(401).json({ error: 'Autenticação necessária' })
     return null
   }
+  // Antes um catch único devolvia "Token inválido" para tudo — inclusive
+  // FIREBASE_SERVICE_ACCOUNT ausente ou de outro projeto — e nada ia para o
+  // log: a cotação de Investimentos parou sem pista nenhuma do motivo.
+  let auth
   try {
-    return await adminAuth().verifyIdToken(match[1])
-  } catch {
-    res.status(401).json({ error: 'Token inválido ou expirado' })
+    auth = adminAuth()
+  } catch (err) {
+    console.error('[requireUser] Firebase Admin não inicializou:', err.message)
+    res.status(500).json({ error: 'Servidor sem credenciais do Firebase', code: 'server/admin-init' })
+    return null
+  }
+  try {
+    return await auth.verifyIdToken(match[1])
+  } catch (err) {
+    // O código (auth/id-token-expired, auth/argument-error…) não é segredo e
+    // diz se o problema é o token ou o projeto configurado no servidor.
+    console.error('[requireUser] verifyIdToken falhou:', err.code, err.message)
+    res.status(401).json({ error: 'Token inválido ou expirado', code: err.code || 'auth/unknown' })
     return null
   }
 }
