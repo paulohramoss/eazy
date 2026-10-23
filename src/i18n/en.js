@@ -68,6 +68,8 @@ export const en = {
 
   'error.screenTitle': 'Something went wrong on this screen',
   'error.screenBody': 'Your data is safe. Try opening the screen again or reloading the app.',
+  'error.connTitle': 'Could not connect to the server',
+  'error.connBody': 'Your data could not be loaded. Check your connection and try again in a moment.',
 
   'lock.title': 'App Locked',
   'lock.body': 'Use your biometrics (Face ID / Touch ID) to open the app on this device.',

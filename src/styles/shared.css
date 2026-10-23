@@ -582,6 +582,29 @@
   50%      { opacity: .45; }
 }
 
+.app-boot-logo--static { animation: none; margin-bottom: 24px; }
+
+.app-boot-error {
+  max-width: 400px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.app-boot-error h2 { font-size: 18px; margin-bottom: 8px; }
+
+.app-boot-error p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.app-boot-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-boot-logo { animation: none; }
 }

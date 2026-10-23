@@ -75,6 +75,8 @@ export const pt = {
   // Erros
   'error.screenTitle': 'Algo deu errado nesta tela',
   'error.screenBody': 'Seus dados estão salvos. Tente abrir a tela de novo ou recarregar o app.',
+  'error.connTitle': 'Não foi possível conectar ao servidor',
+  'error.connBody': 'Seus dados não foram carregados. Confira sua internet e tente de novo em instantes.',
 
   // Bloqueio biométrico
   'lock.title': 'App Bloqueado',

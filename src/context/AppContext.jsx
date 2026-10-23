@@ -107,6 +107,9 @@ const getCardCycleStart = (closingDay) => {
 // exemplo sem Firebase. O app real nunca usa o Provider diretamente.
 export const AppContext = createContext(null)
 
+// Sem resposta do Firestore até aqui, a tela de carregamento vira erro de conexão.
+const DB_STALL_MS = 10000
+
 export function AppProvider({ children }) {
   const { user } = useAuth()
   // Só o uid entra nas dependências do efeito de subscription: o objeto `user`
@@ -132,6 +135,7 @@ export function AppProvider({ children }) {
   const [categories,   setCategories]   = useState(CATEGORIES)
   const [dbLoading,    setDbLoading]    = useState(() => !!user)
   const [dbError,      setDbError]      = useState('')
+  const [dbStalled,    setDbStalled]    = useState(false)
   // addWallet confirmado pelo servidor. O gate do Onboarding depende de
   // wallets.length, alimentado só pelo onSnapshot — se o listener falhar
   // (regra negada, rede), a tela nunca sairia mesmo com a carteira gravada.
@@ -153,8 +157,17 @@ export function AppProvider({ children }) {
 
     let walletsReady = false
     let userDocReady = false
+    // Servidor recusando a conexão (rede, faturamento do projeto) não dispara o
+    // callback de erro dos listeners: o SDK só tenta de novo para sempre, e a
+    // tela de carregamento ficaria lá sem explicação.
+    const stallTimer = setTimeout(() => { bootLog('db stalled'); setDbStalled(true) }, DB_STALL_MS)
     const readyCb = () => {
-      if (walletsReady && userDocReady) { bootLog('db ready'); setDbLoading(false) }
+      if (walletsReady && userDocReady) {
+        bootLog('db ready')
+        clearTimeout(stallTimer)
+        setDbStalled(false)
+        setDbLoading(false)
+      }
     }
     bootLog('listeners start')
     const logSnap = (label) => (snap) => bootLog(label, {
@@ -226,7 +239,7 @@ export function AppProvider({ children }) {
       onSnapshot(userQuery(COL.recurrences),  snap => setRecurrences(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('recurrences')),
     ]
 
-    return () => unsubs.forEach(u => u())
+    return () => { clearTimeout(stallTimer); unsubs.forEach(u => u()) }
   }, [uid])
 
   // ── Identidade vinda do auth (não persistida em prefs) ─────────────────────
@@ -1066,7 +1079,7 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
     recurrences, nextRecurrences,
-    settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
+    settings, resolvedTheme, categories, dbLoading, dbError, dbStalled, walletCreated,
     totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,
@@ -1087,7 +1100,7 @@ export function AppProvider({ children }) {
   }), [
     transactions, wallets, budgets, goals, investments, creditCards, alerts, alertsDueCount,
     recurrences, nextRecurrences,
-    settings, resolvedTheme, categories, dbLoading, dbError, walletCreated,
+    settings, resolvedTheme, categories, dbLoading, dbError, dbStalled, walletCreated,
     totalBalance, walletBalances, walletStatsAsOf, monthlyIncome, monthlyExpenses, monthlySavings,
     lastIncome, lastExpenses, lastSavings, lastBalance, pendingCount,
     spendingByCategory, monthlyChartData, thisMonth,

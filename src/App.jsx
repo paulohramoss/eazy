@@ -307,7 +307,7 @@ function Dashboard() {
     try { return localStorage.getItem('eazy_sidebar_pinned') === '1' } catch { return false }
   })
   const {
-    settings, resolvedTheme, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, walletCreated,
+    settings, resolvedTheme, pendingCount, alertsDueCount, toggleTheme, wallets, dbLoading, dbStalled, walletCreated,
     creditCards, categories, addTransaction, addMultipleTransactions, createRecurringSeries,
     t, formatLongDate, locale,
   } = useApp()
@@ -372,6 +372,23 @@ function Dashboard() {
   // Enquanto não se sabe se a conta tem carteira, nem dashboard nem onboarding:
   // o dashboard aparecia na hora, a pessoa começava a usar e o onboarding
   // surgia por cima segundos depois, quando o Firestore respondia.
+  // Se o servidor não responde, explicar e oferecer saída — nunca o logo
+  // girando para sempre. Os listeners seguem tentando: se a conexão voltar,
+  // o app abre sozinho.
+  if (dbLoading && dbStalled) return (
+    <div className="app-boot">
+      <div className="app-boot-error" role="alert">
+        <BrandLockup className="app-boot-logo app-boot-logo--static" />
+        <h2>{t('error.connTitle')}</h2>
+        <p>{t('error.connBody')}</p>
+        <div className="app-boot-actions">
+          <button className="btn btn-secondary" onClick={logOut}>{t('lock.signOut')}</button>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>{t('action.retry')}</button>
+        </div>
+      </div>
+    </div>
+  )
+
   if (dbLoading) return (
     <div className="app-boot" role="status" aria-busy="true" aria-label={t('empty.loading')}>
       <BrandLockup className="app-boot-logo" />

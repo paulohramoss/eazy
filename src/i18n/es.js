@@ -68,6 +68,8 @@ export const es = {
 
   'error.screenTitle': 'Algo salió mal en esta pantalla',
   'error.screenBody': 'Tus datos están guardados. Intenta abrir la pantalla otra vez o recargar la app.',
+  'error.connTitle': 'No se pudo conectar al servidor',
+  'error.connBody': 'No se cargaron tus datos. Revisa tu conexión e intenta de nuevo en un momento.',
 
   'lock.title': 'App Bloqueada',
   'lock.body': 'Usa tu biometría (Face ID / Touch ID) para abrir la app en este dispositivo.',
