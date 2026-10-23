@@ -561,3 +561,27 @@
   height: 40px;
   margin-bottom: 28px;
 }
+
+/* Tela entre o login e a primeira resposta do Firestore. */
+.app-boot {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.app-boot-logo {
+  height: 44px;
+  animation: app-boot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes app-boot-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-boot-logo { animation: none; }
+}

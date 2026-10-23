@@ -198,9 +198,14 @@ export function AppProvider({ children }) {
       onSnapshot(userQuery(COL.transactions), snap =>
         setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       onSnapError('transactions')),
-      onSnapshot(userQuery(COL.wallets), snap => {
+      onSnapshot(userQuery(COL.wallets), { includeMetadataChanges: true }, snap => {
         setWallets(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-        walletsReady = true; readyCb()
+        // Cache local vazio não prova que a conta não tem carteira (aparelho
+        // novo, cache limpo): decidir com ele mandava quem já usa o app para o
+        // onboarding. Online, espera o servidor; offline, o cache é o que há.
+        if (snap.docs.length || !snap.metadata.fromCache || !navigator.onLine) {
+          walletsReady = true; readyCb()
+        }
       }, err => { onSnapError('wallets')(err); walletsReady = true; readyCb() }),
       onSnapshot(userQuery(COL.budgets),      snap => setBudgets(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('budgets')),
       onSnapshot(userQuery(COL.goals),        snap => setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('goals')),

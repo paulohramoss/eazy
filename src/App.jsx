@@ -369,9 +369,18 @@ function Dashboard() {
   const title = t(`screen.${active}.title`)
   const sub   = t(`screen.${active}.sub`)
 
+  // Enquanto não se sabe se a conta tem carteira, nem dashboard nem onboarding:
+  // o dashboard aparecia na hora, a pessoa começava a usar e o onboarding
+  // surgia por cima segundos depois, quando o Firestore respondia.
+  if (dbLoading) return (
+    <div className="app-boot" role="status" aria-busy="true" aria-label={t('empty.loading')}>
+      <BrandLockup className="app-boot-logo" />
+    </div>
+  )
+
   // walletCreated cobre o caso em que a carteira foi gravada mas o listener
   // não conseguiu ler de volta — sem isso o onboarding se repete pra sempre.
-  if (!dbLoading && wallets.length === 0 && !walletCreated) return <Onboarding />
+  if (wallets.length === 0 && !walletCreated) return <Onboarding />
 
   return (
     <div className={`dashboard${sidebarPinned ? '' : ' dashboard--rail'}`}>
