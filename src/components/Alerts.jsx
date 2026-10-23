@@ -175,9 +175,11 @@ export default function Alerts() {
           ? 'linear-gradient(135deg, #0053EF 0%, #3370F5 100%)'
           : '#0A0A0A',
         borderRadius: 16, padding: '20px 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+        // wrap: no celular o botão desce para a linha de baixo em vez de ser
+        // cortado pela borda do banner.
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
           <div style={{
             width: 44, height: 44, borderRadius: 12,
             background: 'rgba(255,255,255,0.15)',

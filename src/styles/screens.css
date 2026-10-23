@@ -14,6 +14,8 @@
   gap: 12px;
 }
 
+.summary-strip--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
 .summary-stat {
   background: var(--bg-secondary);
   border: 1px solid var(--border);

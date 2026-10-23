@@ -1,0 +1,38 @@
+/* touch — Ajustes para telas de toque (celular e tablet), por tipo de
+   ponteiro e não por largura: um tablet de 1024px também é dedo.
+   Importado por último para valer sobre os tamanhos de cada componente. */
+
+@media (pointer: coarse) {
+  /* O Safari do iPhone dá zoom na página ao focar um campo com fonte menor
+     que 16px — e não desfaz ao sair do campo. */
+  .form-input,
+  .form-select,
+  .form-textarea,
+  .filter-select,
+  .search-input,
+  .wallets-asof-input,
+  .stmt-name-input,
+  .stmt-date-input,
+  .palette-input {
+    font-size: 16px;
+  }
+
+  /* Área mínima de toque. Alguns botões tinham 23–30px de altura, pequenos
+     para acertar com o dedo e fáceis de trocar pelo vizinho (editar/excluir). */
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 36px; }
+
+  .btn-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .theme-choice-btn { min-height: 36px; min-width: 40px; justify-content: center; }
+
+  .market-tab { min-height: 36px; }
+
+  .market-refresh {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}

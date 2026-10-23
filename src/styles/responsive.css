@@ -94,7 +94,12 @@
     display: none; /* Hide complex sub-menus in tab bar */
   }
 
+  /* Abas de largura igual e rótulo numa linha só: "Visão Geral" quebrava
+     em duas e empurrava a barra para cima. */
   .nav-item {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
     flex-direction: column;
     padding: 8px 4px;
     gap: 4px;
@@ -160,6 +165,9 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
+
+  /* 4 valores em moeda não cabem lado a lado: "R$ 5.500,00" quebrava no meio. */
+  .summary-strip--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .summary-stat { padding: 12px 10px; }
   .summary-stat-label { font-size: 11px; }

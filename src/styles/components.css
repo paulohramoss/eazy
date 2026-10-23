@@ -287,6 +287,12 @@ button.header-profile {
 
 button.header-profile { width: auto; }
 
+/* O `font: inherit` acima vem depois do responsive.css e desfazia o tamanho
+   da tab bar: os rótulos saíam com 16px e "Visão Geral" não cabia. */
+@media (max-width: 768px) {
+  button.nav-item { font-size: 11px; }
+}
+
 /* Foco visível e consistente. O padrão do navegador some sob os fundos
    escuros do tema dark. :focus-visible mantém o anel só para teclado, sem
    contorno ao clicar com o mouse. */

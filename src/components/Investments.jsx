@@ -157,6 +157,7 @@ function MarketExplorer({ onAdd }) {
           {Object.keys(MARKET_ASSETS).map(name => (
             <button
               key={name}
+              className="market-tab"
               onClick={() => setTab(name)}
               style={{
                 padding: '4px 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600,
@@ -168,8 +169,10 @@ function MarketExplorer({ onAdd }) {
           ))}
         </div>
         <button
+          className="market-refresh"
           onClick={() => load(tab, true)}
           title={t('inv.refresh')}
+          aria-label={t('inv.refresh')}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, lineHeight: 1 }}
         >↺</button>
       </div>
@@ -415,7 +418,7 @@ export default function Investments() {
   return (
     <div className="screen">
       {/* Summary */}
-      <div className="summary-strip" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="summary-strip summary-strip--4">
         <div className="summary-stat">
           <div className="summary-stat-label">{t('inv.totalValue')}</div>
           <div className="summary-stat-value">{fmt(totalValue)}</div>

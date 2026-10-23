@@ -134,7 +134,7 @@ export default function Analysis() {
       </div>
 
       {/* Stats row */}
-      <div className="summary-strip" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="summary-strip summary-strip--4">
         <div className="summary-stat">
           <div className="summary-stat-label">{t('analysis.avgIncome')}</div>
           <div className="summary-stat-value positive-text">{fmt(avgIncome)}</div>
