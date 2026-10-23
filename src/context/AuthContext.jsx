@@ -13,6 +13,7 @@ import {
   getAdditionalUserInfo,
 } from 'firebase/auth'
 import { apiPost } from '../utils/api'
+import { bootLog } from '../utils/bootLog'
 
 const AuthContext = createContext(null)
 
@@ -42,6 +43,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => {
+      bootLog('auth resolved', { user: !!u })
       setUser(u)
       setLoading(false)
     })

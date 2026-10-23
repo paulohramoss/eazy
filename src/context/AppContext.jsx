@@ -13,6 +13,7 @@ import {
   addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { notify } from '../notifications'
+import { bootLog } from '../utils/bootLog'
 import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
 import { CATEGORIES, CATEGORY_ICONS, GOAL_CATEGORY } from '../utils/categories'
 
@@ -152,7 +153,14 @@ export function AppProvider({ children }) {
 
     let walletsReady = false
     let userDocReady = false
-    const readyCb = () => { if (walletsReady && userDocReady) setDbLoading(false) }
+    const readyCb = () => {
+      if (walletsReady && userDocReady) { bootLog('db ready'); setDbLoading(false) }
+    }
+    bootLog('listeners start')
+    const logSnap = (label) => (snap) => bootLog(label, {
+      docs: snap.size ?? (snap.exists?.() ? 1 : 0),
+      fromCache: snap.metadata.fromCache,
+    })
 
     const userDocRef = doc(db, COL.users, uid)
 
@@ -168,6 +176,7 @@ export function AppProvider({ children }) {
     const unsubs = [
       // User preferences & categories — source of truth in Firestore
       onSnapshot(userDocRef, snap => {
+        logSnap('users')(snap)
         if (snap.exists()) {
           const { prefs = {}, categories: cats } = snap.data()
           setRawSettings({
@@ -195,10 +204,12 @@ export function AppProvider({ children }) {
         userDocReady = true; readyCb()
       }, err => { onSnapError('users')(err); userDocReady = true; readyCb() }),
 
-      onSnapshot(userQuery(COL.transactions), snap =>
-        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-      onSnapError('transactions')),
+      onSnapshot(userQuery(COL.transactions), snap => {
+        logSnap('transactions')(snap)
+        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      }, onSnapError('transactions')),
       onSnapshot(userQuery(COL.wallets), { includeMetadataChanges: true }, snap => {
+        logSnap('wallets')(snap)
         setWallets(snap.docs.map(d => ({ id: d.id, ...d.data() })))
         // Cache local vazio não prova que a conta não tem carteira (aparelho
         // novo, cache limpo): decidir com ele mandava quem já usa o app para o
