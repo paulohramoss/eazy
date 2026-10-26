@@ -33,6 +33,16 @@ const SORTERS = {
   status: (a, b) => a.status.localeCompare(b.status),
 }
 
+const SORT_OPTIONS = [
+  ['date:asc', 'Mais antigas'],
+  ['date:desc', 'Mais recentes'],
+  ['amount:desc', 'Maior valor'],
+  ['amount:asc', 'Menor valor'],
+  ['name:asc', 'Nome (A–Z)'],
+  ['category:asc', 'Categoria'],
+  ['status:asc', 'Status'],
+]
+
 const signature = (tx) =>
   [tx.date, tx.type, Number(tx.amount).toFixed(2), (tx.name || '').trim().toLowerCase()].join('|')
 
@@ -63,6 +73,9 @@ export default function StatementImport({ onClose }) {
   const [dateMode, setDateMode] = useState('each')
   const [singleDate, setSingleDate] = useState('')
   const [sort, setSort] = useState({ key: 'date', dir: 'asc' })
+  // No celular as opções de lançamento começam recolhidas: abertas, ocupavam a
+  // tela inteira e a lista, que é o que se confere, sobrava com uma linha.
+  const [settingsOpen, setSettingsOpen] = useState(() => !window.matchMedia?.('(max-width: 640px)').matches)
 
   const read = async (f, pwd) => {
     setStage('loading')
@@ -176,10 +189,30 @@ export default function StatementImport({ onClose }) {
       <i className={`fi ${sort.key === key ? (sort.dir === 'asc' ? 'fi-rr-angle-small-up' : 'fi-rr-angle-small-down') : 'fi-rr-sort'}`} aria-hidden="true" />
     </button>
   )
+  // Resumo das opções que aparece com a seção recolhida.
+  const destName = destList.find(item => item.id === dest.id)?.name || (dest.type === 'card' ? 'Sem cartão' : 'Sem conta')
+  const settingsSummary = [
+    destName,
+    dateMode === 'single' ? formatDate(singleDate) : 'data de cada compra',
+    bulkStatus ? t(STATUS_KEY[bulkStatus]) : 'status variados',
+  ].join(' · ')
+
+  // Clicar em qualquer ponto da linha marca/desmarca — no celular o checkbox
+  // sozinho é um alvo pequeno. Campos editáveis continuam com o próprio clique.
+  const toggleRowFromClick = (e, r) => {
+    if (e.target.closest('input, select, label, button')) return
+    setRow(r.id, { selected: !r.selected })
+  }
+
   const totalOk = result?.total && Math.abs(result.total.expected - result.total.computed) < 0.01
 
   const footer = stage === 'review' || stage === 'saving' ? (
     <>
+      <div className="stmt-totals">
+        <span>{selected.length} de {rows.length} selecionados</span>
+        <span className="expense">Gastos {fmt(totals.expense)}</span>
+        {totals.income > 0 && <span className="income">Entradas {fmt(totals.income)}</span>}
+      </div>
       <button className="btn btn-secondary" onClick={() => { setStage('pick'); setResult(null); setRows([]) }}>
         Outro arquivo
       </button>
@@ -275,88 +308,104 @@ export default function StatementImport({ onClose }) {
             )}
           </div>
 
-          <div className="stmt-dest">
-            <div className="stmt-dest-toggle" role="radiogroup" aria-label="Destino">
-              {[['wallet', 'Conta'], ['card', 'Cartão de crédito']].map(([type, label]) => (
-                <button
-                  key={type}
-                  type="button"
-                  role="radio"
-                  aria-checked={dest.type === type}
-                  className={dest.type === type ? 'active' : ''}
-                  onClick={() => setDest({ type, id: guessDestination(type === 'card' ? creditCards : wallets, result.bank) })}
+          <details
+            className="stmt-settings"
+            open={settingsOpen}
+            onToggle={e => setSettingsOpen(e.currentTarget.open)}
+          >
+            <summary>
+              <i className="fi fi-rr-settings-sliders" aria-hidden="true" />
+              <span className="stmt-settings-text">
+                <strong>Como lançar</strong>
+                <span>{settingsSummary}</span>
+              </span>
+              <i className="fi fi-rr-angle-small-down stmt-settings-chevron" aria-hidden="true" />
+            </summary>
+            <div className="stmt-settings-body">
+              <div className="stmt-dest">
+                <div className="stmt-dest-toggle" role="radiogroup" aria-label="Destino">
+                  {[['wallet', 'Conta'], ['card', 'Cartão de crédito']].map(([type, label]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      role="radio"
+                      aria-checked={dest.type === type}
+                      className={dest.type === type ? 'active' : ''}
+                      onClick={() => setDest({ type, id: guessDestination(type === 'card' ? creditCards : wallets, result.bank) })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  className="form-select"
+                  value={dest.id}
+                  onChange={e => setDest(d => ({ ...d, id: e.target.value }))}
+                  aria-label="Lançar em"
                 >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <select
-              className="form-select"
-              value={dest.id}
-              onChange={e => setDest(d => ({ ...d, id: e.target.value }))}
-              aria-label="Lançar em"
-            >
-              {dest.type === 'wallet' && <option value="">Sem conta</option>}
-              {destList.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-            {dest.type === 'card' && !creditCards.length && (
-              <span className="stmt-hint">Nenhum cartão cadastrado — os gastos entram sem cartão.</span>
-            )}
-          </div>
+                  {dest.type === 'wallet' && <option value="">Sem conta</option>}
+                  {destList.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+                {dest.type === 'card' && !creditCards.length && (
+                  <span className="stmt-hint">Nenhum cartão cadastrado — os gastos entram sem cartão.</span>
+                )}
+              </div>
 
-          <div className="stmt-dest">
-            <div className="stmt-dest-toggle" role="radiogroup" aria-label="Data dos lançamentos">
-              {[['each', 'Data de cada compra'], ['single', 'Uma data para todos']].map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  role="radio"
-                  aria-checked={dateMode === mode}
-                  className={dateMode === mode ? 'active' : ''}
-                  onClick={() => setDateMode(mode)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {dateMode === 'single' ? (
-              <input
-                type="date"
-                className="form-input stmt-single-date"
-                value={singleDate}
-                onChange={e => e.target.value && setSingleDate(e.target.value)}
-                aria-label="Data para todos os lançamentos"
-              />
-            ) : (
-              <span className="stmt-hint">Clique na data de uma linha para alterar só ela.</span>
-            )}
-            {dateMode === 'single' && result.dueDate === singleDate && (
-              <span className="stmt-hint">Vencimento da fatura</span>
-            )}
-          </div>
+              <div className="stmt-dest">
+                <div className="stmt-dest-toggle" role="radiogroup" aria-label="Data dos lançamentos">
+                  {[['each', 'Data de cada compra'], ['single', 'Uma data para todos']].map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={dateMode === mode}
+                      className={dateMode === mode ? 'active' : ''}
+                      onClick={() => setDateMode(mode)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {dateMode === 'single' ? (
+                  <input
+                    type="date"
+                    className="form-input stmt-single-date"
+                    value={singleDate}
+                    onChange={e => e.target.value && setSingleDate(e.target.value)}
+                    aria-label="Data para todos os lançamentos"
+                  />
+                ) : (
+                  <span className="stmt-hint">Clique na data de uma linha para alterar só ela.</span>
+                )}
+                {dateMode === 'single' && result.dueDate === singleDate && (
+                  <span className="stmt-hint">Vencimento da fatura</span>
+                )}
+              </div>
 
-          {/* Atalho para o caso comum: fatura ainda não paga entra toda como
-              pendente. Cada linha continua podendo ter o próprio status. */}
-          <div className="stmt-dest">
-            <span className="stmt-dest-label">{t('tx.status')}</span>
-            <div className="stmt-dest-toggle" role="radiogroup" aria-label={t('tx.status')}>
-              {STATUSES.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  role="radio"
-                  aria-checked={bulkStatus === s}
-                  className={bulkStatus === s ? 'active' : ''}
-                  onClick={() => setAllStatus(s)}
-                >
-                  {t(STATUS_KEY[s])}
-                </button>
-              ))}
+              {/* Atalho para o caso comum: fatura ainda não paga entra toda como
+                  pendente. Cada linha continua podendo ter o próprio status. */}
+              <div className="stmt-dest">
+                <span className="stmt-dest-label">{t('tx.status')}</span>
+                <div className="stmt-dest-toggle" role="radiogroup" aria-label={t('tx.status')}>
+                  {STATUSES.map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      role="radio"
+                      aria-checked={bulkStatus === s}
+                      className={bulkStatus === s ? 'active' : ''}
+                      onClick={() => setAllStatus(s)}
+                    >
+                      {t(STATUS_KEY[s])}
+                    </button>
+                  ))}
+                </div>
+                <span className="stmt-hint">
+                  {bulkStatus ? 'Vale para todos; dá para mudar linha a linha.' : 'Status diferentes por linha.'}
+                </span>
+              </div>
             </div>
-            <span className="stmt-hint">
-              {bulkStatus ? 'Vale para todos; mude uma linha na coluna Status.' : 'Status diferentes por linha.'}
-            </span>
-          </div>
+          </details>
 
           <div className="stmt-table" role="table">
             <div className="stmt-row stmt-head" role="row">
@@ -366,9 +415,22 @@ export default function StatementImport({ onClose }) {
               {sortHeader('category', 'Categoria')}
               {sortHeader('status', t('tx.status'))}
               {sortHeader('amount', 'Valor', 'stmt-amount')}
+              {/* No celular não há colunas: o cabeçalho vira "selecionar todos"
+                  e um seletor de ordem. */}
+              <div className="stmt-head-mobile">
+                <span>{allSelected ? 'Desmarcar todos' : 'Selecionar todos'}</span>
+                <select
+                  className="stmt-cat stmt-sort-select"
+                  value={`${sort.key}:${sort.dir}`}
+                  onChange={e => { const [key, dir] = e.target.value.split(':'); setSort({ key, dir }) }}
+                  aria-label="Ordenar por"
+                >
+                  {SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
             </div>
             {sorted.map(r => (
-              <div key={r.id} className={`stmt-row${r.selected ? '' : ' off'}`} role="row">
+              <div key={r.id} className={`stmt-row${r.selected ? '' : ' off'}`} role="row" onClick={e => toggleRowFromClick(e, r)}>
                 <Checkbox checked={r.selected} onChange={() => setRow(r.id, { selected: !r.selected })} label={`Importar ${r.name}`} />
                 {dateMode === 'single' ? (
                   <span className="stmt-date">{formatDate(singleDate)}</span>
@@ -416,12 +478,6 @@ export default function StatementImport({ onClose }) {
                 </span>
               </div>
             ))}
-          </div>
-
-          <div className="stmt-totals">
-            <span>{selected.length} de {rows.length} selecionados</span>
-            <span className="expense">Gastos {fmt(totals.expense)}</span>
-            {totals.income > 0 && <span className="income">Entradas {fmt(totals.income)}</span>}
           </div>
         </>
       )}

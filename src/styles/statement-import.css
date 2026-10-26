@@ -180,6 +180,8 @@
 .stmt-amount.income  { color: var(--accent-green); }
 
 .stmt-totals {
+  margin-right: auto;
+  align-self: center;
   display: flex;
   flex-wrap: wrap;
   gap: 6px 16px;
@@ -189,24 +191,6 @@
 .stmt-totals .expense { color: var(--accent-red); font-weight: 600; }
 .stmt-totals .income  { color: var(--accent-green); font-weight: 600; }
 
-@media (max-width: 640px) {
-  .stmt-row {
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "check name amount"
-      "check date cat"
-      "check .    status";
-    row-gap: 4px;
-  }
-  .stmt-row > :nth-child(1) { grid-area: check; }
-  .stmt-row > :nth-child(2) { grid-area: date; }
-  .stmt-row > :nth-child(3) { grid-area: name; }
-  .stmt-row > :nth-child(4) { grid-area: cat; justify-self: end; max-width: 160px; }
-  .stmt-row > :nth-child(5) { grid-area: status; justify-self: end; max-width: 160px; }
-  .stmt-row > :nth-child(6) { grid-area: amount; }
-  .stmt-head > :nth-child(n+2) { display: none; }
-  .stmt-table { max-height: 52vh; }
-}
 
 /* Botão de importar ao lado do de nova transação: só o primeiro empurra para a direita. */
 .filter-bar-add + .filter-bar-add { margin-left: 0; }
@@ -249,3 +233,129 @@
 /* Pendente em âmbar, concluído neutro: mesma leitura do badge da lista. */
 .stmt-status { font-weight: 600; }
 .stmt-status-pending { color: var(--accent-yellow); border-color: rgba(245, 158, 11, .45); }
+
+/* Opções de lançamento (destino, data, status) numa seção recolhível. */
+.stmt-settings {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stmt-settings summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.stmt-settings summary::-webkit-details-marker { display: none; }
+.stmt-settings summary > .fi { color: var(--accent); font-size: 16px; }
+.stmt-settings-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.stmt-settings-text strong { font-size: 14px; }
+.stmt-settings-text span {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stmt-settings[open] .stmt-settings-text span { display: none; }
+.stmt-settings-chevron { color: var(--text-muted); transition: transform var(--transition); }
+.stmt-settings[open] .stmt-settings-chevron { transform: rotate(180deg); }
+.stmt-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 14px 14px;
+}
+
+.stmt-row { cursor: pointer; }
+.stmt-head { cursor: default; }
+.stmt-head-mobile { display: none; }
+
+/* ─── Celular: tela cheia, lista rolando junto com o modal ───
+   Antes a lista era uma caixa com rolagem própria dentro de um modal que
+   também rolava; com as opções abertas ela ficava com uma linha visível. */
+@media (max-width: 640px) {
+  .modal.modal-xl {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    padding-top: var(--safe-top);
+  }
+  /* Sem padding no topo: o cabeçalho da lista gruda em top: 0. */
+  .modal-xl .modal-body { padding: 0 16px 16px; gap: 12px; }
+  .modal-xl .modal-body > :first-child { margin-top: 16px; }
+  .modal-xl .modal-footer {
+    flex-wrap: wrap;
+    padding: 10px 16px calc(12px + var(--safe-bottom));
+  }
+  .modal-xl .modal-footer .stmt-totals {
+    width: 100%;
+    margin: 0;
+    justify-content: space-between;
+  }
+  .modal-xl .modal-footer .btn { flex: 1; justify-content: center; }
+
+  .stmt-dest-toggle { width: 100%; }
+  .stmt-dest-toggle button { flex: 1; }
+  .stmt-dest .form-select { min-width: 0; width: 100%; }
+
+  .stmt-table {
+    max-height: none;
+    overflow: visible;
+    margin: 0 -16px;
+    border: 0;
+    border-radius: 0;
+  }
+  .stmt-head {
+    display: flex;
+    gap: 12px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .stmt-head > :nth-child(n+2):not(.stmt-head-mobile) { display: none; }
+  .stmt-head-mobile {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .stmt-sort-select { width: auto; max-width: 60%; }
+
+  .stmt-row {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check name amount"
+      "check date date"
+      "check cat  status";
+    column-gap: 10px;
+    row-gap: 6px;
+    padding: 12px 16px;
+  }
+  .stmt-row:not(.stmt-head) { border-top: 0; border-bottom: 1px solid var(--border-light, var(--border)); }
+  .stmt-row > :nth-child(1) { grid-area: check; align-self: start; padding-top: 6px; }
+  .stmt-row > :nth-child(2) { grid-area: date; justify-self: start; }
+  .stmt-row > :nth-child(3) { grid-area: name; }
+  .stmt-row > :nth-child(4) { grid-area: cat; }
+  .stmt-row > :nth-child(5) { grid-area: status; }
+  .stmt-row > :nth-child(6) { grid-area: amount; align-self: start; padding-top: 5px; }
+  .stmt-row.off { opacity: .45; }
+
+  .stmt-name-input { font-weight: 600; padding: 4px 6px; }
+  .stmt-amount { font-size: 15px; }
+  .stmt-cat { padding: 6px 8px; }
+  .stmt-row .stmt-status { width: auto; }
+  .stmt-row .stmt-date-input { width: auto; padding: 0 4px; margin: -4px 0 0 2px; }
+  .stmt-row .stmt-date { padding-left: 6px; margin-top: -4px; }
+  .stmt-date { font-size: 13px; }
+}
