@@ -240,6 +240,11 @@
 
   /* ── FAB ─────────────────────────────────────────────────── */
   .fab { bottom: calc(72px + var(--safe-bottom) + 12px); }
+
+  /* O FAB flutua sobre o fim do .content e cobria a última linha da
+     lista (o botão de excluir da transação ficava inalcançável). Reserva
+     a altura do botão + folga para dar pra rolar o conteúdo acima dele. */
+  .main--fab .content { padding-bottom: 96px; }
 }
 
 /* ─── Telas estreitas (≤ 420px) ──────────────────────────── */

@@ -471,7 +471,7 @@ function Dashboard() {
       )}
 
       {/* Main */}
-      <main className="main">
+      <main className={FAB_SCREENS.has(active) ? 'main main--fab' : 'main'}>
         <header className="header">
           {/* No mobile a sidebar vira tab bar e perde o logo: ele mora aqui. */}
           <BrandMark className="header-mark" size={30} alt="Eazy" />
