@@ -132,7 +132,10 @@ export default function Overview({ onNavigate }) {
     formatCurrency: fmt, t, insights, transactions, dbLoading, pendingReceivables,
   } = useApp()
 
-  const remaining = monthlyIncome - monthlyExpenses
+  // Disponível = dinheiro que está de fato nas carteiras hoje. Receita − despesa
+  // do mês ignorava saldo trazido de meses anteriores (e o saldo inicial), e
+  // zerava o widget de quem ainda não recebeu no mês corrente.
+  const remaining = totalBalance
 
   const metrics = [
     {
