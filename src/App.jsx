@@ -18,6 +18,7 @@ import CommandPalette from './components/CommandPalette'
 import ScreenSkeleton from './components/Skeleton'
 import { consumeLaunchParams, navigate as routerNavigate, routeFromHash, useHashRoute } from './utils/router'
 import { createTranslator, detectLanguage } from './i18n'
+import { switchTheme } from './utils/themeTransition'
 
 const Overview          = lazyWithReload(() => import('./components/Overview'))
 const Transactions      = lazyWithReload(() => import('./components/Transactions'))
@@ -524,7 +525,7 @@ function Dashboard() {
             <button
               className="header-btn theme-toggle"
               title={t(resolvedTheme === 'dark' ? 'header.theme.toLight' : 'header.theme.toDark')}
-              onClick={toggleTheme}
+              onClick={e => switchTheme(resolvedTheme === 'dark' ? 'light' : 'dark', toggleTheme, e.currentTarget)}
             >
               <i className={`fi ${resolvedTheme === 'dark' ? 'fi-rr-sun' : 'fi-rr-moon'}`} />
             </button>

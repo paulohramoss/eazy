@@ -4,6 +4,7 @@ import Toggle from './Toggle'
 import { useToast } from './Toast'
 import { LANGUAGES } from '../i18n'
 import StatementImport from './StatementImport'
+import { switchTheme } from '../utils/themeTransition'
 
 const THEME_OPTIONS = [
   { value: 'light',  label: 'Claro',   icon: 'fi-rr-sun' },
@@ -144,7 +145,13 @@ export default function Settings() {
                         type="button"
                         aria-pressed={active}
                         className={`theme-choice-btn${active ? ' theme-choice-btn--active' : ''}`}
-                        onClick={() => updateSettings({ theme: o.value })}
+                        onClick={e => switchTheme(
+                          o.value === 'system'
+                            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                            : o.value,
+                          () => updateSettings({ theme: o.value }),
+                          e.currentTarget,
+                        )}
                       >
                         <i className={`fi ${o.icon}`} />
                         <span>{o.label}</span>

@@ -108,3 +108,12 @@ a {
 ul {
   list-style: none;
 }
+
+/* Troca de tema (utils/themeTransition.js): sem o fade padrão do navegador —
+   a tela nova entra só pelo círculo, por cima da antiga. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) { z-index: 1; }
