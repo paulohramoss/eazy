@@ -272,6 +272,15 @@ export function AppProvider({ children }) {
     return () => clearInterval(id)
   }, [])
 
+  // Ids cuja escrita falhou: continuam em completedRef (sem nova tentativa na
+  // hora) e são liberados a cada tick de 1h.
+  const failedCompleteRef = useRef(new Set())
+
+  useEffect(() => {
+    failedCompleteRef.current.forEach(id => completedRef.current.delete(id))
+    failedCompleteRef.current.clear()
+  }, [dayTick])
+
   useEffect(() => {
     if (!user || !transactions.length) return
 
@@ -290,13 +299,16 @@ export function AppProvider({ children }) {
 
     toComplete.forEach(tx => completedRef.current.add(tx.id))
 
-    const batch = writeBatch(db)
-    toComplete.forEach(tx => batch.update(doc(db, COL.transactions, tx.id), { status: 'completed' }))
-    batch.commit().catch(err => {
-      // A escrita falhou: solta os ids para uma próxima tentativa não ficar
-      // bloqueada pelo registro otimista acima.
-      toComplete.forEach(tx => completedRef.current.delete(tx.id))
-      console.error('[auto-complete]', err)
+    // Um documento por vez, e não um batch: um lançamento antigo que a regra
+    // do Firestore recusa derrubava o batch inteiro, todos voltavam a
+    // pendente, e a nova tentativa imediata (o snapshot revertido dispara o
+    // efeito de novo) fazia a coluna Status piscar sem parar. Agora quem falha
+    // fica marcado e só é tentado de novo na próxima volta do relógio (1h).
+    toComplete.forEach(tx => {
+      updateDoc(doc(db, COL.transactions, tx.id), { status: 'completed' }).catch(err => {
+        failedCompleteRef.current.add(tx.id)
+        console.error('[auto-complete]', tx.id, err)
+      })
     })
   }, [transactions, user, dayTick])
 
