@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { CatIcon, useApp } from '../context/AppContext'
 import { apiPost } from '../utils/api'
 import { GOAL_CATEGORY } from '../utils/categories'
-import { isoDate } from '../utils/date'
+import { addMonths, isoDate } from '../utils/date'
 import { compressImage } from '../utils/image'
 import { useSpeech } from '../utils/speech'
+import { splitInstallments } from '../utils/installments'
 import { frequentEntries, needsAi, parseQuickEntry } from '../utils/quickParse'
 import { useToast } from './Toast'
 
@@ -23,6 +24,9 @@ import { useToast } from './Toast'
 // vai para a IA (/api/parse-entry). A IA só propõe: a lista aparece aqui e
 // nada é gravado até a pessoa confirmar.
 //
+// "geladeira 2.400 em 10x" vira as 10 parcelas de uma vez, pelo mesmo
+// addMultipleTransactions do modal completo.
+//
 // Também aceita voz (ditado do navegador, vira texto aqui mesmo) e foto do
 // cupom ou comprovante, que vai direto para a IA.
 
@@ -32,7 +36,7 @@ let aiUnavailable = false
 
 export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
   const {
-    transactions, categories, wallets, creditCards = [], addTransaction,
+    transactions, categories, wallets, creditCards = [], addTransaction, addMultipleTransactions,
     formatCurrency: fmt, formatDate, settings, t,
   } = useApp()
   const toast = useToast()
@@ -110,12 +114,22 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
 
   // Item da IA no formato que addTransaction e o modal completo esperam.
   // Sem carteira nem cartão, cai na primeira carteira, como o caminho local.
-  const fromAi = (entry) => ({
+  // O número de parcelas não é campo do lançamento: vai à parte para save().
+  const fromAi = ({ installments: _n, ...entry }) => ({
     ...entry,
     walletId: entry.cardId ? '' : (entry.walletId || wallets[0]?.id || ''),
     notes: '',
     tags: [],
   })
+
+  // Grava um lançamento à vista ou as N parcelas (amount é sempre o total).
+  const save = (data, installments) => (installments
+    ? addMultipleTransactions(data, 'installment', installments)
+    : addTransaction(data))
+
+  // Valor de cada parcela para mostrar: a 1ª leva a sobra de centavos, as
+  // demais são iguais — mostra a que se repete.
+  const perInstallment = (amount, n) => splitInstallments(amount, n)[n - 1]
 
   const changeText = (value) => {
     setText(value)
@@ -205,7 +219,7 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
         // Em sequência: as notificações de orçamento e de cartão leem o estado
         // e dariam aviso duplicado com gravações em paralelo.
         for (const entry of aiEntries) {
-          await addTransaction(fromAi(entry))
+          await save(fromAi(entry), entry.installments)
           saved += 1
         }
         toast.success(saved === 1
@@ -228,8 +242,10 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
 
     setSaving(true)
     try {
-      await addTransaction(build())
-      toast.success(t('quickAdd.saved', { name: parsed.name, amount: fmt(parsed.amount) }))
+      await save(build(), parsed.installments)
+      toast.success(parsed.installments
+        ? t('quickAdd.savedInstallments', { name: parsed.name, count: parsed.installments, amount: fmt(perInstallment(parsed.amount, parsed.installments)) })
+        : t('quickAdd.saved', { name: parsed.name, amount: fmt(parsed.amount) }))
       onClose()
     } catch {
       toast.error(t('quickAdd.saveError'))
@@ -246,8 +262,10 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
   }
 
   const expand = () => {
-    if (aiMode && aiEntries.length === 1) return onExpand(fromAi(aiEntries[0]))
-    onExpand(build())
+    if (aiMode && aiEntries.length === 1) {
+      return onExpand({ ...fromAi(aiEntries[0]), installments: aiEntries[0].installments })
+    }
+    onExpand({ ...build(), installments: parsed.installments })
   }
 
   const today = isoDate()
@@ -332,6 +350,18 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
           )}
         </div>
 
+        {/* Parcelamento entendido: quanto e até quando, antes de gravar. */}
+        {!aiLoading && !aiMode && ready && !wantsAi && parsed.installments && (
+          <div className="quick-add-installments">
+            <i className="fi fi-rr-calendar" aria-hidden="true" />
+            {t('quickAdd.installmentsPlan', {
+              count: parsed.installments,
+              amount: fmt(perInstallment(parsed.amount, parsed.installments)),
+              last: formatDate(addMonths(parsed.date, parsed.installments - 1)),
+            })}
+          </div>
+        )}
+
         {/* O que a IA entendeu: confirmação antes de gravar */}
         {aiMode ? (
           <ul className="quick-add-ai-list" aria-label={t('quickAdd.ai.review')}>
@@ -346,6 +376,7 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
                       {entry.category}
                       {entry.date !== today && ` · ${formatDate(entry.date)}`}
                       {where && ` · ${where}`}
+                      {entry.installments && ` · ${entry.installments}× ${fmt(perInstallment(entry.amount, entry.installments))}`}
                     </span>
                   </div>
                   <span className={`quick-add-ai-amount ${entry.type}`}>

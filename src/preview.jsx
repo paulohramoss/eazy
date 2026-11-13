@@ -94,6 +94,7 @@ function makeCtx(language = 'pt-BR') {
     wallets: [{ id: 'w1', name: 'Nubank' }],
     daysLeft: 11,
     addTransaction: async () => {},
+    addMultipleTransactions: async (data, mode, count) => { window.__lastMulti = { data, mode, count } },
     creditCards: [{ id: 'c1', name: 'Mastercard Sicoob' }],
     getCardCurrentUsed: () => 0,
     walletBalances: { w1: 1250 },
@@ -289,7 +290,7 @@ function QuickAddDemo() {
         <i className="fi fi-rr-plus" /> Abrir lançamento rápido
       </button>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-        Tente “almoço 32”, “uber 12,50 ontem”, “freela 800”, “2 cafés R$ 18”.
+        Tente “almoço 32”, “uber 12,50 ontem”, “freela 800”, “2 cafés R$ 18”, “geladeira 2.400 em 10x”.
         Salvar não grava nada aqui.
       </p>
       {open && <QuickAdd onClose={() => setOpen(false)} onExpand={() => setOpen(false)} />}

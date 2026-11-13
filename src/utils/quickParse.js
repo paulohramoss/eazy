@@ -39,7 +39,8 @@ const CATEGORY_KEYWORDS = {
   ],
   'Moradia': [
     'aluguel', 'condominio', 'luz', 'energia', 'agua', 'gas', 'internet',
-    'wifi', 'iptu', 'faxina', 'moveis', 'reforma', 'enxoval',
+    'wifi', 'iptu', 'faxina', 'moveis', 'reforma', 'enxoval', 'geladeira',
+    'fogao', 'microondas', 'sofa', 'colchao', 'cama', 'armario', 'lavadora',
   ],
   'Saúde': [
     'farmacia', 'remedio', 'medico', 'dentista', 'consulta', 'exame',
@@ -72,6 +73,7 @@ const CATEGORY_KEYWORDS = {
 const NOISE_WORDS = new Set([
   'r$', 'rs', 'reais', 'real', 'conto', 'contos', 'pila', 'pilas', 'de', 'do',
   'da', 'no', 'na', 'em', 'por', 'com', 'gastei', 'paguei', 'comprei', 'pix',
+  'parcelado', 'parcelada', 'parcelei', 'parcelas', 'vezes', 'sem', 'juros',
 ])
 
 const DAY_OFFSETS = {
@@ -155,6 +157,37 @@ function findAmount(text) {
   return { value, start: chosen.index, end: chosen.index + chosen[0].length }
 }
 
+// Limite do parcelamento por frase: além disso é financiamento, e "100x" é
+// mais provável de ser erro de digitação que compra.
+export const MAX_INSTALLMENTS = 72
+
+// "em 10x", "10 vezes", "10 parcelas", "10x de 240" e "parcelado em 10".
+// Com "de" depois ("10x de 240"), o valor que segue é o da parcela.
+const INSTALLMENT_RE = /(?:\bem\s+)?\b(\d{1,3})\s*(?:x\b|vezes\b|parcelas\b)(?:\s+de\s+((?:r\$\s*)?\d+(?:[.,]\d+)*\s*k?))?/i
+const PARCELADO_RE = /\bparcel\w*\s+(?:em\s+)?(\d{1,3})\b(?!\s*[.,]\d)/i
+
+/**
+ * Acha o parcelamento na frase e devolve o texto sem ele — senão o "10" de
+ * "10x" disputaria com o valor de verdade.
+ *
+ * @returns {{count:number|null, perInstallment:number|null, rest:string}|null}
+ */
+export function findInstallments(text) {
+  const src = String(text ?? '')
+  const m = src.match(INSTALLMENT_RE) || src.match(PARCELADO_RE)
+  if (!m) return null
+  // "1x" ou "100x" também saem do texto (o número não é o valor), mas não
+  // viram parcelamento: count fica null.
+  const n = Number(m[1])
+  const count = Number.isInteger(n) && n >= 2 && n <= MAX_INSTALLMENTS ? n : null
+  const perInstallment = count && m[2] ? parseAmount(m[2]) : null
+  return {
+    count,
+    perInstallment: perInstallment > 0 ? perInstallment : null,
+    rest: `${src.slice(0, m.index)} ${src.slice(m.index + m[0].length)}`,
+  }
+}
+
 function matchCategory(words, available) {
   let best = null
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
@@ -199,7 +232,8 @@ const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s)
  * @param {string}  [opts.today]        data ISO de hoje, para testar sem relógio
  * @param {object[]} [opts.history]     transações anteriores, mais recentes primeiro
  * @returns {{amount:number|null, name:string, category:string, type:string,
- *            date:string, status:string, source:'history'|'keyword'|'default'}}
+ *            date:string, status:string, installments:number|null,
+ *            source:'history'|'keyword'|'default'}}
  */
 export function parseQuickEntry(input, opts = {}) {
   const {
@@ -208,14 +242,20 @@ export function parseQuickEntry(input, opts = {}) {
     history = [],
   } = opts
 
-  const text = String(input ?? '')
-  const lower = norm(text)
+  const original = String(input ?? '')
+  const lower = norm(original)
 
-  const found = findAmount(text)
+  // Parcelamento sai do texto antes de procurar o valor. "amount" é sempre o
+  // total da compra: "10x de 240" vira 2.400.
+  const plan = findInstallments(original)
+  const text = plan ? plan.rest : original
+  const found = plan?.perInstallment
+    ? { value: Math.round(plan.perInstallment * plan.count * 100) / 100, start: 0, end: 0 }
+    : findAmount(text)
   const amount = found?.value ?? null
 
   // Tira o valor do texto para ele não virar parte da descrição.
-  const withoutAmount = found
+  const withoutAmount = found?.end
     ? `${text.slice(0, found.start)} ${text.slice(found.end)}`
     : text
 
@@ -283,6 +323,8 @@ export function parseQuickEntry(input, opts = {}) {
     date,
     // Data futura entra como pendente: ainda não saiu do bolso.
     status: date > today ? 'pending' : 'completed',
+    // Receita parcelada não é um caso real; "vendi em 3x" fica como um valor só.
+    installments: plan?.count && type === 'expense' ? plan.count : null,
     source,
   }
 }
@@ -299,7 +341,9 @@ const AI_HINTS = [
  * A IA custa e demora ~1s: "almoço 32" nunca deve passar por ela.
  */
 export function needsAi(input, parsed) {
-  const text = String(input ?? '').trim()
+  // O parcelamento já foi entendido pelo parser local; o "10" de "10x" não
+  // conta como segundo valor.
+  const text = (findInstallments(input)?.rest ?? String(input ?? '')).trim()
   if (text.length < 3) return false
   const lower = norm(text)
   const words = lower.split(/\s+/).filter(Boolean)

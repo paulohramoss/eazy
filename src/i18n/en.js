@@ -286,6 +286,8 @@ export const en = {
   'quickAdd.frequent': 'Again',
   'quickAdd.more': 'More options',
   'quickAdd.saved': '{name} · {amount} added',
+  'quickAdd.savedInstallments': '{name} · {count} installments of {amount} added',
+  'quickAdd.installmentsPlan': '{count} installments of {amount} · last on {last}',
   'quickAdd.saveError': 'Couldn\'t add it. Try again.',
   'quickAdd.voice.start': 'Say the entry',
   'quickAdd.voice.stop': 'Stop listening',

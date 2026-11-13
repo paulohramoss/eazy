@@ -296,6 +296,8 @@ export const pt = {
   'quickAdd.frequent': 'De novo',
   'quickAdd.more': 'Mais opções',
   'quickAdd.saved': '{name} · {amount} lançado',
+  'quickAdd.savedInstallments': '{name} · {count}x de {amount} lançado',
+  'quickAdd.installmentsPlan': '{count} parcelas de {amount} · última em {last}',
   'quickAdd.saveError': 'Não foi possível lançar. Tente de novo.',
   'quickAdd.voice.start': 'Falar o lançamento',
   'quickAdd.voice.stop': 'Parar de ouvir',

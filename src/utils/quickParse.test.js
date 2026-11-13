@@ -290,6 +290,43 @@ describe('needsAi', () => {
 
   it('categoria desconhecida em frase longa vai para a IA', () => {
     expect(ask('presente aniversário da vó 150')).toBe(false) // "presente" é palavra-chave
-    expect(ask('conserto da geladeira lá de casa 300')).toBe(true)
+    expect(ask('conserto do aquecedor lá de casa 300')).toBe(true)
+  })
+})
+
+describe('parseQuickEntry — parcelamento', () => {
+  const opts = { today: '2026-11-13' }
+
+  it('"em 10x" depois do valor: valor é o total', () => {
+    const r = parseQuickEntry('geladeira 2.400 em 10x', opts)
+    expect(r).toMatchObject({ name: 'Geladeira', amount: 2400, installments: 10, type: 'expense', category: 'Moradia' })
+  })
+
+  it('"10x de 240": valor é da parcela, amount vira o total', () => {
+    const r = parseQuickEntry('geladeira 10x de 240', opts)
+    expect(r).toMatchObject({ name: 'Geladeira', amount: 2400, installments: 10 })
+  })
+
+  it('"parcelado em 12", "12 vezes" e "sem juros"', () => {
+    expect(parseQuickEntry('tv 3.000 parcelado em 12', opts)).toMatchObject({ name: 'Tv', amount: 3000, installments: 12 })
+    expect(parseQuickEntry('notebook 4500 12 vezes', opts)).toMatchObject({ name: 'Notebook', amount: 4500, installments: 12, category: 'Tecnologia' })
+    expect(parseQuickEntry('sofá 1.999,90 em 10x sem juros', opts)).toMatchObject({ name: 'Sofá', amount: 1999.9, installments: 10 })
+  })
+
+  it('sem parcelamento, 1x ou receita: installments null', () => {
+    expect(parseQuickEntry('almoço 32', opts).installments).toBeNull()
+    expect(parseQuickEntry('2 cafés 18', opts)).toMatchObject({ amount: 18, installments: null })
+    expect(parseQuickEntry('celular 1200 em 1x', opts)).toMatchObject({ amount: 1200, installments: null })
+    expect(parseQuickEntry('vendi bike 900 em 3x', opts).installments).toBeNull()
+  })
+
+  it('parcelas acima do limite são ignoradas', () => {
+    // ...mas o número também não vira o valor.
+    expect(parseQuickEntry('carro 90000 em 100x', opts)).toMatchObject({ amount: 90000, installments: null })
+  })
+
+  it('o "10" de "10x" não manda a frase para a IA', () => {
+    const text = 'geladeira 2.400 em 10x'
+    expect(needsAi(text, parseQuickEntry(text, opts))).toBe(false)
   })
 })

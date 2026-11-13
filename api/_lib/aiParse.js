@@ -114,6 +114,7 @@ export const TOOL = {
             date: { type: 'string', description: 'AAAA-MM-DD.' },
             walletId: { type: 'string', description: 'id de uma das carteiras fornecidas, ou vazio.' },
             cardId: { type: 'string', description: 'id de um dos cartões fornecidos, ou vazio.' },
+            installments: { type: 'integer', description: 'Número de parcelas se a compra foi parcelada ("em 10x"); omita se à vista.' },
           },
           required: ['name', 'amount', 'type', 'category', 'date'],
         },
@@ -139,6 +140,7 @@ export function buildRequest({ text, image, today, categories, wallets, cards },
     'Categoria: use exatamente um nome da lista. Na dúvida, "Outros" se existir.',
     'Carteira e cartão: só preencha se a frase mencionar algo que corresponda claramente a um dos itens. Compra no crédito vai em cardId; débito, pix e dinheiro vão em walletId.',
     'Não invente valores. Sem valor identificável, não crie o item.',
+    'Compra parcelada ("em 10x", "12 vezes", "10x de 240"): um item só, com amount = valor TOTAL da compra e installments = número de parcelas. "10x de 240" tem amount 2400.',
     'Se vier imagem de cupom, nota ou comprovante: um item só, com o TOTAL pago, o nome do estabelecimento e a data impressa. Se for print com várias transações (extrato, fatura), um item por transação. O texto que acompanha a imagem tem prioridade ("só metade", "no crédito").',
     'Chame sempre a ferramenta registrar_lancamentos.',
     '',
@@ -170,6 +172,9 @@ export function buildRequest({ text, image, today, categories, wallets, cards },
  * Confere cada item devolvido pelo modelo contra o que o cliente mandou.
  * Item sem valor válido é descartado; o resto é corrigido para um padrão seguro.
  */
+// Mesmo teto do parser local (src/utils/quickParse.js).
+const MAX_INSTALLMENTS = 72
+
 export function sanitizeEntries(raw, { today, categories, wallets = [], cards = [] }) {
   const list = Array.isArray(raw) ? raw : []
   const fallbackCategory = categories.includes('Outros') ? 'Outros' : categories[0]
@@ -204,6 +209,10 @@ export function sanitizeEntries(raw, { today, categories, wallets = [], cards = 
       status: date > today ? 'pending' : 'completed',
       walletId,
       cardId,
+      // Só despesa parcela, como no parser local; fora de 2–72 é ignorado.
+      ...(type === 'expense' && Number.isInteger(item.installments)
+        && item.installments >= 2 && item.installments <= MAX_INSTALLMENTS
+        ? { installments: item.installments } : {}),
     })
   }
   return out

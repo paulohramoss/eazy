@@ -286,6 +286,8 @@ export const es = {
   'quickAdd.frequent': 'De nuevo',
   'quickAdd.more': 'Más opciones',
   'quickAdd.saved': '{name} · {amount} registrado',
+  'quickAdd.savedInstallments': '{name} · {count} cuotas de {amount} registrado',
+  'quickAdd.installmentsPlan': '{count} cuotas de {amount} · última el {last}',
   'quickAdd.saveError': 'No se pudo registrar. Inténtalo de nuevo.',
   'quickAdd.voice.start': 'Dictar el movimiento',
   'quickAdd.voice.stop': 'Dejar de escuchar',

@@ -80,6 +80,19 @@
 }
 
 .quick-add-amount.expense { color: var(--accent-red); }
+
+/* "10 parcelas de R$ 240,00 · última em 13/08/2027" sob a linha de entrada. */
+.quick-add-installments {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.quick-add-installments .fi { color: var(--accent); }
 .quick-add-amount.income  { color: var(--accent-green); }
 
 /* ── Chips ──────────────────────────────────────────────── */

@@ -97,6 +97,15 @@ describe('sanitizeEntries', () => {
     }])
   })
 
+  it('mantém parcelas só em despesa e entre 2 e 72', () => {
+    expect(sanitizeEntries([{ ...base, amount: 2400, installments: 10 }], CTX)[0].installments).toBe(10)
+    const out = sanitizeEntries([
+      { ...base, installments: 1 }, { ...base, installments: 100 }, { ...base, installments: 2.5 },
+      { ...base, installments: '10' }, { ...base, type: 'income', installments: 3 },
+    ], CTX)
+    expect(out.every(e => !('installments' in e))).toBe(true)
+  })
+
   it('descarta item sem valor positivo', () => {
     const out = sanitizeEntries([
       { ...base, amount: 0 }, { ...base, amount: -5 }, { ...base, amount: 'abc' }, { ...base, amount: 1e12 }, null,

@@ -33,7 +33,12 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
   const toast = useToast()
   const [form, setForm] = useState(() => {
     if (initial) return { ...initial, amount: String(initial.amount), tags: initial.tags || [] }
-    if (draft) return { ...emptyForm(), ...draft, amount: draft.amount ?? '', tags: draft.tags || [] }
+    if (draft) {
+      // installments vem do lançamento rápido ("2.400 em 10x") e vira o
+      // seletor de parcelas abaixo, não um campo do lançamento.
+      const { installments: _n, ...rest } = draft
+      return { ...emptyForm(), ...rest, amount: rest.amount ?? '', tags: rest.tags || [] }
+    }
     return { ...emptyForm(), walletId: wallets[0]?.id || '' }
   })
   // Antes o Salvar sem descrição ou valor simplesmente não fazia nada, e um
@@ -42,8 +47,8 @@ export default function TransactionModal({ initial, draft, series, onSave, onSet
   const [tried, setTried] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [repeatMode, setRepeatMode] = useState('unique')
-  const [repeatCount, setRepeatCount] = useState(12)
+  const [repeatMode, setRepeatMode] = useState(draft?.installments ? 'installment' : 'unique')
+  const [repeatCount, setRepeatCount] = useState(draft?.installments || 12)
   const [frequency, setFrequency] = useState('monthly')
   const [tagInput, setTagInput] = useState('')
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
