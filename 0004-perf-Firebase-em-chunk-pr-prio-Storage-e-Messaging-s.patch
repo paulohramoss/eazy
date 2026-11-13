@@ -1,0 +1,232 @@
+From e9760611f4bd84e0f12fa0ff7e366d2d2a6e270a Mon Sep 17 00:00:00 2001
+From: Paulo Ramos <noreply@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 11:46:27 -0300
+Subject: [PATCH 4/4] =?UTF-8?q?perf:=20Firebase=20em=20chunk=20pr=C3=B3pri?=
+ =?UTF-8?q?o;=20Storage=20e=20Messaging=20sob=20demanda?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+O chunk AppContext tinha 615 KB, quase tudo SDK do Firebase.
+- Núcleo do Firebase (app/auth/firestore) vai para o chunk 'firebase':
+  deploy do app não invalida mais o cache dele no PWA.
+- firebase/storage e firebase/messaging viram import dinâmico
+  (loadStorage/loadMessaging): só baixam ao anexar arquivo, trocar foto de
+  perfil ou ligar o push.
+Resultado: AppContext 615 KB -> 146 KB; aviso de chunk > 500 KB some.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01TFnnKWbSFcJLvrcey3kZqF
+---
+ src/components/Profile.jsx  |  5 +++--
+ src/components/Receipts.jsx | 12 ++++++------
+ src/firebase.js             | 32 ++++++++++++++++++++++----------
+ src/notifications.js        | 19 ++++++++++++-------
+ vite.config.js              | 13 +++++++++++++
+ 5 files changed, 56 insertions(+), 25 deletions(-)
+
+diff --git a/src/components/Profile.jsx b/src/components/Profile.jsx
+index e7cb438..94045d0 100644
+--- a/src/components/Profile.jsx
++++ b/src/components/Profile.jsx
+@@ -1,8 +1,7 @@
+ import { useState, useRef } from 'react'
+ import { useApp } from '../context/AppContext'
+ import { useAuth } from '../context/AuthContext'
+-import { storage } from '../firebase'
+-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
++import { loadStorage } from '../firebase'
+ import { formatBrazilMobile, getBrazilMobileError, PHONE_MASK_PLACEHOLDER } from '../utils/phone'
+ 
+ function Section({ icon, title, children, style }) {
+@@ -72,6 +71,7 @@ export default function Profile() {
+ 
+     try {
+       const blob       = await resizeImage(file)
++      const { storage, ref, uploadBytes, getDownloadURL } = await loadStorage()
+       const storageRef = ref(storage, `avatars/${user.uid}/profile.jpg`)
+       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' })
+       const url = await getDownloadURL(storageRef)
+@@ -88,6 +88,7 @@ export default function Profile() {
+ 
+   const handleRemovePhoto = async () => {
+     try {
++      const { storage, ref, deleteObject } = await loadStorage()
+       const storageRef = ref(storage, `avatars/${user.uid}/profile.jpg`)
+       await deleteObject(storageRef).catch(() => {})
+     } finally {
+diff --git a/src/components/Receipts.jsx b/src/components/Receipts.jsx
+index 51e5e30..8bc5492 100644
+--- a/src/components/Receipts.jsx
++++ b/src/components/Receipts.jsx
+@@ -1,8 +1,5 @@
+ import { useEffect, useRef, useState } from 'react'
+-import {
+-  deleteObject, getDownloadURL, listAll, ref, uploadBytes,
+-} from 'firebase/storage'
+-import { storage } from '../firebase'
++import { loadStorage } from '../firebase'
+ import { useAuth } from '../context/AuthContext'
+ import { useToast } from './Toast'
+ import { useApp } from '../context/AppContext'
+@@ -35,8 +32,9 @@ export default function Receipts({ transactionId }) {
+     if (!folder) { setLoading(false); return }
+     let cancelled = false
+ 
+-    listAll(ref(storage, folder))
+-      .then(async (res) => {
++    loadStorage()
++      .then(async ({ storage, ref, listAll, getDownloadURL }) => {
++        const res = await listAll(ref(storage, folder))
+         const items = await Promise.all(res.items.map(async item => ({
+           name: item.name,
+           fullPath: item.fullPath,
+@@ -66,6 +64,7 @@ export default function Receipts({ transactionId }) {
+ 
+     setUploading(true)
+     try {
++      const { storage, ref, uploadBytes, getDownloadURL } = await loadStorage()
+       const uploaded = []
+       for (const file of picked) {
+         // Prefixo de tempo evita que dois arquivos de mesmo nome se
+@@ -93,6 +92,7 @@ export default function Receipts({ transactionId }) {
+ 
+   const handleDelete = async (file) => {
+     try {
++      const { storage, ref, deleteObject } = await loadStorage()
+       await deleteObject(ref(storage, file.fullPath))
+       setFiles(prev => prev.filter(f => f.fullPath !== file.fullPath))
+       toast.success(t('receipt.removed'))
+diff --git a/src/firebase.js b/src/firebase.js
+index d648449..52f8ace 100644
+--- a/src/firebase.js
++++ b/src/firebase.js
+@@ -6,8 +6,6 @@ import {
+   persistentLocalCache,
+   persistentMultipleTabManager,
+ } from 'firebase/firestore'
+-import { connectStorageEmulator, getStorage } from 'firebase/storage'
+-import { getMessaging, getToken, onMessage } from 'firebase/messaging'
+ 
+ // Config via env para separar dev/staging/prod sem editar código. Estes valores
+ // não são segredo — o Firebase os expõe no bundle por design, e quem protege os
+@@ -27,7 +25,6 @@ const firebaseConfig = {
+ 
+ const app = initializeApp(firebaseConfig)
+ export const auth    = getAuth(app)
+-export const storage = getStorage(app)
+ 
+ // Cache persistente: sem ele o app é instalável como PWA mas fica inútil offline,
+ // porque toda leitura vai à rede. Com o multi-tab manager várias abas dividem o
+@@ -47,19 +44,34 @@ export const usingEmulators = env.VITE_USE_EMULATORS === '1'
+ if (usingEmulators) {
+   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+   connectFirestoreEmulator(db, '127.0.0.1', 8080)
+-  connectStorageEmulator(storage, '127.0.0.1', 9199)
+ }
+ 
+ // FCM — VAPID key gerada no Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
+ export const VAPID_KEY = env.VITE_FIREBASE_VAPID_KEY
+   || 'BEbKBV8HkrJPiL7FAz1aBgHHu3zC0hFWOKmgz7fBnEsQQiulI2VXd_4HS3t8FzYWkx3fqOFv5c9e5o_nPTrmfLs'
+ 
+-let _messaging = null
+-export function getFirebaseMessaging() {
+-  if (!_messaging && typeof window !== 'undefined') {
+-    try { _messaging = getMessaging(app) } catch { _messaging = null }
++// ─── Carregados sob demanda ───────────────────────────────────────────────────
++// Storage (comprovantes, foto de perfil) e Messaging (push) somam ~220 KB de
++// SDK que a abertura do app não usa. Importados aqui dentro, eles saem do chunk
++// inicial e só baixam na primeira vez que alguém anexa um arquivo ou liga o push.
++
++let _storage = null
++export async function loadStorage() {
++  const mod = await import('firebase/storage')
++  if (!_storage) {
++    _storage = mod.getStorage(app)
++    if (usingEmulators) mod.connectStorageEmulator(_storage, '127.0.0.1', 9199)
+   }
+-  return _messaging
++  return { ...mod, storage: _storage }
+ }
+ 
+-export { getToken, onMessage }
++let _messaging
++export async function loadMessaging() {
++  if (typeof window === 'undefined') return null
++  const mod = await import('firebase/messaging')
++  if (_messaging === undefined) {
++    // Navegador sem suporte (Safari antigo, aba anônima) lança aqui.
++    try { _messaging = mod.getMessaging(app) } catch { _messaging = null }
++  }
++  return _messaging ? { messaging: _messaging, getToken: mod.getToken, onMessage: mod.onMessage } : null
++}
+diff --git a/src/notifications.js b/src/notifications.js
+index 3e2ee82..f4b79c3 100644
+--- a/src/notifications.js
++++ b/src/notifications.js
+@@ -1,4 +1,4 @@
+-import { getFirebaseMessaging, getToken, onMessage, VAPID_KEY } from './firebase'
++import { loadMessaging, VAPID_KEY } from './firebase'
+ import { apiPost } from './utils/api'
+ 
+ // ─── Helpers ──────────────────────────────────────────────────────────────────
+@@ -27,10 +27,10 @@ export async function requestPushPermission() {
+   if (perm !== 'granted') return { ok: false, error: 'Permissão negada pelo usuário' }
+ 
+   try {
+-    const messaging = getFirebaseMessaging()
+-    if (!messaging) return { ok: false, error: 'FCM não disponível' }
++    const fcm = await loadMessaging()
++    if (!fcm) return { ok: false, error: 'FCM não disponível' }
+ 
+-    const token = await getToken(messaging, {
++    const token = await fcm.getToken(fcm.messaging, {
+       vapidKey: VAPID_KEY,
+       // Escopo próprio (o mesmo que o SDK usaria sozinho): só existe um
+       // service worker por escopo, e registrar este em '/' tomava o lugar do
+@@ -55,10 +55,15 @@ export function showLocalNotification(title, body, icon = '/pwa-192x192.png') {
+ 
+ // ─── Ouvir mensagens FCM em foreground ───────────────────────────────────────
+ 
++// O SDK de messaging carrega sob demanda; a inscrição acontece quando ele
++// chega, e o cleanup cobre o caso de a tela fechar antes disso.
+ export function listenForegroundMessages(callback) {
+-  const messaging = getFirebaseMessaging()
+-  if (!messaging) return () => {}
+-  return onMessage(messaging, callback)
++  let unsubscribe = null
++  let cancelled = false
++  loadMessaging()
++    .then(fcm => { if (fcm && !cancelled) unsubscribe = fcm.onMessage(fcm.messaging, callback) })
++    .catch(() => {})
++  return () => { cancelled = true; unsubscribe?.() }
+ }
+ 
+ // ─── Dispatcher central ───────────────────────────────────────────────────────
+diff --git a/vite.config.js b/vite.config.js
+index 2c13e96..3b640a4 100644
+--- a/vite.config.js
++++ b/vite.config.js
+@@ -89,6 +89,19 @@ export default defineConfig(({ mode }) => {
+           main: fileURLToPath(new URL('./index.html', import.meta.url)),
+           landing: fileURLToPath(new URL('./landing.html', import.meta.url)),
+         },
++        output: {
++          // O núcleo do Firebase (app, auth, firestore) em chunk próprio: ele
++          // muda a cada atualização de SDK, o código do app muda toda semana.
++          // Juntos, qualquer deploy fazia o PWA baixar os ~550 KB de novo.
++          // Storage e messaging ficam de fora de propósito: são carregados sob
++          // demanda (src/firebase.js) e não podem voltar para o chunk inicial.
++          codeSplitting: {
++            groups: [{
++              name: 'firebase',
++              test: /node_modules[\\/](@firebase[\\/](app|auth|firestore|util|component|logger|webchannel-wrapper)|firebase[\\/](app|auth|firestore))[\\/]/,
++            }],
++          },
++        },
+       },
+     },
+     server: {
+-- 
+2.43.0
+

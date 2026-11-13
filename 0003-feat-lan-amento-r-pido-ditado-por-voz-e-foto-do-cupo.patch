@@ -1,0 +1,609 @@
+From 35254a8a3f5b39933a63478cb6b2aa0cc0595429 Mon Sep 17 00:00:00 2001
+From: Paulo Ramos <noreply@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 11:44:29 -0300
+Subject: [PATCH 3/4] =?UTF-8?q?feat(lan=C3=A7amento=20r=C3=A1pido):=20dita?=
+ =?UTF-8?q?do=20por=20voz=20e=20foto=20do=20cupom?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Voz: Web Speech API do navegador (sem custo, sem servidor). O parcial aparece
+  enquanto a pessoa fala; frase que o parser local entende fica para o Enter,
+  o resto vai para a IA.
+- Foto: imagem redimensionada no cliente (máx. 1600 px, JPEG) e lida pelo
+  Claude na mesma /api/parse-entry. Cupom vira um lançamento com o total;
+  print de extrato vira um por transação. Texto digitado vai junto.
+- maxDuration de 30 s para as rotas de IA no vercel.json.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01TFnnKWbSFcJLvrcey3kZqF
+---
+ README.md                   |  3 +-
+ api/_lib/aiParse.js         | 31 ++++++++++--
+ api/_lib/aiParse.test.js    | 31 +++++++++++-
+ api/parse-entry.js          |  3 +-
+ src/components/QuickAdd.jsx | 95 +++++++++++++++++++++++++++++++++----
+ src/i18n/en.js              | 11 +++++
+ src/i18n/es.js              | 11 +++++
+ src/i18n/pt.js              | 11 +++++
+ src/styles/quick-add.css    | 37 +++++++++++++++
+ src/utils/image.js          | 34 +++++++++++++
+ src/utils/speech.js         | 74 +++++++++++++++++++++++++++++
+ vercel.json                 |  4 ++
+ 12 files changed, 331 insertions(+), 14 deletions(-)
+ create mode 100644 src/utils/image.js
+ create mode 100644 src/utils/speech.js
+
+diff --git a/README.md b/README.md
+index d82a9fb..1ba47a1 100644
+--- a/README.md
++++ b/README.md
+@@ -53,7 +53,8 @@ Tudo está documentado em [`.env.example`](.env.example). Em resumo:
+ - **`ANTHROPIC_API_KEY`** — segredo, opcional. Liga o lançamento por frase com
+   IA (`/api/parse-entry`). Sem ela o botão de IA não aparece e o lançamento
+   rápido segue só com o parser local. A mesma chave liga o Pergunte ao Eazy
+-  (`/api/ask`). `ANTHROPIC_MODEL` troca o modelo (padrão `claude-haiku-5-5`).
++  (`/api/ask`) e a leitura de foto de cupom no lançamento rápido. O ditado por
++  voz não usa a chave: é o reconhecimento do próprio navegador. `ANTHROPIC_MODEL` troca o modelo (padrão `claude-haiku-5-5`).
+ - **`ALLOWED_ORIGINS`** — origens aceitas pelas funções. Em dev, `localhost`
+   entra automaticamente.
+ 
+diff --git a/api/_lib/aiParse.js b/api/_lib/aiParse.js
+index c87631b..3132045 100644
+--- a/api/_lib/aiParse.js
++++ b/api/_lib/aiParse.js
+@@ -13,6 +13,11 @@
+ 
+ export const MAX_TEXT = 500
+ export const MAX_ENTRIES = 10
++// Base64 de ~2,2 MB de imagem. O cliente redimensiona antes (~300 KB), e o
++// teto da Vercel para o corpo inteiro é 4,5 MB.
++export const MAX_IMAGE_B64 = 3_000_000
++export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
++const B64_RE = /^[A-Za-z0-9+/]+={0,2}$/
+ const MAX_NAME = 80
+ const MAX_AMOUNT = 1e9
+ // Uma data a mais de ~13 meses de hoje é quase sempre erro de leitura
+@@ -48,8 +53,18 @@ const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', '
+  * @returns {{ok:true, value:object} | {ok:false, error:string}}
+  */
+ export function validateInput(body) {
++  let image = null
++  if (body?.image) {
++    const mediaType = String(body.image.mediaType || '')
++    const data = String(body.image.data || '')
++    if (!IMAGE_TYPES.includes(mediaType)) return { ok: false, error: 'Formato de imagem não suportado' }
++    if (!data || data.length > MAX_IMAGE_B64 || !B64_RE.test(data)) return { ok: false, error: 'Imagem inválida ou grande demais' }
++    image = { mediaType, data }
++  }
++
++  // Com foto, o texto é opcional ("só a minha parte", "foi no cartão").
+   const text = clean(body?.text, MAX_TEXT + 1)
+-  if (!text) return { ok: false, error: 'Texto vazio' }
++  if (!text && !image) return { ok: false, error: 'Texto vazio' }
+   if (text.length > MAX_TEXT) return { ok: false, error: `Texto acima de ${MAX_TEXT} caracteres` }
+ 
+   const today = String(body?.today || '')
+@@ -69,6 +84,7 @@ export function validateInput(body) {
+     ok: true,
+     value: {
+       text,
++      image,
+       today,
+       categories,
+       wallets: pickList(body?.wallets),
+@@ -107,7 +123,7 @@ export const TOOL = {
+   },
+ }
+ 
+-export function buildRequest({ text, today, categories, wallets, cards }, { model = DEFAULT_MODEL } = {}) {
++export function buildRequest({ text, image, today, categories, wallets, cards }, { model = DEFAULT_MODEL } = {}) {
+   const [y, m, d] = today.split('-').map(Number)
+   const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
+   const list = (items) => items.length
+@@ -123,6 +139,7 @@ export function buildRequest({ text, today, categories, wallets, cards }, { mode
+     'Categoria: use exatamente um nome da lista. Na dúvida, "Outros" se existir.',
+     'Carteira e cartão: só preencha se a frase mencionar algo que corresponda claramente a um dos itens. Compra no crédito vai em cardId; débito, pix e dinheiro vão em walletId.',
+     'Não invente valores. Sem valor identificável, não crie o item.',
++    'Se vier imagem de cupom, nota ou comprovante: um item só, com o TOTAL pago, o nome do estabelecimento e a data impressa. Se for print com várias transações (extrato, fatura), um item por transação. O texto que acompanha a imagem tem prioridade ("só metade", "no crédito").',
+     'Chame sempre a ferramenta registrar_lancamentos.',
+     '',
+     `Categorias:\n${categories.map(c => `- ${c}`).join('\n')}`,
+@@ -137,7 +154,15 @@ export function buildRequest({ text, today, categories, wallets, cards }, { mode
+     system,
+     tools: [TOOL],
+     tool_choice: { type: 'tool', name: TOOL.name },
+-    messages: [{ role: 'user', content: text }],
++    messages: [{
++      role: 'user',
++      content: image
++        ? [
++            { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } },
++            { type: 'text', text: text || 'Registre o que está nesta imagem.' },
++          ]
++        : text,
++    }],
+   }
+ }
+ 
+diff --git a/api/_lib/aiParse.test.js b/api/_lib/aiParse.test.js
+index 014949c..ee77495 100644
+--- a/api/_lib/aiParse.test.js
++++ b/api/_lib/aiParse.test.js
+@@ -1,6 +1,6 @@
+ import { describe, expect, it, vi } from 'vitest'
+ import {
+-  buildRequest, callClaude, extractToolInput, MAX_ENTRIES, MAX_TEXT, sanitizeEntries, TOOL, validateInput,
++  buildRequest, callClaude, extractToolInput, MAX_ENTRIES, MAX_IMAGE_B64, MAX_TEXT, sanitizeEntries, TOOL, validateInput,
+ } from './aiParse.js'
+ 
+ const CATS = ['Alimentação', 'Transporte', 'Lazer', 'Salário', 'Outros']
+@@ -41,7 +41,36 @@ describe('validateInput', () => {
+   })
+ })
+ 
++describe('validateInput com imagem', () => {
++  const ok = { today: '2026-11-13', categories: CATS }
++  const image = { mediaType: 'image/jpeg', data: 'aGVsbG8=' }
++
++  it('aceita foto sem texto', () => {
++    const r = validateInput({ ...ok, image })
++    expect(r.ok).toBe(true)
++    expect(r.value).toMatchObject({ text: '', image })
++  })
++
++  it('recusa formato, base64 inválido ou imagem grande', () => {
++    expect(validateInput({ ...ok, image: { ...image, mediaType: 'image/gif' } }).ok).toBe(false)
++    expect(validateInput({ ...ok, image: { ...image, data: 'não é base64!' } }).ok).toBe(false)
++    expect(validateInput({ ...ok, image: { ...image, data: 'A'.repeat(MAX_IMAGE_B64 + 4) } }).ok).toBe(false)
++  })
++
++  it('sem texto e sem imagem continua recusado', () => {
++    expect(validateInput(ok).ok).toBe(false)
++  })
++})
++
+ describe('buildRequest', () => {
++  it('com imagem manda o bloco de imagem antes do texto', () => {
++    const req = buildRequest({ text: '', image: { mediaType: 'image/png', data: 'aGk=' }, ...CTX })
++    const [img, txt] = req.messages[0].content
++    expect(img).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'aGk=' } })
++    expect(txt).toEqual({ type: 'text', text: 'Registre o que está nesta imagem.' })
++    expect(req.system).toContain('TOTAL pago')
++  })
++
+   it('força a ferramenta e leva o contexto no system', () => {
+     const req = buildRequest({ text: 'uber 20', ...CTX })
+     expect(req.tool_choice).toEqual({ type: 'tool', name: TOOL.name })
+diff --git a/api/parse-entry.js b/api/parse-entry.js
+index 6757692..e176875 100644
+--- a/api/parse-entry.js
++++ b/api/parse-entry.js
+@@ -39,7 +39,8 @@ export default async function handler(req, res) {
+ 
+   try {
+     const request = buildRequest(input.value, { model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL })
+-    const response = await callClaude(request, { apiKey })
++    // Foto leva mais: o modelo lê a imagem antes de responder.
++    const response = await callClaude(request, { apiKey, timeoutMs: input.value.image ? 25_000 : 15_000 })
+     const entries = sanitizeEntries(extractToolInput(response), input.value)
+     return res.status(200).json({ entries })
+   } catch (err) {
+diff --git a/src/components/QuickAdd.jsx b/src/components/QuickAdd.jsx
+index e3b3fba..6f64a3d 100644
+--- a/src/components/QuickAdd.jsx
++++ b/src/components/QuickAdd.jsx
+@@ -4,6 +4,8 @@ import { CatIcon, useApp } from '../context/AppContext'
+ import { apiPost } from '../utils/api'
+ import { GOAL_CATEGORY } from '../utils/categories'
+ import { isoDate } from '../utils/date'
++import { compressImage } from '../utils/image'
++import { useSpeech } from '../utils/speech'
+ import { frequentEntries, needsAi, parseQuickEntry } from '../utils/quickParse'
+ import { useToast } from './Toast'
+ 
+@@ -20,6 +22,9 @@ import { useToast } from './Toast'
+ // Frase que o parser local não entende ("uber 20 e mercado 100 no nubank")
+ // vai para a IA (/api/parse-entry). A IA só propõe: a lista aparece aqui e
+ // nada é gravado até a pessoa confirmar.
++//
++// Também aceita voz (ditado do navegador, vira texto aqui mesmo) e foto do
++// cupom ou comprovante, que vai direto para a IA.
+ 
+ // Servidor sem ANTHROPIC_API_KEY responde 503. Guardado no módulo para o botão
+ // sumir na sessão inteira em vez de falhar a cada abertura.
+@@ -28,7 +33,7 @@ let aiUnavailable = false
+ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
+   const {
+     transactions, categories, wallets, creditCards = [], addTransaction,
+-    formatCurrency: fmt, formatDate, t,
++    formatCurrency: fmt, formatDate, settings, t,
+   } = useApp()
+   const toast = useToast()
+ 
+@@ -39,7 +44,9 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
+   const [aiLoading, setAiLoading] = useState(false)
+   const [aiOff, setAiOff] = useState(aiUnavailable)
+   const inputRef = useRef(null)
++  const fileRef = useRef(null)
+   const aiRequest = useRef(0)
++  const [fromPhoto, setFromPhoto] = useState(false)
+ 
+   useEffect(() => {
+     // requestAnimationFrame pelo mesmo motivo da paleta: autoFocus não vence
+@@ -119,13 +126,15 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
+     setAiLoading(false)
+   }
+ 
+-  const runAi = async () => {
+-    if (aiLoading || !text.trim()) return
++  const runAi = async ({ inputText = text, image = null } = {}) => {
++    if (aiLoading || (!inputText.trim() && !image)) return
+     const id = ++aiRequest.current
+     setAiLoading(true)
++    setFromPhoto(!!image)
+     try {
+       const { entries = [] } = await apiPost('/api/parse-entry', {
+-        text,
++        text: inputText,
++        ...(image ? { image } : {}),
+         today: isoDate(),
+         categories: categories.filter(c => c !== GOAL_CATEGORY),
+         wallets: wallets.map(w => ({ id: w.id, name: w.name })),
+@@ -133,7 +142,7 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
+       })
+       if (id !== aiRequest.current) return
+       if (!entries.length) {
+-        toast.info(t('quickAdd.ai.empty'))
++        toast.info(t(image ? 'quickAdd.photo.empty' : 'quickAdd.ai.empty'))
+         setAiLoading(false)
+         return
+       }
+@@ -144,11 +153,42 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
+         aiUnavailable = true
+         setAiOff(true)
+       }
+-      toast.error(err.status === 429 ? t('quickAdd.ai.rateLimited') : t('quickAdd.ai.error'))
++      toast.error(err.status === 429 ? t('quickAdd.ai.rateLimited')
++        : err.status === 413 ? t('quickAdd.photo.tooBig')
++        : t('quickAdd.ai.error'))
+     }
+     if (id === aiRequest.current) setAiLoading(false)
+   }
+ 
++  // Ditado: o parcial aparece na linha enquanto a pessoa fala. No fim, frase
++  // que o parser local entende fica para o Enter; o resto vai para a IA.
++  const speech = useSpeech({
++    lang: settings?.language || 'pt-BR',
++    onInterim: (value) => { aiRequest.current += 1; setAiEntries(null); setOverride(null); setText(value) },
++    onFinal: (value) => {
++      setText(value)
++      const local = parseQuickEntry(value, { categories, history })
++      if (!aiOff && needsAi(value, local)) runAi({ inputText: value })
++    },
++    onError: (code) => {
++      if (code === 'not-allowed' || code === 'service-not-allowed') toast.error(t('quickAdd.voice.denied'))
++      else if (code !== 'no-speech') toast.error(t('quickAdd.voice.error'))
++    },
++  })
++
++  const onPhoto = async (e) => {
++    const file = e.target.files?.[0]
++    e.target.value = '' // a mesma foto de novo precisa disparar onChange
++    if (!file) return
++    try {
++      const image = await compressImage(file)
++      // O texto já digitado vai junto: "só metade", "foi no crédito".
++      await runAi({ inputText: text, image })
++    } catch {
++      toast.error(t('quickAdd.photo.error'))
++    }
++  }
++
+   const removeAiEntry = (index) => {
+     const next = aiEntries.filter((_, i) => i !== index)
+     setAiEntries(next.length ? next : null)
+@@ -237,10 +277,49 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
+             value={text}
+             onChange={e => changeText(e.target.value)}
+             onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+-            placeholder={t('quickAdd.placeholder')}
++            placeholder={t(speech.listening ? 'quickAdd.voice.listening'
++              : (aiMode && fromPhoto) ? 'quickAdd.photo.done' : 'quickAdd.placeholder')}
+             aria-label={t('quickAdd.title')}
+           />
+-          {aiLoading && <i className="fi fi-rr-spinner quick-add-spinner" aria-label={t('quickAdd.ai.loading')} />}
++          {aiLoading && <i className="fi fi-rr-spinner quick-add-spinner" aria-label={t(fromPhoto ? 'quickAdd.photo.loading' : 'quickAdd.ai.loading')} />}
++          {!aiLoading && !aiMode && !text && (
++            <div className="quick-add-tools">
++              {speech.supported && (
++                <button
++                  type="button"
++                  className={`quick-add-tool${speech.listening ? ' listening' : ''}`}
++                  onClick={speech.listening ? speech.stop : speech.start}
++                  aria-label={t(speech.listening ? 'quickAdd.voice.stop' : 'quickAdd.voice.start')}
++                  aria-pressed={speech.listening}
++                >
++                  <i className="fi fi-rr-microphone" aria-hidden="true" />
++                </button>
++              )}
++              {!aiOff && (
++                <button
++                  type="button"
++                  className="quick-add-tool"
++                  onClick={() => fileRef.current?.click()}
++                  aria-label={t('quickAdd.photo.start')}
++                >
++                  <i className="fi fi-rr-camera" aria-hidden="true" />
++                </button>
++              )}
++            </div>
++          )}
++          {speech.listening && text && (
++            <button type="button" className="quick-add-tool listening" onClick={speech.stop} aria-label={t('quickAdd.voice.stop')}>
++              <i className="fi fi-rr-microphone" aria-hidden="true" />
++            </button>
++          )}
++          <input
++            ref={fileRef}
++            type="file"
++            accept="image/*"
++            capture="environment"
++            hidden
++            onChange={onPhoto}
++          />
+           {!aiLoading && aiMode && aiEntries.length > 1 && (
+             <span className={`quick-add-amount ${aiTotal >= 0 ? 'income' : 'expense'}`}>
+               {aiTotal >= 0 ? '+' : '−'}{fmt(Math.abs(aiTotal))}
+diff --git a/src/i18n/en.js b/src/i18n/en.js
+index 5d23bef..1b40427 100644
+--- a/src/i18n/en.js
++++ b/src/i18n/en.js
+@@ -287,6 +287,17 @@ export const en = {
+   'quickAdd.more': 'More options',
+   'quickAdd.saved': '{name} · {amount} added',
+   'quickAdd.saveError': 'Couldn\'t add it. Try again.',
++  'quickAdd.voice.start': 'Say the entry',
++  'quickAdd.voice.stop': 'Stop listening',
++  'quickAdd.voice.listening': 'Listening… e.g. "thirty for uber yesterday"',
++  'quickAdd.voice.denied': 'No microphone permission. Allow it in your browser settings.',
++  'quickAdd.voice.error': 'Couldn\'t listen right now. Try again or type it.',
++  'quickAdd.photo.start': 'Photo of receipt',
++  'quickAdd.photo.loading': 'Reading the photo…',
++  'quickAdd.photo.done': 'Read from photo. Check below.',
++  'quickAdd.photo.empty': 'Couldn\'t find an amount in the photo. Try a sharper one with the total visible.',
++  'quickAdd.photo.error': 'Couldn\'t open that image.',
++  'quickAdd.photo.tooBig': 'The image is too large. Try another photo.',
+   'nav.ask': 'Ask',
+   'screen.ask.title': 'Ask Eazy',
+   'screen.ask.sub': 'Answers about your numbers',
+diff --git a/src/i18n/es.js b/src/i18n/es.js
+index 7574830..90e78f6 100644
+--- a/src/i18n/es.js
++++ b/src/i18n/es.js
+@@ -287,6 +287,17 @@ export const es = {
+   'quickAdd.more': 'Más opciones',
+   'quickAdd.saved': '{name} · {amount} registrado',
+   'quickAdd.saveError': 'No se pudo registrar. Inténtalo de nuevo.',
++  'quickAdd.voice.start': 'Dictar el movimiento',
++  'quickAdd.voice.stop': 'Dejar de escuchar',
++  'quickAdd.voice.listening': 'Escuchando… ej.: "treinta de uber ayer"',
++  'quickAdd.voice.denied': 'Sin permiso para el micrófono. Habilítalo en el navegador.',
++  'quickAdd.voice.error': 'No pude escuchar ahora. Inténtalo de nuevo o escríbelo.',
++  'quickAdd.photo.start': 'Foto del ticket o comprobante',
++  'quickAdd.photo.loading': 'Leyendo la foto…',
++  'quickAdd.photo.done': 'Leído de la foto. Revisa abajo.',
++  'quickAdd.photo.empty': 'No encontré ningún monto en la foto. Prueba una más nítida, con el total visible.',
++  'quickAdd.photo.error': 'No pude abrir esa imagen.',
++  'quickAdd.photo.tooBig': 'La imagen es demasiado grande. Prueba otra foto.',
+   'nav.ask': 'Pregunta',
+   'screen.ask.title': 'Pregunta a Eazy',
+   'screen.ask.sub': 'Respuestas sobre tus números',
+diff --git a/src/i18n/pt.js b/src/i18n/pt.js
+index 38f64e3..84d04bc 100644
+--- a/src/i18n/pt.js
++++ b/src/i18n/pt.js
+@@ -297,6 +297,17 @@ export const pt = {
+   'quickAdd.more': 'Mais opções',
+   'quickAdd.saved': '{name} · {amount} lançado',
+   'quickAdd.saveError': 'Não foi possível lançar. Tente de novo.',
++  'quickAdd.voice.start': 'Falar o lançamento',
++  'quickAdd.voice.stop': 'Parar de ouvir',
++  'quickAdd.voice.listening': 'Ouvindo… ex.: "trinta reais de uber ontem"',
++  'quickAdd.voice.denied': 'Sem permissão para o microfone. Libere nas configurações do navegador.',
++  'quickAdd.voice.error': 'Não deu para ouvir agora. Tente de novo ou digite.',
++  'quickAdd.photo.start': 'Foto do cupom ou comprovante',
++  'quickAdd.photo.loading': 'Lendo a foto…',
++  'quickAdd.photo.done': 'Lido da foto. Confira abaixo.',
++  'quickAdd.photo.empty': 'Não achei nenhum valor na foto. Tente uma foto mais nítida, com o total aparecendo.',
++  'quickAdd.photo.error': 'Não consegui abrir essa imagem.',
++  'quickAdd.photo.tooBig': 'A imagem ficou grande demais. Tente outra foto.',
+   'nav.ask': 'Pergunte',
+   'screen.ask.title': 'Pergunte ao Eazy',
+   'screen.ask.sub': 'Respostas sobre os seus números',
+diff --git a/src/styles/quick-add.css b/src/styles/quick-add.css
+index bb6483a..3edab12 100644
+--- a/src/styles/quick-add.css
++++ b/src/styles/quick-add.css
+@@ -301,8 +301,45 @@
+ 
+ .quick-add-ai-remove:hover { color: var(--accent-red); }
+ 
++/* ── Voz e foto ─────────────────────────────────────────── */
++.quick-add-tools {
++  display: flex;
++  gap: 2px;
++  flex-shrink: 0;
++}
++
++.quick-add-tool {
++  width: 34px;
++  height: 34px;
++  border: 0;
++  border-radius: 10px;
++  background: none;
++  color: var(--text-muted);
++  cursor: pointer;
++  display: grid;
++  place-items: center;
++  font-size: 16px;
++  flex-shrink: 0;
++  transition: color var(--transition), background var(--transition);
++}
++
++.quick-add-tool .fi { display: flex; }
++.quick-add-tool:hover { color: var(--accent); background: var(--bg-hover); }
++
++.quick-add-tool.listening {
++  color: #fff;
++  background: var(--accent-red);
++  animation: quick-add-pulse 1.2s ease-in-out infinite;
++}
++
++@keyframes quick-add-pulse {
++  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--red-rgb), 0.45); }
++  50% { box-shadow: 0 0 0 7px rgba(var(--red-rgb), 0); }
++}
++
+ @media (prefers-reduced-motion: reduce) {
+   .quick-add-spinner { animation: none; }
++  .quick-add-tool.listening { animation: none; }
+ }
+ 
+ /* ── Mobile ─────────────────────────────────────────────── */
+diff --git a/src/utils/image.js b/src/utils/image.js
+new file mode 100644
+index 0000000..38dcaba
+--- /dev/null
++++ b/src/utils/image.js
+@@ -0,0 +1,34 @@
++// Prepara uma foto (cupom, comprovante, print) para mandar à IA.
++//
++// Foto de celular sai com 3-8 MB; o corpo da função na Vercel aceita 4,5 MB e
++// o modelo não lê melhor acima de ~1600 px. Redimensionar aqui deixa o envio
++// em ~200-400 KB, rápido até no 4G do interior.
++
++export const MAX_SIDE = 1600
++
++export async function compressImage(file, { maxSide = MAX_SIDE, quality = 0.82 } = {}) {
++  if (!file?.type?.startsWith('image/')) throw new Error('not-an-image')
++
++  // createImageBitmap respeita a orientação EXIF com esta opção — sem ela a
++  // foto de pé do iPhone chegava deitada.
++  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
++  try {
++    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
++    const width = Math.round(bitmap.width * scale)
++    const height = Math.round(bitmap.height * scale)
++
++    const canvas = document.createElement('canvas')
++    canvas.width = width
++    canvas.height = height
++    const ctx = canvas.getContext('2d')
++    // Fundo branco: PNG com transparência viraria preto no JPEG.
++    ctx.fillStyle = '#fff'
++    ctx.fillRect(0, 0, width, height)
++    ctx.drawImage(bitmap, 0, 0, width, height)
++
++    const dataUrl = canvas.toDataURL('image/jpeg', quality)
++    return { mediaType: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1) }
++  } finally {
++    bitmap.close?.()
++  }
++}
+diff --git a/src/utils/speech.js b/src/utils/speech.js
+new file mode 100644
+index 0000000..a891ca8
+--- /dev/null
++++ b/src/utils/speech.js
+@@ -0,0 +1,74 @@
++// Ditado pelo reconhecimento de voz do próprio navegador.
++//
++// De graça e sem servidor: Chrome/Android e Safari (iOS 14.5+) transcrevem no
++// aparelho ou no serviço do sistema. O áudio nunca passa pelo Eazy. Onde a API
++// não existe (Firefox), o botão simplesmente não aparece.
++import { useCallback, useEffect, useRef, useState } from 'react'
++
++const Recognition = typeof window !== 'undefined'
++  ? (window.SpeechRecognition || window.webkitSpeechRecognition)
++  : undefined
++
++export const speechSupported = !!Recognition
++
++/**
++ * @param {object} opts
++ * @param {string} opts.lang            ex.: 'pt-BR'
++ * @param {(text:string) => void} opts.onInterim  transcrição parcial, enquanto fala
++ * @param {(text:string) => void} opts.onFinal    frase fechada
++ * @param {(code:string) => void} [opts.onError]  'not-allowed', 'no-speech'…
++ */
++export function useSpeech({ lang, onInterim, onFinal, onError }) {
++  const [listening, setListening] = useState(false)
++  const recRef = useRef(null)
++  // Os callbacks mudam a cada render; o reconhecimento é criado uma vez.
++  const cb = useRef({ onInterim, onFinal, onError })
++  useEffect(() => { cb.current = { onInterim, onFinal, onError } })
++
++  const stop = useCallback(() => {
++    recRef.current?.stop()
++  }, [])
++
++  const start = useCallback(() => {
++    if (!Recognition || recRef.current) return
++    const rec = new Recognition()
++    rec.lang = lang || 'pt-BR'
++    rec.interimResults = true
++    rec.continuous = false
++    rec.maxAlternatives = 1
++
++    let finalText = ''
++    rec.onresult = (e) => {
++      let interim = ''
++      for (let i = e.resultIndex; i < e.results.length; i++) {
++        const r = e.results[i]
++        if (r.isFinal) finalText += r[0].transcript
++        else interim += r[0].transcript
++      }
++      cb.current.onInterim?.((finalText + interim).trim())
++    }
++    rec.onerror = (e) => {
++      // 'aborted' é o stop() manual; não é erro para quem fala.
++      if (e.error !== 'aborted') cb.current.onError?.(e.error)
++    }
++    rec.onend = () => {
++      recRef.current = null
++      setListening(false)
++      if (finalText.trim()) cb.current.onFinal?.(finalText.trim())
++    }
++
++    recRef.current = rec
++    setListening(true)
++    try {
++      rec.start()
++    } catch {
++      recRef.current = null
++      setListening(false)
++    }
++  }, [lang])
++
++  // Fechar o modal no meio da fala não pode deixar o microfone aberto.
++  useEffect(() => () => recRef.current?.abort(), [])
++
++  return { supported: speechSupported, listening, start, stop }
++}
+diff --git a/vercel.json b/vercel.json
+index ed5628a..86deac2 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -1,4 +1,8 @@
+ {
++  "functions": {
++    "api/ask.js": { "maxDuration": 30 },
++    "api/parse-entry.js": { "maxDuration": 30 }
++  },
+   "rewrites": [
+     { "source": "/api/bolsai/:path*", "destination": "/api/bolsai?path=:path*" },
+     { "source": "/conheca", "destination": "/landing.html" }
+-- 
+2.43.0
+
