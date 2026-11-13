@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { storage } from '../firebase'
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { loadStorage } from '../firebase'
 import { formatBrazilMobile, getBrazilMobileError, PHONE_MASK_PLACEHOLDER } from '../utils/phone'
 
 function Section({ icon, title, children, style }) {
@@ -72,6 +71,7 @@ export default function Profile() {
 
     try {
       const blob       = await resizeImage(file)
+      const { storage, ref, uploadBytes, getDownloadURL } = await loadStorage()
       const storageRef = ref(storage, `avatars/${user.uid}/profile.jpg`)
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' })
       const url = await getDownloadURL(storageRef)
@@ -88,6 +88,7 @@ export default function Profile() {
 
   const handleRemovePhoto = async () => {
     try {
+      const { storage, ref, deleteObject } = await loadStorage()
       const storageRef = ref(storage, `avatars/${user.uid}/profile.jpg`)
       await deleteObject(storageRef).catch(() => {})
     } finally {

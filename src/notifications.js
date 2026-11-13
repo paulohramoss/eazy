@@ -1,4 +1,4 @@
-import { getFirebaseMessaging, getToken, onMessage, VAPID_KEY } from './firebase'
+import { loadMessaging, VAPID_KEY } from './firebase'
 import { apiPost } from './utils/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -27,10 +27,10 @@ export async function requestPushPermission() {
   if (perm !== 'granted') return { ok: false, error: 'Permissão negada pelo usuário' }
 
   try {
-    const messaging = getFirebaseMessaging()
-    if (!messaging) return { ok: false, error: 'FCM não disponível' }
+    const fcm = await loadMessaging()
+    if (!fcm) return { ok: false, error: 'FCM não disponível' }
 
-    const token = await getToken(messaging, {
+    const token = await fcm.getToken(fcm.messaging, {
       vapidKey: VAPID_KEY,
       // Escopo próprio (o mesmo que o SDK usaria sozinho): só existe um
       // service worker por escopo, e registrar este em '/' tomava o lugar do
@@ -55,10 +55,15 @@ export function showLocalNotification(title, body, icon = '/pwa-192x192.png') {
 
 // ─── Ouvir mensagens FCM em foreground ───────────────────────────────────────
 
+// O SDK de messaging carrega sob demanda; a inscrição acontece quando ele
+// chega, e o cleanup cobre o caso de a tela fechar antes disso.
 export function listenForegroundMessages(callback) {
-  const messaging = getFirebaseMessaging()
-  if (!messaging) return () => {}
-  return onMessage(messaging, callback)
+  let unsubscribe = null
+  let cancelled = false
+  loadMessaging()
+    .then(fcm => { if (fcm && !cancelled) unsubscribe = fcm.onMessage(fcm.messaging, callback) })
+    .catch(() => {})
+  return () => { cancelled = true; unsubscribe?.() }
 }
 
 // ─── Dispatcher central ───────────────────────────────────────────────────────

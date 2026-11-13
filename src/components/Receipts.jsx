@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  deleteObject, getDownloadURL, listAll, ref, uploadBytes,
-} from 'firebase/storage'
-import { storage } from '../firebase'
+import { loadStorage } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
 import { useApp } from '../context/AppContext'
@@ -35,8 +32,9 @@ export default function Receipts({ transactionId }) {
     if (!folder) { setLoading(false); return }
     let cancelled = false
 
-    listAll(ref(storage, folder))
-      .then(async (res) => {
+    loadStorage()
+      .then(async ({ storage, ref, listAll, getDownloadURL }) => {
+        const res = await listAll(ref(storage, folder))
         const items = await Promise.all(res.items.map(async item => ({
           name: item.name,
           fullPath: item.fullPath,
@@ -66,6 +64,7 @@ export default function Receipts({ transactionId }) {
 
     setUploading(true)
     try {
+      const { storage, ref, uploadBytes, getDownloadURL } = await loadStorage()
       const uploaded = []
       for (const file of picked) {
         // Prefixo de tempo evita que dois arquivos de mesmo nome se
@@ -93,6 +92,7 @@ export default function Receipts({ transactionId }) {
 
   const handleDelete = async (file) => {
     try {
+      const { storage, ref, deleteObject } = await loadStorage()
       await deleteObject(ref(storage, file.fullPath))
       setFiles(prev => prev.filter(f => f.fullPath !== file.fullPath))
       toast.success(t('receipt.removed'))

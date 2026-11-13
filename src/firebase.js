@@ -6,8 +6,6 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from 'firebase/firestore'
-import { connectStorageEmulator, getStorage } from 'firebase/storage'
-import { getMessaging, getToken, onMessage } from 'firebase/messaging'
 
 // Config via env para separar dev/staging/prod sem editar código. Estes valores
 // não são segredo — o Firebase os expõe no bundle por design, e quem protege os
@@ -27,7 +25,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 export const auth    = getAuth(app)
-export const storage = getStorage(app)
 
 // Cache persistente: sem ele o app é instalável como PWA mas fica inútil offline,
 // porque toda leitura vai à rede. Com o multi-tab manager várias abas dividem o
@@ -47,19 +44,34 @@ export const usingEmulators = env.VITE_USE_EMULATORS === '1'
 if (usingEmulators) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
   connectFirestoreEmulator(db, '127.0.0.1', 8080)
-  connectStorageEmulator(storage, '127.0.0.1', 9199)
 }
 
 // FCM — VAPID key gerada no Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
 export const VAPID_KEY = env.VITE_FIREBASE_VAPID_KEY
   || 'BEbKBV8HkrJPiL7FAz1aBgHHu3zC0hFWOKmgz7fBnEsQQiulI2VXd_4HS3t8FzYWkx3fqOFv5c9e5o_nPTrmfLs'
 
-let _messaging = null
-export function getFirebaseMessaging() {
-  if (!_messaging && typeof window !== 'undefined') {
-    try { _messaging = getMessaging(app) } catch { _messaging = null }
+// ─── Carregados sob demanda ───────────────────────────────────────────────────
+// Storage (comprovantes, foto de perfil) e Messaging (push) somam ~220 KB de
+// SDK que a abertura do app não usa. Importados aqui dentro, eles saem do chunk
+// inicial e só baixam na primeira vez que alguém anexa um arquivo ou liga o push.
+
+let _storage = null
+export async function loadStorage() {
+  const mod = await import('firebase/storage')
+  if (!_storage) {
+    _storage = mod.getStorage(app)
+    if (usingEmulators) mod.connectStorageEmulator(_storage, '127.0.0.1', 9199)
   }
-  return _messaging
+  return { ...mod, storage: _storage }
 }
 
-export { getToken, onMessage }
+let _messaging
+export async function loadMessaging() {
+  if (typeof window === 'undefined') return null
+  const mod = await import('firebase/messaging')
+  if (_messaging === undefined) {
+    // Navegador sem suporte (Safari antigo, aba anônima) lança aqui.
+    try { _messaging = mod.getMessaging(app) } catch { _messaging = null }
+  }
+  return _messaging ? { messaging: _messaging, getToken: mod.getToken, onMessage: mod.onMessage } : null
+}

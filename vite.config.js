@@ -89,6 +89,19 @@ export default defineConfig(({ mode }) => {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
           landing: fileURLToPath(new URL('./landing.html', import.meta.url)),
         },
+        output: {
+          // O núcleo do Firebase (app, auth, firestore) em chunk próprio: ele
+          // muda a cada atualização de SDK, o código do app muda toda semana.
+          // Juntos, qualquer deploy fazia o PWA baixar os ~550 KB de novo.
+          // Storage e messaging ficam de fora de propósito: são carregados sob
+          // demanda (src/firebase.js) e não podem voltar para o chunk inicial.
+          codeSplitting: {
+            groups: [{
+              name: 'firebase',
+              test: /node_modules[\\/](@firebase[\\/](app|auth|firestore|util|component|logger|webchannel-wrapper)|firebase[\\/](app|auth|firestore))[\\/]/,
+            }],
+          },
+        },
       },
     },
     server: {
