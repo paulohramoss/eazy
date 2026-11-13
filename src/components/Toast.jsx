@@ -35,9 +35,11 @@ export function ToastProvider({ children }) {
     if (timer) { clearTimeout(timer); timers.current.delete(id) }
   }, [])
 
-  const toast = useCallback((message, { type = 'info', duration = 4000 } = {}) => {
+  // action: { label, onClick } vira um botão no toast; duration 0 o deixa
+  // fixo até a pessoa agir ou fechar.
+  const toast = useCallback((message, { type = 'info', duration = 4000, action = null } = {}) => {
     const id = ++idRef.current
-    setToasts(list => [...list, { id, message, type }])
+    setToasts(list => [...list, { id, message, type, action }])
     if (duration > 0) {
       timers.current.set(id, setTimeout(() => dismiss(id), duration))
     }
@@ -63,6 +65,11 @@ export function ToastProvider({ children }) {
             <div key={item.id} className="toast" style={{ borderLeftColor: COLORS[item.type] }}>
               <i className={`fi ${ICONS[item.type]}`} style={{ color: COLORS[item.type] }} />
               <span className="toast-message">{item.message}</span>
+              {item.action && (
+                <button className="toast-action" onClick={() => { item.action.onClick(); dismiss(item.id) }}>
+                  {item.action.label}
+                </button>
+              )}
               <button className="toast-close" onClick={() => dismiss(item.id)} aria-label={t('a11y.closeNotice')}>
                 <i className="fi fi-rr-cross-small" />
               </button>

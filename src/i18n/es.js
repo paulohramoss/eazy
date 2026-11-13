@@ -280,6 +280,8 @@ export const es = {
   'txModal.newTitle': 'Nueva Transacción',
 
   // ── Registro rápido ──
+  'update.available': 'Hay una nueva versión de Eazy',
+  'update.reload': 'Actualizar',
   'quickAdd.title': 'Registro rápido',
   'quickAdd.placeholder': 'Ej.: almuerzo 32, uber 12,50 ayer',
   'quickAdd.hint': 'Escribe la descripción y el importe. Enter guarda.',

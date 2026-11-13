@@ -290,6 +290,8 @@ export const pt = {
   'txModal.newTitle': 'Nova Transação',
 
   // ── Lançamento rápido ──
+  'update.available': 'Nova versão do Eazy disponível',
+  'update.reload': 'Atualizar',
   'quickAdd.title': 'Lançamento rápido',
   'quickAdd.placeholder': 'Ex.: almoço 32, uber 12,50 ontem',
   'quickAdd.hint': 'Digite a descrição e o valor. Enter salva.',

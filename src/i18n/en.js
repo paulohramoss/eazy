@@ -280,6 +280,8 @@ export const en = {
   'txModal.newTitle': 'New Transaction',
 
   // ── Quick entry ──
+  'update.available': 'A new version of Eazy is available',
+  'update.reload': 'Update',
   'quickAdd.title': 'Quick entry',
   'quickAdd.placeholder': 'e.g. lunch 32, uber 12.50 yesterday',
   'quickAdd.hint': 'Type a description and an amount. Enter saves.',

@@ -15,12 +15,19 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
+        // Registro feito à mão em src/utils/swUpdate.js, que também procura
+        // versão nova ao voltar ao app e avisa quando ela assume.
+        injectRegister: false,
         includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'badge-96x96.png'],
         // O logo da UI é SVG importado (vai pra assets/): sem o svg aqui o menu
         // abre sem logo offline. As splash do iOS ficam de fora de propósito —
         // o Safari só as lê na instalação e elas pesam ~1,4 MB.
         workbox: {
           globPatterns: ['**/*.{js,css,html,svg}'],
+          // Explícitos: com injectRegister false o plugin deixa de pôr o
+          // clientsClaim, e o SW novo não assumiria a página aberta.
+          skipWaiting: true,
+          clientsClaim: true,
           // A landing (/conheca) é página própria: sem isto, quem já instalou o
           // app teria a navegação interceptada e cairia no index.html do app.
           navigateFallbackDenylist: [/^\/conheca/, /^\/landing/],

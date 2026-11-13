@@ -8,6 +8,8 @@ import { ToastProvider } from './components/Toast.jsx'
 import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { reloadOnce } from './utils/chunkReload'
+import { registerServiceWorker } from './utils/swUpdate'
+import UpdateNotice from './components/UpdateNotice.jsx'
 
 // O Vite pré-carrega CSS e dependências de cada chunk lazy; com o index de um
 // deploy antigo esses arquivos dão 404 e isto dispara antes do import() falhar.
@@ -15,12 +17,15 @@ window.addEventListener('vite:preloadError', (e) => {
   if (reloadOnce()) e.preventDefault()
 })
 
+registerServiceWorker()
+
 // O index.html está trocando um service worker antigo e recarregando para a
 // landing (ver o script no próprio index.html): não monta o app nesse meio
 // tempo, senão a conta pisca na tela antes da landing.
 if (!window.__eazyLandingRedirect) createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ToastProvider>
+      <UpdateNotice />
       <AuthProvider>
         <App />
       </AuthProvider>
