@@ -4,6 +4,8 @@ import { CatIcon, useApp } from '../context/AppContext'
 import { apiPost } from '../utils/api'
 import { GOAL_CATEGORY } from '../utils/categories'
 import { isoDate } from '../utils/date'
+import { compressImage } from '../utils/image'
+import { useSpeech } from '../utils/speech'
 import { frequentEntries, needsAi, parseQuickEntry } from '../utils/quickParse'
 import { useToast } from './Toast'
 
@@ -20,6 +22,9 @@ import { useToast } from './Toast'
 // Frase que o parser local não entende ("uber 20 e mercado 100 no nubank")
 // vai para a IA (/api/parse-entry). A IA só propõe: a lista aparece aqui e
 // nada é gravado até a pessoa confirmar.
+//
+// Também aceita voz (ditado do navegador, vira texto aqui mesmo) e foto do
+// cupom ou comprovante, que vai direto para a IA.
 
 // Servidor sem ANTHROPIC_API_KEY responde 503. Guardado no módulo para o botão
 // sumir na sessão inteira em vez de falhar a cada abertura.
@@ -28,7 +33,7 @@ let aiUnavailable = false
 export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
   const {
     transactions, categories, wallets, creditCards = [], addTransaction,
-    formatCurrency: fmt, formatDate, t,
+    formatCurrency: fmt, formatDate, settings, t,
   } = useApp()
   const toast = useToast()
 
@@ -39,7 +44,9 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiOff, setAiOff] = useState(aiUnavailable)
   const inputRef = useRef(null)
+  const fileRef = useRef(null)
   const aiRequest = useRef(0)
+  const [fromPhoto, setFromPhoto] = useState(false)
 
   useEffect(() => {
     // requestAnimationFrame pelo mesmo motivo da paleta: autoFocus não vence
@@ -119,13 +126,15 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
     setAiLoading(false)
   }
 
-  const runAi = async () => {
-    if (aiLoading || !text.trim()) return
+  const runAi = async ({ inputText = text, image = null } = {}) => {
+    if (aiLoading || (!inputText.trim() && !image)) return
     const id = ++aiRequest.current
     setAiLoading(true)
+    setFromPhoto(!!image)
     try {
       const { entries = [] } = await apiPost('/api/parse-entry', {
-        text,
+        text: inputText,
+        ...(image ? { image } : {}),
         today: isoDate(),
         categories: categories.filter(c => c !== GOAL_CATEGORY),
         wallets: wallets.map(w => ({ id: w.id, name: w.name })),
@@ -133,7 +142,7 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
       })
       if (id !== aiRequest.current) return
       if (!entries.length) {
-        toast.info(t('quickAdd.ai.empty'))
+        toast.info(t(image ? 'quickAdd.photo.empty' : 'quickAdd.ai.empty'))
         setAiLoading(false)
         return
       }
@@ -144,9 +153,40 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
         aiUnavailable = true
         setAiOff(true)
       }
-      toast.error(err.status === 429 ? t('quickAdd.ai.rateLimited') : t('quickAdd.ai.error'))
+      toast.error(err.status === 429 ? t('quickAdd.ai.rateLimited')
+        : err.status === 413 ? t('quickAdd.photo.tooBig')
+        : t('quickAdd.ai.error'))
     }
     if (id === aiRequest.current) setAiLoading(false)
+  }
+
+  // Ditado: o parcial aparece na linha enquanto a pessoa fala. No fim, frase
+  // que o parser local entende fica para o Enter; o resto vai para a IA.
+  const speech = useSpeech({
+    lang: settings?.language || 'pt-BR',
+    onInterim: (value) => { aiRequest.current += 1; setAiEntries(null); setOverride(null); setText(value) },
+    onFinal: (value) => {
+      setText(value)
+      const local = parseQuickEntry(value, { categories, history })
+      if (!aiOff && needsAi(value, local)) runAi({ inputText: value })
+    },
+    onError: (code) => {
+      if (code === 'not-allowed' || code === 'service-not-allowed') toast.error(t('quickAdd.voice.denied'))
+      else if (code !== 'no-speech') toast.error(t('quickAdd.voice.error'))
+    },
+  })
+
+  const onPhoto = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // a mesma foto de novo precisa disparar onChange
+    if (!file) return
+    try {
+      const image = await compressImage(file)
+      // O texto já digitado vai junto: "só metade", "foi no crédito".
+      await runAi({ inputText: text, image })
+    } catch {
+      toast.error(t('quickAdd.photo.error'))
+    }
   }
 
   const removeAiEntry = (index) => {
@@ -237,10 +277,49 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
             value={text}
             onChange={e => changeText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
-            placeholder={t('quickAdd.placeholder')}
+            placeholder={t(speech.listening ? 'quickAdd.voice.listening'
+              : (aiMode && fromPhoto) ? 'quickAdd.photo.done' : 'quickAdd.placeholder')}
             aria-label={t('quickAdd.title')}
           />
-          {aiLoading && <i className="fi fi-rr-spinner quick-add-spinner" aria-label={t('quickAdd.ai.loading')} />}
+          {aiLoading && <i className="fi fi-rr-spinner quick-add-spinner" aria-label={t(fromPhoto ? 'quickAdd.photo.loading' : 'quickAdd.ai.loading')} />}
+          {!aiLoading && !aiMode && !text && (
+            <div className="quick-add-tools">
+              {speech.supported && (
+                <button
+                  type="button"
+                  className={`quick-add-tool${speech.listening ? ' listening' : ''}`}
+                  onClick={speech.listening ? speech.stop : speech.start}
+                  aria-label={t(speech.listening ? 'quickAdd.voice.stop' : 'quickAdd.voice.start')}
+                  aria-pressed={speech.listening}
+                >
+                  <i className="fi fi-rr-microphone" aria-hidden="true" />
+                </button>
+              )}
+              {!aiOff && (
+                <button
+                  type="button"
+                  className="quick-add-tool"
+                  onClick={() => fileRef.current?.click()}
+                  aria-label={t('quickAdd.photo.start')}
+                >
+                  <i className="fi fi-rr-camera" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
+          {speech.listening && text && (
+            <button type="button" className="quick-add-tool listening" onClick={speech.stop} aria-label={t('quickAdd.voice.stop')}>
+              <i className="fi fi-rr-microphone" aria-hidden="true" />
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={onPhoto}
+          />
           {!aiLoading && aiMode && aiEntries.length > 1 && (
             <span className={`quick-add-amount ${aiTotal >= 0 ? 'income' : 'expense'}`}>
               {aiTotal >= 0 ? '+' : '−'}{fmt(Math.abs(aiTotal))}

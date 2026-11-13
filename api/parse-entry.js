@@ -39,7 +39,8 @@ export default async function handler(req, res) {
 
   try {
     const request = buildRequest(input.value, { model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL })
-    const response = await callClaude(request, { apiKey })
+    // Foto leva mais: o modelo lê a imagem antes de responder.
+    const response = await callClaude(request, { apiKey, timeoutMs: input.value.image ? 25_000 : 15_000 })
     const entries = sanitizeEntries(extractToolInput(response), input.value)
     return res.status(200).json({ entries })
   } catch (err) {

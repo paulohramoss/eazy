@@ -1,4 +1,8 @@
 {
+  "functions": {
+    "api/ask.js": { "maxDuration": 30 },
+    "api/parse-entry.js": { "maxDuration": 30 }
+  },
   "rewrites": [
     { "source": "/api/bolsai/:path*", "destination": "/api/bolsai?path=:path*" },
     { "source": "/conheca", "destination": "/landing.html" }

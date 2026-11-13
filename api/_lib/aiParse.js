@@ -13,6 +13,11 @@
 
 export const MAX_TEXT = 500
 export const MAX_ENTRIES = 10
+// Base64 de ~2,2 MB de imagem. O cliente redimensiona antes (~300 KB), e o
+// teto da Vercel para o corpo inteiro é 4,5 MB.
+export const MAX_IMAGE_B64 = 3_000_000
+export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const B64_RE = /^[A-Za-z0-9+/]+={0,2}$/
 const MAX_NAME = 80
 const MAX_AMOUNT = 1e9
 // Uma data a mais de ~13 meses de hoje é quase sempre erro de leitura
@@ -48,8 +53,18 @@ const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', '
  * @returns {{ok:true, value:object} | {ok:false, error:string}}
  */
 export function validateInput(body) {
+  let image = null
+  if (body?.image) {
+    const mediaType = String(body.image.mediaType || '')
+    const data = String(body.image.data || '')
+    if (!IMAGE_TYPES.includes(mediaType)) return { ok: false, error: 'Formato de imagem não suportado' }
+    if (!data || data.length > MAX_IMAGE_B64 || !B64_RE.test(data)) return { ok: false, error: 'Imagem inválida ou grande demais' }
+    image = { mediaType, data }
+  }
+
+  // Com foto, o texto é opcional ("só a minha parte", "foi no cartão").
   const text = clean(body?.text, MAX_TEXT + 1)
-  if (!text) return { ok: false, error: 'Texto vazio' }
+  if (!text && !image) return { ok: false, error: 'Texto vazio' }
   if (text.length > MAX_TEXT) return { ok: false, error: `Texto acima de ${MAX_TEXT} caracteres` }
 
   const today = String(body?.today || '')
@@ -69,6 +84,7 @@ export function validateInput(body) {
     ok: true,
     value: {
       text,
+      image,
       today,
       categories,
       wallets: pickList(body?.wallets),
@@ -107,7 +123,7 @@ export const TOOL = {
   },
 }
 
-export function buildRequest({ text, today, categories, wallets, cards }, { model = DEFAULT_MODEL } = {}) {
+export function buildRequest({ text, image, today, categories, wallets, cards }, { model = DEFAULT_MODEL } = {}) {
   const [y, m, d] = today.split('-').map(Number)
   const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
   const list = (items) => items.length
@@ -123,6 +139,7 @@ export function buildRequest({ text, today, categories, wallets, cards }, { mode
     'Categoria: use exatamente um nome da lista. Na dúvida, "Outros" se existir.',
     'Carteira e cartão: só preencha se a frase mencionar algo que corresponda claramente a um dos itens. Compra no crédito vai em cardId; débito, pix e dinheiro vão em walletId.',
     'Não invente valores. Sem valor identificável, não crie o item.',
+    'Se vier imagem de cupom, nota ou comprovante: um item só, com o TOTAL pago, o nome do estabelecimento e a data impressa. Se for print com várias transações (extrato, fatura), um item por transação. O texto que acompanha a imagem tem prioridade ("só metade", "no crédito").',
     'Chame sempre a ferramenta registrar_lancamentos.',
     '',
     `Categorias:\n${categories.map(c => `- ${c}`).join('\n')}`,
@@ -137,7 +154,15 @@ export function buildRequest({ text, today, categories, wallets, cards }, { mode
     system,
     tools: [TOOL],
     tool_choice: { type: 'tool', name: TOOL.name },
-    messages: [{ role: 'user', content: text }],
+    messages: [{
+      role: 'user',
+      content: image
+        ? [
+            { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } },
+            { type: 'text', text: text || 'Registre o que está nesta imagem.' },
+          ]
+        : text,
+    }],
   }
 }
 

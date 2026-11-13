@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  buildRequest, callClaude, extractToolInput, MAX_ENTRIES, MAX_TEXT, sanitizeEntries, TOOL, validateInput,
+  buildRequest, callClaude, extractToolInput, MAX_ENTRIES, MAX_IMAGE_B64, MAX_TEXT, sanitizeEntries, TOOL, validateInput,
 } from './aiParse.js'
 
 const CATS = ['Alimentação', 'Transporte', 'Lazer', 'Salário', 'Outros']
@@ -41,7 +41,36 @@ describe('validateInput', () => {
   })
 })
 
+describe('validateInput com imagem', () => {
+  const ok = { today: '2026-11-13', categories: CATS }
+  const image = { mediaType: 'image/jpeg', data: 'aGVsbG8=' }
+
+  it('aceita foto sem texto', () => {
+    const r = validateInput({ ...ok, image })
+    expect(r.ok).toBe(true)
+    expect(r.value).toMatchObject({ text: '', image })
+  })
+
+  it('recusa formato, base64 inválido ou imagem grande', () => {
+    expect(validateInput({ ...ok, image: { ...image, mediaType: 'image/gif' } }).ok).toBe(false)
+    expect(validateInput({ ...ok, image: { ...image, data: 'não é base64!' } }).ok).toBe(false)
+    expect(validateInput({ ...ok, image: { ...image, data: 'A'.repeat(MAX_IMAGE_B64 + 4) } }).ok).toBe(false)
+  })
+
+  it('sem texto e sem imagem continua recusado', () => {
+    expect(validateInput(ok).ok).toBe(false)
+  })
+})
+
 describe('buildRequest', () => {
+  it('com imagem manda o bloco de imagem antes do texto', () => {
+    const req = buildRequest({ text: '', image: { mediaType: 'image/png', data: 'aGk=' }, ...CTX })
+    const [img, txt] = req.messages[0].content
+    expect(img).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'aGk=' } })
+    expect(txt).toEqual({ type: 'text', text: 'Registre o que está nesta imagem.' })
+    expect(req.system).toContain('TOTAL pago')
+  })
+
   it('força a ferramenta e leva o contexto no system', () => {
     const req = buildRequest({ text: 'uber 20', ...CTX })
     expect(req.tool_choice).toEqual({ type: 'tool', name: TOOL.name })

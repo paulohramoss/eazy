@@ -53,7 +53,8 @@ Tudo está documentado em [`.env.example`](.env.example). Em resumo:
 - **`ANTHROPIC_API_KEY`** — segredo, opcional. Liga o lançamento por frase com
   IA (`/api/parse-entry`). Sem ela o botão de IA não aparece e o lançamento
   rápido segue só com o parser local. A mesma chave liga o Pergunte ao Eazy
-  (`/api/ask`). `ANTHROPIC_MODEL` troca o modelo (padrão `claude-haiku-5-5`).
+  (`/api/ask`) e a leitura de foto de cupom no lançamento rápido. O ditado por
+  voz não usa a chave: é o reconhecimento do próprio navegador. `ANTHROPIC_MODEL` troca o modelo (padrão `claude-haiku-5-5`).
 - **`ALLOWED_ORIGINS`** — origens aceitas pelas funções. Em dev, `localhost`
   entra automaticamente.
 
