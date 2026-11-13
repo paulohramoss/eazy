@@ -23,6 +23,7 @@ import DonutChart from './components/charts/DonutChart'
 import EmptyState from './components/EmptyState'
 import ScreenSkeleton from './components/Skeleton'
 import QuickAdd from './components/QuickAdd'
+import Ask from './components/Ask'
 import SplitEditor from './components/SplitEditor'
 import StreakBadge from './components/StreakBadge'
 import StatementImport from './components/StatementImport'
@@ -95,6 +96,9 @@ function makeCtx(language = 'pt-BR') {
     addTransaction: async () => {},
     creditCards: [{ id: 'c1', name: 'Mastercard Sicoob' }],
     getCardCurrentUsed: () => 0,
+    walletBalances: { w1: 1250 },
+    budgets: [{ category: 'Alimentação', limit: 800 }],
+    goals: [],
     importTransactions: async (list) => { console.log('[preview] importTransactions', list); return list.length },
   }
 }
@@ -260,6 +264,11 @@ function Gallery() {
 
       <Section title="Lançamento rápido" cols={1}>
         <QuickAddDemo />
+      </Section>
+
+      {/* Chama /api/ask de verdade: sem `vercel dev` rodando, mostra o erro. */}
+      <Section title="Pergunte ao Eazy" cols={1}>
+        <Ask />
       </Section>
     </>
   )

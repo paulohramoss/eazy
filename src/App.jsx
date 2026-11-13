@@ -33,6 +33,7 @@ const CreditCards       = lazyWithReload(() => import('./components/CreditCards'
 const Alerts            = lazyWithReload(() => import('./components/Alerts'))
 const FinancialCalendar = lazyWithReload(() => import('./components/FinancialCalendar'))
 const Recurrences       = lazyWithReload(() => import('./components/Recurrences'))
+const Ask               = lazyWithReload(() => import('./components/Ask'))
 
 // ─── Navigation Config ────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ const NAV = [
     ],
   },
   { icon: 'fi-rr-chart-pie', labelKey: 'nav.analysis', screen: 'analysis' },
+  { icon: 'fi-rr-sparkles', labelKey: 'nav.ask', screen: 'ask' },
   {
     sectionKey: 'nav.system',
     icon: 'fi-rr-settings',
@@ -81,7 +83,7 @@ const MORE_SCREENS = NAV_SECTIONS.flatMap(sec => sec.children.map(c => c.screen)
 const SCREEN_KEYS = [
   'overview', 'transactions', 'analysis', 'wallets', 'budget', 'goals',
   'investments', 'calendar', 'recurrences', 'creditcards', 'alerts',
-  'profile', 'settings',
+  'profile', 'settings', 'ask',
 ]
 
 const SCREEN_TITLES = Object.fromEntries(SCREEN_KEYS.map(k => [k, true]))
@@ -115,6 +117,7 @@ const SCREENS = {
   alerts: () => <Alerts />,
   profile: () => <Profile />,
   settings: () => <Settings />,
+  ask: () => <Ask />,
 }
 
 // ─── NavAccordion (inline expandable group) ───────────────────────────────────

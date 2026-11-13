@@ -19,8 +19,8 @@ const MAX_AMOUNT = 1e9
 // ("1/11" virando 2011), não um lançamento de verdade.
 const MAX_DAYS_AWAY = 400
 
-export const DEFAULT_MODEL = 'claude-haiku-5-5'
-const API_URL = 'https://api.anthropic.com/v1/messages'
+export { callClaude, DEFAULT_MODEL } from './anthropic.js'
+import { DEFAULT_MODEL } from './anthropic.js'
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -188,30 +188,4 @@ export function sanitizeEntries(raw, { today, categories, wallets = [], cards = 
 export function extractToolInput(response) {
   const block = (response?.content || []).find(b => b?.type === 'tool_use' && b.name === TOOL.name)
   return block?.input?.entries ?? []
-}
-
-export async function callClaude(request, { apiKey, fetchImpl = fetch, timeoutMs = 15_000 } = {}) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetchImpl(API_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(request),
-      signal: controller.signal,
-    })
-    const json = await res.json().catch(() => null)
-    if (!res.ok) {
-      const err = new Error(json?.error?.message || `Anthropic ${res.status}`)
-      err.status = res.status
-      throw err
-    }
-    return json
-  } finally {
-    clearTimeout(timer)
-  }
 }

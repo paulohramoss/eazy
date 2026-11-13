@@ -52,8 +52,8 @@ Tudo está documentado em [`.env.example`](.env.example). Em resumo:
 - **`CRON_SECRET`** — segredo. Protege `/api/cron/daily`.
 - **`ANTHROPIC_API_KEY`** — segredo, opcional. Liga o lançamento por frase com
   IA (`/api/parse-entry`). Sem ela o botão de IA não aparece e o lançamento
-  rápido segue só com o parser local. `ANTHROPIC_MODEL` troca o modelo
-  (padrão `claude-haiku-5-5`).
+  rápido segue só com o parser local. A mesma chave liga o Pergunte ao Eazy
+  (`/api/ask`). `ANTHROPIC_MODEL` troca o modelo (padrão `claude-haiku-5-5`).
 - **`ALLOWED_ORIGINS`** — origens aceitas pelas funções. Em dev, `localhost`
   entra automaticamente.
 
@@ -138,6 +138,9 @@ são codificação de dados e não seguem as mesmas regras.
   no app. A resposta da IA é tratada como entrada não confiável — categoria,
   carteira e cartão só passam se estiverem na lista do próprio usuário, e valor
   e data são conferidos antes. O texto digitado não vai para o log.
+- `/api/ask` recebe os lançamentos do próprio usuário (já em memória no app),
+  não grava nada e não loga pergunta nem números. O modelo não soma: pede
+  consultas a `queryTransactions`, que faz as contas no servidor.
 - O cadeado biométrico é uma trava local de conveniência, **não** uma camada de
   segurança: quem controla o navegador contorna. Os dados são protegidos pelo
   login e pelas regras.
