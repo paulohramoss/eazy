@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CatIcon, useApp } from '../context/AppContext'
-import { frequentEntries, parseQuickEntry } from '../utils/quickParse'
+import { apiPost } from '../utils/api'
+import { GOAL_CATEGORY } from '../utils/categories'
+import { isoDate } from '../utils/date'
+import { frequentEntries, needsAi, parseQuickEntry } from '../utils/quickParse'
 import { useToast } from './Toast'
 
 // Lançamento rápido.
@@ -13,18 +16,30 @@ import { useToast } from './Toast'
 // O que não couber (parcelar, anexar comprovante, escolher cartão) sai pelo
 // "mais opções", que abre o modal de sempre já preenchido com o que foi
 // entendido — ninguém redigita.
+//
+// Frase que o parser local não entende ("uber 20 e mercado 100 no nubank")
+// vai para a IA (/api/parse-entry). A IA só propõe: a lista aparece aqui e
+// nada é gravado até a pessoa confirmar.
+
+// Servidor sem ANTHROPIC_API_KEY responde 503. Guardado no módulo para o botão
+// sumir na sessão inteira em vez de falhar a cada abertura.
+let aiUnavailable = false
 
 export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
   const {
-    transactions, categories, wallets, addTransaction,
-    formatCurrency: fmt, t,
+    transactions, categories, wallets, creditCards = [], addTransaction,
+    formatCurrency: fmt, formatDate, t,
   } = useApp()
   const toast = useToast()
 
   const [text, setText] = useState(initialText)
   const [override, setOverride] = useState(null)   // categoria escolhida à mão
   const [saving, setSaving] = useState(false)
+  const [aiEntries, setAiEntries] = useState(null) // null = modo local
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiOff, setAiOff] = useState(aiUnavailable)
   const inputRef = useRef(null)
+  const aiRequest = useRef(0)
 
   useEffect(() => {
     // requestAnimationFrame pelo mesmo motivo da paleta: autoFocus não vence
@@ -57,12 +72,21 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
 
   const category = override || parsed.category
   const ready = parsed.amount !== null && parsed.amount > 0
+  const wantsAi = !aiOff && needsAi(text, parsed)
+  const aiMode = aiEntries !== null
 
   // A categoria provável primeiro: na maioria das vezes o primeiro chip já é
   // o certo, e aí não se toca em nenhum.
   const orderedCategories = useMemo(
     () => [category, ...categories.filter(c => c !== category)],
     [category, categories])
+
+  const nameOf = useMemo(() => {
+    const map = new Map()
+    for (const w of wallets) map.set(w.id, w.name)
+    for (const c of creditCards) map.set(c.id, c.name)
+    return (id) => map.get(id) || ''
+  }, [wallets, creditCards])
 
   const build = () => ({
     type: parsed.type,
@@ -77,8 +101,91 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
     tags: [],
   })
 
+  // Item da IA no formato que addTransaction e o modal completo esperam.
+  // Sem carteira nem cartão, cai na primeira carteira, como o caminho local.
+  const fromAi = (entry) => ({
+    ...entry,
+    walletId: entry.cardId ? '' : (entry.walletId || wallets[0]?.id || ''),
+    notes: '',
+    tags: [],
+  })
+
+  const changeText = (value) => {
+    setText(value)
+    setOverride(null)
+    // Texto mudou, a proposta da IA ficou velha. Uma resposta em voo também.
+    aiRequest.current += 1
+    setAiEntries(null)
+    setAiLoading(false)
+  }
+
+  const runAi = async () => {
+    if (aiLoading || !text.trim()) return
+    const id = ++aiRequest.current
+    setAiLoading(true)
+    try {
+      const { entries = [] } = await apiPost('/api/parse-entry', {
+        text,
+        today: isoDate(),
+        categories: categories.filter(c => c !== GOAL_CATEGORY),
+        wallets: wallets.map(w => ({ id: w.id, name: w.name })),
+        cards: creditCards.map(c => ({ id: c.id, name: c.name })),
+      })
+      if (id !== aiRequest.current) return
+      if (!entries.length) {
+        toast.info(t('quickAdd.ai.empty'))
+        setAiLoading(false)
+        return
+      }
+      setAiEntries(entries)
+    } catch (err) {
+      if (id !== aiRequest.current) return
+      if (err.status === 503) {
+        aiUnavailable = true
+        setAiOff(true)
+      }
+      toast.error(err.status === 429 ? t('quickAdd.ai.rateLimited') : t('quickAdd.ai.error'))
+    }
+    if (id === aiRequest.current) setAiLoading(false)
+  }
+
+  const removeAiEntry = (index) => {
+    const next = aiEntries.filter((_, i) => i !== index)
+    setAiEntries(next.length ? next : null)
+    inputRef.current?.focus()
+  }
+
   const handleSave = async () => {
-    if (!ready || saving) return
+    if (saving || aiLoading) return
+
+    if (aiMode) {
+      setSaving(true)
+      let saved = 0
+      try {
+        // Em sequência: as notificações de orçamento e de cartão leem o estado
+        // e dariam aviso duplicado com gravações em paralelo.
+        for (const entry of aiEntries) {
+          await addTransaction(fromAi(entry))
+          saved += 1
+        }
+        toast.success(saved === 1
+          ? t('quickAdd.saved', { name: aiEntries[0].name, amount: fmt(aiEntries[0].amount) })
+          : t('quickAdd.ai.savedMany', { count: saved }))
+        onClose()
+      } catch {
+        // Os que já foram ficam; tira-os da lista para não duplicar no retry.
+        if (saved) setAiEntries(aiEntries.slice(saved))
+        toast.error(t('quickAdd.saveError'))
+        setSaving(false)
+      }
+      return
+    }
+
+    // Enter numa frase que o local não entende pergunta à IA em vez de gravar
+    // uma leitura pela metade.
+    if (wantsAi) return runAi()
+    if (!ready) return
+
     setSaving(true)
     try {
       await addTransaction(build())
@@ -93,10 +200,24 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
   const applyFrequent = (entry) => {
     // Preenche a linha em vez de salvar direto: o valor do almoço muda, e
     // gravar no primeiro toque tiraria a chance de corrigir.
-    setText(`${entry.name} ${String(entry.amount).replace('.', ',')}`)
+    changeText(`${entry.name} ${String(entry.amount).replace('.', ',')}`)
     setOverride(entry.category)
     inputRef.current?.focus()
   }
+
+  const expand = () => {
+    if (aiMode && aiEntries.length === 1) return onExpand(fromAi(aiEntries[0]))
+    onExpand(build())
+  }
+
+  const today = isoDate()
+  const aiTotal = aiMode
+    ? aiEntries.reduce((sum, e) => sum + (e.type === 'income' ? e.amount : -e.amount), 0)
+    : 0
+  const canSave = aiMode ? aiEntries.length > 0 : (ready || wantsAi)
+  const saveLabel = aiMode
+    ? (aiEntries.length > 1 ? t('quickAdd.ai.saveMany', { count: aiEntries.length }) : t('action.save'))
+    : (wantsAi ? t('quickAdd.ai.understand') : t('action.save'))
 
   return createPortal(
     <div className="quick-add-backdrop" onClick={onClose}>
@@ -109,27 +230,67 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
       >
         {/* Linha de entrada */}
         <div className="quick-add-input-row">
-          <i className={`fi ${parsed.type === 'income' ? 'fi-rr-arrow-down-left' : 'fi-rr-arrow-up-right'} quick-add-type-icon ${parsed.type}`} aria-hidden="true" />
+          <i className={`fi ${aiMode ? 'fi-rr-sparkles' : (parsed.type === 'income' ? 'fi-rr-arrow-down-left' : 'fi-rr-arrow-up-right')} quick-add-type-icon ${aiMode ? 'ai' : parsed.type}`} aria-hidden="true" />
           <input
             ref={inputRef}
             className="quick-add-input"
             value={text}
-            onChange={e => { setText(e.target.value); setOverride(null) }}
+            onChange={e => changeText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
             placeholder={t('quickAdd.placeholder')}
             aria-label={t('quickAdd.title')}
           />
-          {ready && (
+          {aiLoading && <i className="fi fi-rr-spinner quick-add-spinner" aria-label={t('quickAdd.ai.loading')} />}
+          {!aiLoading && aiMode && aiEntries.length > 1 && (
+            <span className={`quick-add-amount ${aiTotal >= 0 ? 'income' : 'expense'}`}>
+              {aiTotal >= 0 ? '+' : '−'}{fmt(Math.abs(aiTotal))}
+            </span>
+          )}
+          {!aiLoading && !aiMode && ready && !wantsAi && (
             <span className={`quick-add-amount ${parsed.type}`}>
               {parsed.type === 'income' ? '+' : '−'}{fmt(parsed.amount)}
             </span>
           )}
         </div>
 
-        {/* O que foi entendido, ou o atalho para os hábitos */}
-        {!ready ? (
+        {/* O que a IA entendeu: confirmação antes de gravar */}
+        {aiMode ? (
+          <ul className="quick-add-ai-list" aria-label={t('quickAdd.ai.review')}>
+            {aiEntries.map((entry, i) => {
+              const where = nameOf(entry.cardId || entry.walletId)
+              return (
+                <li key={i} className="quick-add-ai-item">
+                  <CatIcon category={entry.category} />
+                  <div className="quick-add-ai-main">
+                    <span className="quick-add-ai-name">{entry.name}</span>
+                    <span className="quick-add-ai-meta">
+                      {entry.category}
+                      {entry.date !== today && ` · ${formatDate(entry.date)}`}
+                      {where && ` · ${where}`}
+                    </span>
+                  </div>
+                  <span className={`quick-add-ai-amount ${entry.type}`}>
+                    {entry.type === 'income' ? '+' : '−'}{fmt(entry.amount)}
+                  </span>
+                  <button
+                    type="button"
+                    className="quick-add-ai-remove"
+                    onClick={() => removeAiEntry(i)}
+                    aria-label={t('quickAdd.ai.remove', { name: entry.name })}
+                  >
+                    <i className="fi fi-rr-cross-small" aria-hidden="true" />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ) : !ready || wantsAi ? (
           <div className="quick-add-hint-row">
-            {frequent.length > 0 ? (
+            {wantsAi ? (
+              <span className="quick-add-hint">
+                <i className="fi fi-rr-sparkles" aria-hidden="true" /> {t('quickAdd.ai.hint')}
+              </span>
+            ) : frequent.length > 0 ? (
               <>
                 <span className="quick-add-hint-label">{t('quickAdd.frequent')}</span>
                 <div className="quick-add-chips">
@@ -173,19 +334,30 @@ export default function QuickAdd({ onClose, onExpand, initialText = '' }) {
 
         {/* Rodapé */}
         <div className="quick-add-footer">
-          <button type="button" className="quick-add-expand" onClick={() => onExpand(build())}>
-            <i className="fi fi-rr-settings-sliders" aria-hidden="true" />
-            {t('quickAdd.more')}
-          </button>
+          {(!aiMode || aiEntries.length === 1) ? (
+            <button type="button" className="quick-add-expand" onClick={expand}>
+              <i className="fi fi-rr-settings-sliders" aria-hidden="true" />
+              {t('quickAdd.more')}
+            </button>
+          ) : (
+            <span className="quick-add-hint">{t('quickAdd.ai.confirm')}</span>
+          )}
           <div className="quick-add-actions">
+            {/* Escape para quem preferir a leitura local mesmo com a IA sugerida. */}
+            {!aiMode && wantsAi && ready && (
+              <button type="button" className="quick-add-expand" onClick={() => { setAiOff(true) }}>
+                {t('quickAdd.ai.skip')}
+              </button>
+            )}
             <kbd className="quick-add-kbd">Enter</kbd>
             <button
               type="button"
               className="btn btn-primary"
               onClick={handleSave}
-              disabled={!ready || saving}
+              disabled={!canSave || saving || aiLoading}
             >
-              {t('action.save')}
+              {wantsAi && !aiMode && <i className="fi fi-rr-sparkles" aria-hidden="true" style={{ marginRight: 6 }} />}
+              {saveLabel}
             </button>
           </div>
         </div>

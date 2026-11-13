@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { frequentEntries, parseAmount, parseQuickEntry } from './quickParse.js'
+import { frequentEntries, needsAi, parseAmount, parseQuickEntry } from './quickParse.js'
 
 const TODAY = '2026-09-20'
 const p = (input, opts) => parseQuickEntry(input, { today: TODAY, ...opts })
@@ -257,5 +257,39 @@ describe('frequentEntries', () => {
       tx(n, '2026-09-10', 10), tx(n, '2026-09-11', 10),
     ])
     expect(frequentEntries(many, { today: TODAY, limit: 3 })).toHaveLength(3)
+  })
+})
+
+describe('needsAi', () => {
+  const ask = (text) => needsAi(text, p(text))
+
+  it('o caso simples fica no parser local', () => {
+    expect(ask('almoço 32')).toBe(false)
+    expect(ask('uber 12,50 ontem')).toBe(false)
+    expect(ask('ifood 45')).toBe(false)
+    expect(ask('')).toBe(false)
+    expect(ask('ab')).toBe(false)
+  })
+
+  it('vários gastos na mesma frase vão para a IA', () => {
+    expect(ask('uber 20 e mercado 100')).toBe(true)
+    expect(ask('paguei almoço e depois o estacionamento 15')).toBe(true)
+  })
+
+  it('valor por extenso vai para a IA', () => {
+    expect(ask('trinta e dois no almoço')).toBe(true)
+    // Uma palavra só sem número é a pessoa ainda digitando.
+    expect(ask('almoço')).toBe(false)
+  })
+
+  it('meio de pagamento ou divisão vai para a IA', () => {
+    expect(ask('mercado 230 no cartão')).toBe(true)
+    expect(ask('pizza 80 metade')).toBe(true)
+    expect(ask('gasolina 200 nubank')).toBe(true)
+  })
+
+  it('categoria desconhecida em frase longa vai para a IA', () => {
+    expect(ask('presente aniversário da vó 150')).toBe(false) // "presente" é palavra-chave
+    expect(ask('conserto da geladeira lá de casa 300')).toBe(true)
   })
 })

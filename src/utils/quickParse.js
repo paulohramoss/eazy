@@ -287,6 +287,35 @@ export function parseQuickEntry(input, opts = {}) {
   }
 }
 
+// Palavras que o parser local ignora mas que mudam o lançamento: meio de
+// pagamento, divisão, vários itens. Com elas, a leitura local sai incompleta.
+const AI_HINTS = [
+  'cartao', 'credito', 'debito', 'nubank', 'inter', 'itau', 'bradesco', 'santander',
+  'caixa', 'c6', 'picpay', 'mercado pago', 'metade', 'dividi', 'rachei', 'cada',
+]
+
+/**
+ * Diz se vale mandar a frase para a IA em vez de confiar no parser local.
+ * A IA custa e demora ~1s: "almoço 32" nunca deve passar por ela.
+ */
+export function needsAi(input, parsed) {
+  const text = String(input ?? '').trim()
+  if (text.length < 3) return false
+  const lower = norm(text)
+  const words = lower.split(/\s+/).filter(Boolean)
+
+  // Sem valor reconhecido mas com texto de sobra: "trinta e dois no almoço".
+  if (!parsed || parsed.amount === null) return words.length >= 2
+  // Dois números ou mais costuma ser dois gastos ("uber 20 e mercado 100").
+  // "2 cafés 18" também cai aqui — a IA acerta esse, o local já acertava também.
+  if ((text.match(AMOUNT_RE) || []).length >= 2) return true
+  if (/\s(e|mais)\s/.test(` ${lower} `) && words.length >= 4) return true
+  if (AI_HINTS.some(h => new RegExp(`\\b${h}\\b`).test(lower))) return true
+  // Categoria caiu no padrão e a frase não é curtinha: o local não sabe o que é.
+  if (parsed.source === 'default' && words.length >= 3) return true
+  return false
+}
+
 /**
  * Só a parte de categoria do lançamento rápido: histórico primeiro, palavra-
  * chave depois. A importação de extrato usa para não manter uma segunda tabela
