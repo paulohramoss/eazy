@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addDaysISO, addMonthsISO, addYearsISO, advanceISO, cardCycleStartISO, partsInTz, todayISO,
+  addDaysISO, addMonthsISO, addYearsISO, advanceISO, cardCycleStartISO, closedInvoiceRangeISO, partsInTz, todayISO,
 } from './dates.js'
 
 describe('todayISO', () => {
@@ -73,6 +73,29 @@ describe('advanceISO', () => {
         expect(advanceISO(iso, freq)).toBe(advance(iso, freq))
       }
     }
+  })
+})
+
+describe('closedInvoiceRangeISO', () => {
+  it('no dia do fechamento, é a fatura que acabou de fechar', () => {
+    expect(closedInvoiceRangeISO(10, '2026-03-10')).toEqual({ from: '2026-02-10', to: '2026-03-10' })
+  })
+
+  it('no vencimento depois do fechamento, é a mesma fatura', () => {
+    expect(closedInvoiceRangeISO(10, '2026-03-17')).toEqual({ from: '2026-02-10', to: '2026-03-10' })
+  })
+
+  it('vencimento no mês seguinte ao fechamento', () => {
+    // Fecha dia 25, vence dia 5: no dia 5 vence a fatura fechada em 25 do mês anterior.
+    expect(closedInvoiceRangeISO(25, '2026-03-05')).toEqual({ from: '2026-01-25', to: '2026-02-25' })
+  })
+
+  it('atravessa a virada de ano', () => {
+    expect(closedInvoiceRangeISO(15, '2026-01-15')).toEqual({ from: '2025-12-15', to: '2026-01-15' })
+  })
+
+  it('encolhe o fechamento em meses curtos', () => {
+    expect(closedInvoiceRangeISO(31, '2026-03-31')).toEqual({ from: '2026-02-28', to: '2026-03-31' })
   })
 })
 

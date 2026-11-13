@@ -3,21 +3,22 @@ import { useAuth } from '../context/AuthContext'
 import { createTranslator, detectLanguage } from '../i18n'
 import { BrandLockup } from './BrandLogo'
 
-const ERR = {
-  'auth/user-not-found':           'E-mail não encontrado.',
-  'auth/wrong-password':           'Senha incorreta.',
-  'auth/email-already-in-use':     'E-mail já cadastrado.',
-  'auth/weak-password':            'Senha deve ter ao menos 6 caracteres.',
-  'auth/invalid-email':            'E-mail inválido.',
-  'auth/invalid-credential':       'E-mail ou senha incorretos.',
-  'auth/popup-closed-by-user':     'Login com Google cancelado.',
-  'auth/cancelled-popup-request':  'Login com Google cancelado.',
-  'auth/popup-blocked':            'Pop-up bloqueado pelo navegador. Permita pop-ups para este site.',
-  'auth/operation-not-allowed':    'Login com Google não está ativado. Ative no Firebase Console.',
-  'auth/unauthorized-domain':      'Domínio não autorizado no Firebase Console.',
-  'auth/network-request-failed':   'Erro de rede. Verifique sua conexão.',
-  'auth/too-many-requests':        'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
-  'auth/missing-email':            'Informe o e-mail.',
+// Código de erro do Firebase Auth → chave do dicionário.
+const ERR_KEYS = {
+  'auth/user-not-found':           'login.err.userNotFound',
+  'auth/wrong-password':           'login.err.wrongPassword',
+  'auth/email-already-in-use':     'login.err.emailInUse',
+  'auth/weak-password':            'login.err.weakPassword',
+  'auth/invalid-email':            'login.err.invalidEmail',
+  'auth/invalid-credential':       'login.err.invalidCredential',
+  'auth/popup-closed-by-user':     'login.err.googleCancelled',
+  'auth/cancelled-popup-request':  'login.err.googleCancelled',
+  'auth/popup-blocked':            'login.err.popupBlocked',
+  'auth/operation-not-allowed':    'login.err.googleDisabled',
+  'auth/unauthorized-domain':      'login.err.unauthorizedDomain',
+  'auth/network-request-failed':   'login.err.network',
+  'auth/too-many-requests':        'login.err.tooManyRequests',
+  'auth/missing-email':            'login.err.missingEmail',
 }
 
 export default function Login() {
@@ -62,7 +63,7 @@ export default function Login() {
       await fn()
     } catch (e) {
       console.error('[Auth error]', e.code, e.message)
-      setError(ERR[e.code] || t('login.unexpected', { code: e.code ?? e.message }))
+      setError(ERR_KEYS[e.code] ? t(ERR_KEYS[e.code]) : t('login.unexpected', { code: e.code ?? e.message }))
     } finally {
       setLoad(false)
     }
@@ -80,7 +81,7 @@ export default function Login() {
     } catch (err) {
       if (err.code !== 'auth/user-not-found' && err.code !== 'auth/invalid-credential') {
         console.error('[reset password]', err.code, err.message)
-        setError(ERR[err.code] || t('login.resetFailed'))
+        setError(t(ERR_KEYS[err.code] || 'login.resetFailed'))
         setLoad(false)
         return
       }

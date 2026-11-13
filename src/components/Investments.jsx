@@ -10,11 +10,19 @@ import EmptyState from './EmptyState'
 const fmtN = (n, d = 2, locale = 'pt-BR') =>
   (Number(n) || 0).toLocaleString(locale, { minimumFractionDigits: d, maximumFractionDigits: d })
 
+// Os tipos são gravados no Firestore com estes valores; só o rótulo exibido
+// passa pelo dicionário.
 const TYPES = ['Ação', 'Cripto', 'FII/ETF', 'Renda F.', 'Outro']
-// Paleta do SELETOR de cor — o usuário escolhe um acento decorativo para o
-// próprio item. Não é codificação de dados: os gráficos usam os tokens
-// validados em styles/charts.css. Preto, lima e cinza são escolhas legítimas
-// aqui e reprovariam lá; não unifique as duas listas.
+const TYPE_LABEL_KEYS = {
+  'Ação': 'inv.typeStock',
+  'Cripto': 'inv.typeCrypto',
+  'FII/ETF': 'inv.typeFund',
+  'Renda F.': 'inv.typeFixed',
+  'Outro': 'inv.typeOther',
+}
+const typeLabel = (type, t) => (TYPE_LABEL_KEYS[type] ? t(TYPE_LABEL_KEYS[type]) : type)
+
+const signed = (n) => (n >= 0 ? '+' : '')
 
 const EMPTY_FORM = { name: '', ticker: '', type: 'Ação', quantity: '', avgPrice: '', currentPrice: '', color: '#0053EF' }
 
@@ -100,11 +108,11 @@ async function fetchQuoteFor(inv) {
 // ─── Market Explorer ──────────────────────────────────────────────────────────
 
 function MarketExplorer({ onAdd }) {
-  const { formatCurrency: fmt, t } = useApp()
+  const { formatCurrency: fmt, locale, t } = useApp()
   const [tab, setTab] = useState('Ação')
   const [quotes, setQuotes] = useState({})
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState(false)
 
   const load = async (assetTab, force = false) => {
     const now = Date.now()
@@ -115,7 +123,7 @@ function MarketExplorer({ onAdd }) {
     if (force) delete marketCache[assetTab]
 
     setLoading(true)
-    setError(null)
+    setError(false)
     setQuotes({})
 
     const tickers = MARKET_ASSETS[assetTab]
@@ -140,7 +148,7 @@ function MarketExplorer({ onAdd }) {
       if (!Object.keys(result).length) throw new Error('nenhuma cotação retornada')
       marketCache[assetTab] = { data: result, ts: Date.now() }
     } catch {
-      setError('Falha ao buscar dados de mercado.')
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -165,7 +173,7 @@ function MarketExplorer({ onAdd }) {
                 background: tab === name ? 'var(--accent)' : 'var(--bg-hover)',
                 color: tab === name ? 'white' : 'var(--text-secondary)',
               }}
-            >{name}</button>
+            >{typeLabel(name, t)}</button>
           ))}
         </div>
         <button
@@ -182,7 +190,7 @@ function MarketExplorer({ onAdd }) {
         <div className="empty-state"><p>{t('inv.loadingQuotes')}</p></div>
       ) : error ? (
         <div className="empty-state">
-          <p style={{ color: 'var(--accent-red)', marginBottom: 8 }}>{error}</p>
+          <p style={{ color: 'var(--accent-red)', marginBottom: 8 }}>{t('inv.marketError')}</p>
           <button className="btn btn-secondary btn-sm" onClick={() => load(tab, true)}>{t('inv.retry')}</button>
         </div>
       ) : (
@@ -221,7 +229,7 @@ function MarketExplorer({ onAdd }) {
                         background: pos ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
                         color: pos ? 'var(--accent-green)' : 'var(--accent-red)',
                       }}>
-                        {pos ? '+' : ''}{fmtN(q.change, 2)}%
+                        {pos ? '+' : ''}{fmtN(q.change, 2, locale)}%
                       </span>
                     ) : null}
                   </div>
@@ -235,7 +243,7 @@ function MarketExplorer({ onAdd }) {
       )}
 
       <div style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
-        {tab === 'Cripto' ? 'Fonte: CoinGecko · Dados em tempo real · Valores em BRL' : 'Fonte: Bolsai · Dados com até 15 min de defasagem · Valores em BRL'}
+        {t(tab === 'Cripto' ? 'inv.sourceCrypto' : 'inv.sourceStocks')}
       </div>
     </div>
   )
@@ -293,7 +301,7 @@ function InvModal({ initial, onSave, onClose }) {
         <div className="form-group">
           <label className="form-label">{t('inv.type')}</label>
           <select className="form-select" value={form.type} onChange={e => set('type', e.target.value)}>
-            {TYPES.map(tx => <option key={tx} value={tx}>{tx}</option>)}
+            {TYPES.map(type => <option key={type} value={type}>{typeLabel(type, t)}</option>)}
           </select>
         </div>
         <div className="form-group">
@@ -351,7 +359,7 @@ export default function Investments() {
   // congelava e o retorno virava ficção. Aqui ela é reprecificada de verdade.
   const refreshPrices = async () => {
     if (!priceable.length) {
-      setRefreshMsg({ error: true, text: 'Nenhum ativo com cotação de mercado na carteira.' })
+      setRefreshMsg({ error: true, text: t('inv.refreshNone') })
       return
     }
     setRefreshing(true)
@@ -374,11 +382,11 @@ export default function Investments() {
     setRefreshing(false)
     setRefreshMsg(
       updated === 0
-        ? { error: true, text: `Não foi possível atualizar: ${failed.join(', ')}` }
+        ? { error: true, text: t('inv.refreshFailed', { tickers: failed.join(', ') }) }
         : {
             error: false,
             text: t('inv.updatedCount', { count: updated })
-              + (failed.length ? ` · falhou: ${failed.join(', ')}` : ''),
+              + (failed.length ? ` · ${t('inv.refreshPartial', { tickers: failed.join(', ') })}` : ''),
           }
     )
   }
@@ -412,8 +420,14 @@ export default function Investments() {
   // dos TICKERS enquanto a lista ao lado usava os tipos — título, gráfico e
   // legenda diziam três coisas diferentes. Agora os três falam de tipo.
   const allocationByType = Object.entries(typeMap)
-    .map(([name, value]) => ({ name, value }))
+    .map(([type, value]) => ({ name: typeLabel(type, t), value }))
     .filter(d => d.value > 0)
+
+  // Maior primeiro: é a ordem da tabela e de onde sai a "maior alocação".
+  const byValue = [...enriched].sort((a, b) => b.currentValue - a.currentValue)
+  const topGainer = enriched.reduce((best, i) => (!best || i.returnPct > best.returnPct ? i : best), null)
+  const topAllocation = byValue[0]
+  const sharePct = (value) => (totalValue > 0 ? (value / totalValue) * 100 : 0).toFixed(1)
 
   return (
     <div className="screen">
@@ -436,7 +450,7 @@ export default function Investments() {
         <div className="summary-stat">
           <div className="summary-stat-label">{t('inv.yield')}</div>
           <div className={`summary-stat-value ${totalReturnPct >= 0 ? 'positive-text' : 'negative-text'}`}>
-            {totalReturnPct >= 0 ? '+' : ''}{fmtN(totalReturnPct, 2)}%
+            {signed(totalReturnPct)}{fmtN(totalReturnPct, 2, locale)}%
           </div>
         </div>
       </div>
@@ -470,9 +484,9 @@ export default function Investments() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[
-              { label: 'Ativos na carteira', value: investments.length },
-              { label: 'Maior valorização', value: enriched.length > 0 ? `${[...enriched].sort((a, b) => b.returnPct - a.returnPct)[0]?.ticker} (+${fmtN(Math.max(...enriched.map(i => i.returnPct)), 1)}%)` : '—' },
-              { label: 'Maior alocação', value: enriched.length > 0 ? `${[...enriched].sort((a, b) => b.currentValue - a.currentValue)[0]?.ticker} (${(([...enriched].sort((a, b) => b.currentValue - a.currentValue)[0]?.currentValue / totalValue) * 100).toFixed(1)}%)` : '—' },
+              { label: t('inv.assetsCount'), value: investments.length },
+              { label: t('inv.topGainer'), value: topGainer ? `${topGainer.ticker} (${signed(topGainer.returnPct)}${fmtN(topGainer.returnPct, 1, locale)}%)` : '—' },
+              { label: t('inv.topAllocation'), value: topAllocation ? `${topAllocation.ticker} (${sharePct(topAllocation.currentValue)}%)` : '—' },
             ].map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{row.label}</span>
@@ -534,7 +548,7 @@ export default function Investments() {
               </tr>
             </thead>
             <tbody>
-              {[...enriched].sort((a, b) => b.currentValue - a.currentValue).map(inv => (
+              {byValue.map(inv => (
                 <tr key={inv.id}>
                   <td style={{ paddingLeft: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -545,21 +559,21 @@ export default function Investments() {
                       </div>
                     </div>
                   </td>
-                  <td><span className="category-tag">{inv.type}</span></td>
-                  <td style={{ textAlign: 'right', fontSize: 13 }}>{fmtN(inv.quantity, inv.quantity % 1 === 0 ? 0 : 4)}</td>
+                  <td><span className="category-tag">{typeLabel(inv.type, t)}</span></td>
+                  <td style={{ textAlign: 'right', fontSize: 13 }}>{fmtN(inv.quantity, inv.quantity % 1 === 0 ? 0 : 4, locale)}</td>
                   <td style={{ textAlign: 'right', fontSize: 13 }}>{fmt(inv.avgPrice)}</td>
                   <td style={{ textAlign: 'right', fontSize: 13 }}>{fmt(inv.currentPrice)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>{fmt(inv.currentValue)}</td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 600, fontSize: 13, color: inv.returnPct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                      {inv.returnPct >= 0 ? '+' : ''}{fmtN(inv.returnPct, 2)}%
+                      {signed(inv.returnPct)}{fmtN(inv.returnPct, 2, locale)}%
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {inv.returnVal >= 0 ? '+' : ''}{fmt(inv.returnVal)}
                     </div>
                   </td>
                   <td style={{ textAlign: 'right', fontSize: 13 }}>
-                    {((inv.currentValue / totalValue) * 100).toFixed(1)}%
+                    {sharePct(inv.currentValue)}%
                   </td>
                   <td style={{ paddingRight: 20 }}>
                     <div className="table-actions">
@@ -574,7 +588,7 @@ export default function Investments() {
 
           {/* ── Mobile card-list ── */}
           <ul className="inv-card-list">
-            {[...enriched].sort((a, b) => b.currentValue - a.currentValue).map(inv => (
+            {byValue.map(inv => (
               <li key={inv.id} className="inv-card">
                 <div className="inv-card-dot" style={{ background: inv.color }} />
                 <div className="inv-card-body">
@@ -586,19 +600,19 @@ export default function Investments() {
                     <span className="inv-card-value">{fmt(inv.currentValue)}</span>
                   </div>
                   <div className="inv-card-meta">
-                    <span className="category-tag">{inv.type}</span>
+                    <span className="category-tag">{typeLabel(inv.type, t)}</span>
                     <span className={inv.returnPct >= 0 ? 'positive-text' : 'negative-text'} style={{ fontSize: 12, fontWeight: 600 }}>
-                      {inv.returnPct >= 0 ? '+' : ''}{fmtN(inv.returnPct, 2)}%
+                      {signed(inv.returnPct)}{fmtN(inv.returnPct, 2, locale)}%
                     </span>
                     <span className="spacer" />
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {fmtN(inv.quantity, inv.quantity % 1 === 0 ? 0 : 4)} un
+                      {fmtN(inv.quantity, inv.quantity % 1 === 0 ? 0 : 4, locale)} {t('inv.units')}
                     </span>
                   </div>
                 </div>
                 <div className="table-actions">
-                  <button className="btn-icon" onClick={() => setEditItem(inv)}><i className="fi fi-rr-pencil" /></button>
-                  <button className="btn-icon danger" onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
+                  <button className="btn-icon" title={t('action.edit')} aria-label={t('action.edit')} onClick={() => setEditItem(inv)}><i className="fi fi-rr-pencil" /></button>
+                  <button className="btn-icon danger" title={t('inv.remove')} aria-label={t('inv.remove')} onClick={() => setDelItem(inv)}><i className="fi fi-rr-trash" /></button>
                 </div>
               </li>
             ))}

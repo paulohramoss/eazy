@@ -19,6 +19,7 @@ import ScreenSkeleton from './components/Skeleton'
 import { consumeLaunchParams, navigate as routerNavigate, routeFromHash, useHashRoute } from './utils/router'
 import { createTranslator, detectLanguage } from './i18n'
 import { switchTheme } from './utils/themeTransition'
+import { loadBiometric, loadCredentialId } from './utils/biometric'
 
 const Overview          = lazyWithReload(() => import('./components/Overview'))
 const Transactions      = lazyWithReload(() => import('./components/Transactions'))
@@ -78,16 +79,6 @@ const NAV = [
 const NAV_SECTIONS = NAV.filter(i => i.sectionKey)
 const MORE_SCREENS = NAV_SECTIONS.flatMap(sec => sec.children.map(c => c.screen))
 
-// Só as chaves: os textos vêm do dicionário, então trocar de idioma muda o
-// cabeçalho junto com o resto da interface.
-const SCREEN_KEYS = [
-  'overview', 'transactions', 'analysis', 'wallets', 'budget', 'goals',
-  'investments', 'calendar', 'recurrences', 'creditcards', 'alerts',
-  'profile', 'settings', 'ask',
-]
-
-const SCREEN_TITLES = Object.fromEntries(SCREEN_KEYS.map(k => [k, true]))
-
 // Telas onde o botão flutuante de "nova transação" faz sentido: as que
 // mostram ou derivam de transações. Em perfil, configurações, alertas,
 // objetivos e investimentos ele era só ruído.
@@ -118,6 +109,17 @@ const SCREENS = {
   profile: () => <Profile />,
   settings: () => <Settings />,
   ask: () => <Ask />,
+}
+
+// Título e subtítulo de cada tela vêm do dicionário (screen.<tela>.title/sub).
+const KNOWN_SCREENS = new Set(Object.keys(SCREENS))
+const isKnownScreen = (s) => KNOWN_SCREENS.has(s)
+
+// Foto do perfil ou, na falta dela, as iniciais.
+function UserAvatar({ settings }) {
+  return settings.photoURL
+    ? <img src={settings.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+    : (settings.initials || settings.name?.slice(0, 2).toUpperCase())
 }
 
 // ─── NavAccordion (inline expandable group) ───────────────────────────────────
@@ -238,10 +240,7 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut, t }
       {/* Header */}
       <div className="profile-dropdown-header">
         <div className="profile-dropdown-avatar" style={{ overflow: 'hidden', padding: 0 }}>
-          {settings.photoURL
-            ? <img src={settings.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-            : (settings.initials || settings.name?.slice(0, 2).toUpperCase())
-          }
+          <UserAvatar settings={settings} />
         </div>
         <div className="profile-dropdown-info">
           <div className="profile-dropdown-name">{settings.name}</div>
@@ -272,8 +271,6 @@ function ProfileDropdown({ settings, onNavigate, onClose, anchorRef, logOut, t }
 }
 
 // ─── Dashboard (requer auth + AppContext) ────────────────────────────────────
-
-const isKnownScreen = (s) => !!SCREEN_TITLES[s]
 
 // Sem hash na URL, retoma a última tela aberta; senão a Visão Geral.
 const initialScreen = (() => {
@@ -320,7 +317,9 @@ function Dashboard() {
   const calcBtnRef = useRef(null)
   const converterBtnRef = useRef(null)
 
-  const navigate = (s) => { routerNavigate(s) }
+  // Só a tela passa adiante: quem chama não deve conseguir mexer nas opções
+  // do roteador.
+  const navigate = (s) => routerNavigate(s)
 
   useEffect(() => {
     try { localStorage.setItem('eazy_screen', screen) } catch { /* modo privado */ }
@@ -329,7 +328,6 @@ function Dashboard() {
   useEffect(() => {
     try { localStorage.setItem('eazy_sidebar_pinned', sidebarPinned ? '1' : '0') } catch { /* modo privado */ }
   }, [sidebarPinned])
-
 
   // Ctrl/⌘+K abre a busca. O preventDefault evita o "buscar no site" do Firefox.
   useEffect(() => {
@@ -369,9 +367,10 @@ function Dashboard() {
 
   const now = new Date()
   const dateStr = formatLongDate(now)
-  const active = SCREEN_TITLES[screen] ? screen : 'overview'
+  const active = isKnownScreen(screen) ? screen : 'overview'
   const title = t(`screen.${active}.title`)
   const sub   = t(`screen.${active}.sub`)
+  const navBadges = { alerts: alertsDueCount, transactions: pendingCount }
 
   // Enquanto não se sabe se a conta tem carteira, nem dashboard nem onboarding:
   // o dashboard aparecia na hora, a pessoa começava a usar e o onboarding
@@ -430,7 +429,7 @@ function Dashboard() {
           {NAV.map((item, i) =>
             item.sectionKey ? (
               <NavAccordion key={i} item={item} screen={screen} setScreen={navigate} t={t}
-                badges={{ alerts: alertsDueCount, transactions: pendingCount }} />
+                badges={navBadges} />
             ) : (
               <button
                 key={item.screen}
@@ -469,7 +468,7 @@ function Dashboard() {
           screen={screen}
           onNavigate={navigate}
           onClose={() => setMoreOpen(false)}
-          badges={{ alerts: alertsDueCount, transactions: pendingCount }}
+          badges={navBadges}
           t={t}
         />
       )}
@@ -550,10 +549,7 @@ function Dashboard() {
               aria-expanded={profileOpen}
             >
               <div className="header-profile-avatar" style={{ overflow: 'hidden', padding: 0 }}>
-                {settings.photoURL
-                  ? <img src={settings.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                  : (settings.initials || settings.name?.slice(0, 2).toUpperCase())
-                }
+                <UserAvatar settings={settings} />
               </div>
               <div className="header-profile-info">
                 <div className="header-profile-name">{settings.name}</div>
@@ -687,9 +683,7 @@ function LockScreen({ onUnlock, onLogOut, error, busy }) {
 function AuthedApp({ user }) {
   const { logOut } = useAuth()
 
-  const [isLocked, setIsLocked] = useState(() =>
-    !!(JSON.parse(localStorage.getItem(`bio_${user.uid}`) || 'false'))
-  )
+  const [isLocked, setIsLocked] = useState(() => loadBiometric(user.uid))
   const [bioError, setBioError] = useState('')
   const [bioBusy, setBioBusy] = useState(false)
 
@@ -699,11 +693,8 @@ function AuthedApp({ user }) {
     try {
       const challenge = new Uint8Array(32)
       window.crypto.getRandomValues(challenge)
-      const rawIdStr = localStorage.getItem('eazy_biometric_id')
-      const allowCredentials = rawIdStr ? [{
-        type: 'public-key',
-        id: Uint8Array.from(atob(rawIdStr), c => c.charCodeAt(0)),
-      }] : []
+      const credentialId = loadCredentialId()
+      const allowCredentials = credentialId ? [{ type: 'public-key', id: credentialId }] : []
 
       await navigator.credentials.get({
         publicKey: { challenge, allowCredentials, userVerification: 'required', timeout: 60000 },

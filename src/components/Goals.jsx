@@ -129,11 +129,11 @@ function AlocarModal({ goal, onSave, onUndo, onClose }) {
       </div>
 
       <div className="form-group">
-        <label className="form-label">Valor a alocar ({currencySymbol})</label>
+        <label className="form-label">{t('goal.allocateAmount', { symbol: currencySymbol })}</label>
         <CurrencyInput className="form-input" value={amount} onChange={setAmount} autoFocus />
         {insufficient && (
           <span style={{ fontSize: 12, color: 'var(--accent-yellow)' }}>
-            Acima do saldo da carteira ({fmt(available)}). O saldo vai ficar negativo.
+            {t('goal.aboveBalance', { amount: fmt(available) })}
           </span>
         )}
       </div>
@@ -244,7 +244,7 @@ export default function Goals() {
                     title={t(goal.starred ? 'goal.unstar' : 'goal.star')}
                     onClick={() => toggleStar(goal)}
                   >
-                    <i className={`fi ${goal.starred ? 'fi-rr-star' : 'fi-rr-star'}`} />
+                    <i className="fi fi-rr-star" />
                   </button>
                 </div>
 

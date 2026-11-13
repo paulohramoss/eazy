@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useApp } from '../context/AppContext'
-import { CatIcon } from '../context/AppContext'
+import { CatIcon, useApp } from '../context/AppContext'
 import { norm } from '../utils/text'
+import { isoDate } from '../utils/date'
 import Modal from './Modal'
 import Checkbox from './Checkbox'
 import TransactionModal from './TransactionModal'
@@ -49,16 +49,18 @@ export default function Transactions() {
   const [filterCat, setCat] = useState('all')
   const [filterStatus, setStatus] = useState('all')
   const [filterTag, setTag] = useState('')
-  
+
+  // O período abre no mês corrente. isoDate, e não toISOString: a conversão
+  // para UTC desloca o intervalo em um dia em fusos a leste de Greenwich.
   const [filterStart, setFilterStart] = useState(() => {
     const d = new Date()
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
+    return isoDate(new Date(d.getFullYear(), d.getMonth(), 1))
   })
   const [filterEnd, setFilterEnd] = useState(() => {
     const d = new Date()
-    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
+    return isoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0))
   })
-  
+
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' })
 
   // "Nada aqui" e "nada com estes filtros" são situações diferentes e pedem
@@ -98,7 +100,7 @@ export default function Transactions() {
     if (filterType !== 'all' && tx.type !== filterType) return false
     if (filterCat !== 'all' && tx.category !== filterCat) return false
     if (filterStatus !== 'all' && tx.status !== filterStatus) return false
-    
+
     if (filterStart && tx.date && tx.date < filterStart) return false
     if (filterEnd && tx.date && tx.date > filterEnd) return false
     if (filterTag && !(tx.tags || []).includes(filterTag)) return false
@@ -296,7 +298,7 @@ export default function Transactions() {
             <i className="fi fi-rr-file-spreadsheet" /> {t('export.csv')}
           </button>
           <button className="btn btn-secondary filter-bar-add" onClick={() => setImportOpen(true)}>
-            <i className="fi fi-rr-file-invoice-dollar" /> Importar extrato
+            <i className="fi fi-rr-file-invoice-dollar" /> {t('stmt.title')}
           </button>
           <button className="btn btn-primary filter-bar-add" onClick={() => setAddModal(true)}>
             <i className="fi fi-rr-plus" /> {t('txModal.newTitle')}
@@ -308,17 +310,17 @@ export default function Transactions() {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="tx-table-header">
           <span style={{ fontSize: 14, fontWeight: 600 }}>
-            {filtered.length} transaç{filtered.length > 1 ? 'ões' : 'ão'}
+            {t(filtered.length > 1 ? 'tx.countMany' : 'tx.countOne', { count: filtered.length })}
           </span>
 
           {selectedCount > 0 && (
             <div className="tx-bulk-bar">
-              <span className="tx-bulk-count">{selectedCount} selecionada{selectedCount > 1 ? 's' : ''}</span>
+              <span className="tx-bulk-count">{t(selectedCount > 1 ? 'tx.selectedMany' : 'tx.selectedOne', { count: selectedCount })}</span>
               <button className="btn btn-danger btn-sm" onClick={() => setBulkConfirm(true)}>
-                <i className="fi fi-rr-trash" /> Excluir selecionadas
+                <i className="fi fi-rr-trash" /> {t('wallet.deleteSelected')}
               </button>
               <button className="btn btn-secondary btn-sm" onClick={clearSelection}>
-                Cancelar
+                {t('action.cancel')}
               </button>
             </div>
           )}

@@ -3,6 +3,16 @@ import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import CurrencyInput from './CurrencyInput'
 import EmptyState from './EmptyState'
+import { monthKey } from '../utils/date'
+import { INCOME_CATEGORIES } from '../utils/quickParse'
+
+// Sobra do mês passado que soma ao limite deste mês. Orçamento criado neste
+// mês não tem mês anterior de onde sobrar.
+function rolloverOf(budget, spentLastMonth, now) {
+  const created = budget.createdAt?.toDate ? budget.createdAt.toDate() : new Date()
+  const isNewThisMonth = created.getFullYear() === now.getFullYear() && created.getMonth() === now.getMonth()
+  return isNewThisMonth ? 0 : Math.max(0, budget.limit - (spentLastMonth[budget.category] || 0))
+}
 
 // ─── Budget Modal ─────────────────────────────────────────────────────────────
 
@@ -11,7 +21,7 @@ function BudgetModal({ initial, taken = [], onSave, onClose }) {
 
   // Categorias de receita não fazem sentido como teto de gasto.
   const available = categories.filter(c =>
-    !['Salário', 'Freelance', 'Investimentos', 'Outros Rendimentos'].includes(c) &&
+    !INCOME_CATEGORIES.has(c) &&
     (c === initial?.category || !taken.includes(c)))
 
   const [form, setForm] = useState(
@@ -67,10 +77,7 @@ export default function Budget() {
 
   // Compute last-month rollover per category
   const now = new Date()
-  const lastMonthKey = (() => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  })()
+  const lastMonthKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1))
   const spendingLast = transactions
     .filter(tx => tx.status !== 'failed' && tx.type === 'expense' && tx.date?.startsWith(lastMonthKey))
     .reduce((acc, tx) => { acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc }, {})
@@ -97,11 +104,7 @@ export default function Budget() {
 
       {/* Totais do mês */}
       {budgets.length > 0 && (() => {
-        const totalLimit = budgets.reduce((sum, b) => {
-          const created = b.createdAt?.toDate ? b.createdAt.toDate() : new Date()
-          const isNew = created.getFullYear() === now.getFullYear() && created.getMonth() === now.getMonth()
-          return sum + b.limit + (isNew ? 0 : Math.max(0, b.limit - (spendingLast[b.category] || 0)))
-        }, 0)
+        const totalLimit = budgets.reduce((sum, b) => sum + b.limit + rolloverOf(b, spendingLast, now), 0)
         const totalSpent = budgets.reduce((sum, b) => sum + (spendingByCategory[b.category] || 0), 0)
         const left = totalLimit - totalSpent
         return (
@@ -143,10 +146,7 @@ export default function Budget() {
           {budgets.map(b => {
             const spent = spendingByCategory[b.category] || 0
 
-            // Só há sobra se o orçamento já existia no mês passado.
-            const createdAtDate = b.createdAt?.toDate ? b.createdAt.toDate() : new Date()
-            const isNewThisMonth = createdAtDate.getFullYear() === now.getFullYear() && createdAtDate.getMonth() === now.getMonth()
-            const rollover = isNewThisMonth ? 0 : Math.max(0, b.limit - (spendingLast[b.category] || 0))
+            const rollover = rolloverOf(b, spendingLast, now)
 
             // A sobra era exibida mas não entrava na conta: o card dizia
             // "+R$ X do mês passado" e mesmo assim media tudo contra b.limit.

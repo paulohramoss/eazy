@@ -5,7 +5,7 @@ import Toggle from './Toggle'
 
 // ─── Row ──────────────────────────────────────────────────────────────────────
 
-function Row({ icon, label, desc, on, onChange, disabled, badge, children }) {
+function Row({ icon, label, desc, on, onChange, disabled, children }) {
   return (
     <div className="toggle-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -22,14 +22,6 @@ function Row({ icon, label, desc, on, onChange, disabled, badge, children }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <span className="toggle-label">{label}</span>
-              {badge && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-                  background: badge === 'em breve' ? 'var(--bg-hover)' : '#EEF3FF',
-                  color: badge === 'em breve' ? 'var(--text-muted)' : 'var(--accent)',
-                  textTransform: 'uppercase', letterSpacing: '0.5px',
-                }}>{badge}</span>
-              )}
             </div>
             {desc && <div className="toggle-desc">{desc}</div>}
           </div>

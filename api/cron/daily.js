@@ -13,7 +13,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { adminDb } from '../_lib/firebaseAdmin.js'
 import { isCronRequest } from '../_lib/http.js'
-import { advanceISO, cardCycleStartISO, partsInTz, todayISO } from '../_lib/dates.js'
+import { addDaysISO, advanceISO, closedInvoiceRangeISO, partsInTz, todayISO } from '../_lib/dates.js'
 import { alreadySent, deliver, fmtMoney, markSent } from '../_lib/notifyServer.js'
 import { appUrl } from '../_lib/mailer.js'
 
@@ -107,9 +107,13 @@ async function runCardReminders(uid, prefs, { iso, day, year, month }) {
     const closing = Math.min(card.closingDay || 0, lastDayOfMonth)
     const due = Math.min(card.dueDay || 0, lastDayOfMonth)
 
-    const cycleStart = cardCycleStartISO(card.closingDay || 1, iso)
+    // A fatura que fecha ou vence hoje é a última fechada, não o ciclo que
+    // está começando. Somar "do fechamento em diante" dava o total errado: no
+    // dia do fechamento só entravam as compras de hoje e as parcelas futuras.
+    const invoice = closedInvoiceRangeISO(card.closingDay || 1, iso)
     const total = txs
-      .filter(t => t.cardId === cardDoc.id && t.date && t.date >= cycleStart && t.status !== 'failed')
+      .filter(t => t.cardId === cardDoc.id && t.date
+        && t.date >= invoice.from && t.date < invoice.to && t.status !== 'failed')
       .reduce((s, t) => s + (t.amount || 0), 0)
 
     const payload = {
@@ -194,67 +198,51 @@ function summarize(txs, from, to) {
   return { income, expenses, balance: income - expenses, count: inRange.length }
 }
 
-async function runReports(uid, prefs, { iso, weekday, day, year, month }) {
+// Envia o resumo de um período e registra o envio. Período sem movimento não
+// gera aviso, mas fica marcado para não ser recalculado na próxima execução.
+async function sendReport(uid, prefs, { type, key, title, from, to, txs }) {
+  if (await alreadySent(uid, key)) return 0
+
+  const currency = prefs.currency || 'BRL'
+  const s = summarize(txs, from, to)
+  if (s.count > 0) {
+    const income = fmtMoney(s.income, currency)
+    const expenses = fmtMoney(s.expenses, currency)
+    await deliver({
+      uid, prefs, type, title,
+      body: `Receitas: ${income} · Despesas: ${expenses}`,
+      data: { income, expenses, balance: fmtMoney(s.balance, currency), currency, link: link('analysis') },
+    })
+  }
+  await markSent(uid, key, { transactions: s.count })
+  return s.count > 0 ? 1 : 0
+}
+
+async function runReports(uid, prefs, { iso, weekday, day }) {
   const isSunday = weekday === 0
   const isFirstOfMonth = day === 1
   const wantsWeekly = prefs.notifWeeklyReport && isSunday
   const wantsMonthly = prefs.notifMonthlyReport && isFirstOfMonth
   if (!wantsWeekly && !wantsMonthly) return 0
 
-  const currency = prefs.currency || 'BRL'
   const txSnap = await byUser('transactions', uid).get()
   const txs = txSnap.docs.map(d => d.data())
   let sent = 0
 
   if (wantsWeekly) {
-    const key = `weekly_report_${iso}`
-    if (!await alreadySent(uid, key)) {
-      const start = new Date(`${iso}T00:00:00Z`)
-      start.setUTCDate(start.getUTCDate() - 6)
-      const s = summarize(txs, start.toISOString().slice(0, 10), iso)
-      if (s.count > 0) {
-        await deliver({
-          uid, prefs, type: 'weekly_report',
-          title: 'Seu resumo semanal',
-          body: `Receitas: ${fmtMoney(s.income, currency)} · Despesas: ${fmtMoney(s.expenses, currency)}`,
-          data: {
-            income: fmtMoney(s.income, currency),
-            expenses: fmtMoney(s.expenses, currency),
-            balance: fmtMoney(s.balance, currency),
-            currency, link: link('analysis'),
-          },
-        })
-        sent++
-      }
-      await markSent(uid, key, { transactions: s.count })
-    }
+    sent += await sendReport(uid, prefs, {
+      type: 'weekly_report', key: `weekly_report_${iso}`, title: 'Seu resumo semanal',
+      from: addDaysISO(iso, -6), to: iso, txs,
+    })
   }
 
   if (wantsMonthly) {
-    const key = `monthly_report_${iso}`
-    if (!await alreadySent(uid, key)) {
-      // Dia 1: o mês fechado é o anterior.
-      const prev = new Date(Date.UTC(year, month - 2, 1))
-      const py = prev.getUTCFullYear()
-      const pm = String(prev.getUTCMonth() + 1).padStart(2, '0')
-      const lastDay = new Date(Date.UTC(py, prev.getUTCMonth() + 1, 0)).getUTCDate()
-      const s = summarize(txs, `${py}-${pm}-01`, `${py}-${pm}-${lastDay}`)
-      if (s.count > 0) {
-        await deliver({
-          uid, prefs, type: 'monthly_report',
-          title: 'Resumo do mês',
-          body: `Receitas: ${fmtMoney(s.income, currency)} · Despesas: ${fmtMoney(s.expenses, currency)}`,
-          data: {
-            income: fmtMoney(s.income, currency),
-            expenses: fmtMoney(s.expenses, currency),
-            balance: fmtMoney(s.balance, currency),
-            currency, link: link('analysis'),
-          },
-        })
-        sent++
-      }
-      await markSent(uid, key, { transactions: s.count })
-    }
+    // Dia 1: o mês fechado é o anterior, de 1º até a véspera de hoje.
+    const lastOfPrev = addDaysISO(iso, -1)
+    sent += await sendReport(uid, prefs, {
+      type: 'monthly_report', key: `monthly_report_${iso}`, title: 'Resumo do mês',
+      from: `${lastOfPrev.slice(0, 8)}01`, to: lastOfPrev, txs,
+    })
   }
 
   return sent

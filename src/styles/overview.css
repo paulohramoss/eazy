@@ -193,13 +193,6 @@
    escala, tooltip, legenda e tabela equivalente. As regras saíram junto: o
    `.chart-legend` antigo colidia com o novo e vazava um margin-top. */
 
-/* ─── Bottom Row ─────────────────────────────────────────── */
-.bottom-row {
-  display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 16px;
-}
-
 /* ─── Overview layout ────────────────────────────────────── */
 .overview-bottom-row {
   display: flex;

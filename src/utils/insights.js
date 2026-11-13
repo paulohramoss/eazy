@@ -7,6 +7,8 @@
 // Devolve chave de tradução + parâmetros, nunca texto pronto: o app é
 // trilíngue e a frase precisa atravessar o dicionário como todo o resto.
 
+import { isoDate } from './date.js'
+
 /** Dias que ainda faltam para o mês virar, contando hoje. */
 export function daysLeftInMonth(todayIso) {
   const [y, m, d] = String(todayIso).split('-').map(Number)
@@ -26,7 +28,7 @@ const monthKey = (iso) => String(iso).slice(0, 7)
  * senão quem compra remédio a cada dois meses parece estar sempre estourando.
  */
 export function categoryAverages(transactions = [], opts = {}) {
-  const { today = new Date().toISOString().slice(0, 10), months = 6, minMonths = 2 } = opts
+  const { today = isoDate(), months = 6, minMonths = 2 } = opts
   const current = monthKey(today)
 
   const [y, m] = current.split('-').map(Number)
@@ -67,7 +69,7 @@ export function buildInsights(input = {}) {
     monthlyExpenses = 0,
     spendingByCategory = {},
     averages = {},
-    today = new Date().toISOString().slice(0, 10),
+    today = isoDate(),
   } = input
 
   const insights = []

@@ -5,11 +5,24 @@ import { useToast } from './Toast'
 import { LANGUAGES } from '../i18n'
 import StatementImport from './StatementImport'
 import { switchTheme } from '../utils/themeTransition'
+import { clearCredentialId, saveCredentialId } from '../utils/biometric'
 
 const THEME_OPTIONS = [
-  { value: 'light',  label: 'Claro',   icon: 'fi-rr-sun' },
-  { value: 'dark',   label: 'Escuro',  icon: 'fi-rr-moon' },
-  { value: 'system', label: 'Sistema', icon: 'fi-rr-laptop' },
+  { value: 'light',  labelKey: 'settings.themeLight',  icon: 'fi-rr-sun' },
+  { value: 'dark',   labelKey: 'settings.themeDark',   icon: 'fi-rr-moon' },
+  { value: 'system', labelKey: 'settings.themeSystem', icon: 'fi-rr-laptop' },
+]
+
+const CURRENCIES = [
+  { value: 'BRL', labelKey: 'settings.currencyBRL' },
+  { value: 'USD', labelKey: 'settings.currencyUSD' },
+  { value: 'EUR', labelKey: 'settings.currencyEUR' },
+]
+
+// Preferências antigas, de antes da tela de Alertas ter os canais por tipo.
+const LEGACY_TOGGLES = [
+  { key: 'notifications', labelKey: 'settings.notifications', descKey: 'settings.notificationsDesc' },
+  { key: 'weeklyReport', labelKey: 'settings.weeklyReport', descKey: 'settings.weeklyReportDesc' },
 ]
 
 // ─── Section ──────────────────────────────────────────────────────────────────
@@ -46,14 +59,14 @@ export default function Settings() {
     setImportStatus('loading')
     try {
       const stats = await importer(file, { skipDuplicates, ...extra })
-      const parts = [`${stats.imported} transação(ões) importada(s)`]
-      if (stats.skipped) parts.push(`${stats.skipped} duplicada(s) ignorada(s)`)
-      if (stats.invalid) parts.push(`${stats.invalid} linha(s) inválida(s)`)
+      const parts = [t('settings.importedCount', { count: stats.imported })]
+      if (stats.skipped) parts.push(t('settings.skippedCount', { count: stats.skipped }))
+      if (stats.invalid) parts.push(t('settings.invalidCount', { count: stats.invalid }))
       setImportStatus({ ok: true, msg: `${parts.join(' · ')}.` })
-      toast.success('Importação concluída.')
+      toast.success(t('settings.importDone'))
     } catch (err) {
       setImportStatus({ ok: false, msg: err.message })
-      toast.error(`Falha ao importar: ${err.message}`)
+      toast.error(t('settings.importFailed', { error: err.message }))
     }
   }
 
@@ -69,11 +82,42 @@ export default function Settings() {
     setNewCat('')
   }
 
-  const CURRENCIES = [
-    { value: 'BRL', label: 'Real Brasileiro (R$)' },
-    { value: 'USD', label: 'Dólar Americano ($)' },
-    { value: 'EUR', label: 'Euro (€)' },
-  ]
+  // Registra uma credencial WebAuthn neste aparelho. Só liga a preferência
+  // depois que o navegador confirma a biometria.
+  const handleBiometricToggle = async (enable) => {
+    if (!enable) {
+      updateSettings({ biometricEnabled: false })
+      clearCredentialId()
+      return
+    }
+    try {
+      if (!window.PublicKeyCredential) throw new Error(t('settings.biometricUnsupported'))
+      const challenge = new Uint8Array(32)
+      window.crypto.getRandomValues(challenge)
+      const cred = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: 'Eazy Finance' },
+          user: {
+            id: new Uint8Array(16),
+            name: settings.email || 'user@eazy',
+            displayName: settings.name || 'User',
+          },
+          pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+          authenticatorSelection: { userVerification: 'required' },
+          timeout: 60000,
+        },
+      })
+      if (cred) {
+        saveCredentialId(cred.rawId)
+        updateSettings({ biometricEnabled: true })
+        toast.success(t('settings.biometricEnabled'))
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error(t('settings.biometricFailed', { error: e.message }))
+    }
+  }
 
   return (
     <div className="screen">
@@ -90,7 +134,7 @@ export default function Settings() {
                 value={settings.currency}
                 onChange={e => updateSettings({ currency: e.target.value })}
               >
-                {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {CURRENCIES.map(c => <option key={c.value} value={c.value}>{t(c.labelKey)}</option>)}
               </select>
             </div>
             <div className="form-group">
@@ -107,14 +151,11 @@ export default function Settings() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {[
-                { key: 'notifications', label: 'Notificações', desc: 'Receber alertas de orçamento e metas' },
-                { key: 'weeklyReport', label: 'Relatório semanal', desc: 'Resumo financeiro toda segunda-feira' },
-              ].map(row => (
+              {LEGACY_TOGGLES.map(row => (
                 <div key={row.key} className="toggle-row">
                   <div className="toggle-info">
-                    <div className="toggle-label">{row.label}</div>
-                    <div className="toggle-desc">{row.desc}</div>
+                    <div className="toggle-label">{t(row.labelKey)}</div>
+                    <div className="toggle-desc">{t(row.descKey)}</div>
                   </div>
                   <Toggle
                     on={settings[row.key]}
@@ -126,12 +167,12 @@ export default function Settings() {
                 <div className="toggle-info">
                   <div className="toggle-label">
                     <i className={`fi ${resolvedTheme === 'dark' ? 'fi-rr-moon' : 'fi-rr-sun'}`} style={{ marginRight: 6 }} />
-                    Aparência
+                    {t('settings.appearance')}
                   </div>
                   <div className="toggle-desc">
                     {settings.theme === 'light' || settings.theme === 'dark'
-                      ? 'Escolha fixa — ignora o tema do sistema'
-                      : `Seguindo o sistema — ${resolvedTheme === 'dark' ? 'escuro' : 'claro'}`}
+                      ? t('settings.themeFixed')
+                      : t(resolvedTheme === 'dark' ? 'settings.followingDark' : 'settings.followingLight')}
                   </div>
                 </div>
                 <div className="theme-choice">
@@ -154,7 +195,7 @@ export default function Settings() {
                         )}
                       >
                         <i className={`fi ${o.icon}`} />
-                        <span>{o.label}</span>
+                        <span>{t(o.labelKey)}</span>
                       </button>
                     )
                   })}
@@ -164,47 +205,11 @@ export default function Settings() {
                 <div className="toggle-info">
                   <div className="toggle-label">
                     <i className="fi fi-rr-fingerprint" style={{ marginRight: 6 }} />
-                    Trava por Biometria
+                    {t('settings.biometricLock')}
                   </div>
                   <div className="toggle-desc">{t('settings.biometricDesc')}</div>
                 </div>
-                <Toggle
-                  on={settings.biometricEnabled}
-                  onChange={async (val) => {
-                    if (val) {
-                      try {
-                        if (!window.PublicKeyCredential) throw new Error('Biometria não suportada neste dispositivo.');
-                        const challenge = new Uint8Array(32);
-                        window.crypto.getRandomValues(challenge);
-                        const cred = await navigator.credentials.create({
-                          publicKey: {
-                            challenge,
-                            rp: { name: "Eazy Finance" },
-                            user: {
-                              id: new Uint8Array(16),
-                              name: settings.email || "user@eazy",
-                              displayName: settings.name || "User"
-                            },
-                            pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
-                            authenticatorSelection: { userVerification: "required" },
-                            timeout: 60000,
-                          }
-                        });
-                        if (cred) {
-                          localStorage.setItem('eazy_biometric_id', btoa(String.fromCharCode.apply(null, new Uint8Array(cred.rawId))));
-                          updateSettings({ biometricEnabled: true });
-                          toast.success('Biometria habilitada neste dispositivo.');
-                        }
-                      } catch (e) {
-                        console.error(e);
-                        toast.error('Não foi possível ativar a biometria: ' + e.message);
-                      }
-                    } else {
-                      updateSettings({ biometricEnabled: false });
-                      localStorage.removeItem('eazy_biometric_id');
-                    }
-                  }}
-                />
+                <Toggle on={settings.biometricEnabled} onChange={handleBiometricToggle} />
               </div>
             </div>
           </div>
@@ -214,9 +219,9 @@ export default function Settings() {
         <div className="settings-section" style={{ gridColumn: '1 / -1' }}>
           <div className="settings-section-title">
             <span style={{ fontSize: 18 }}><i className="fi fi-rr-tags" /></span>
-            Categorias Disponíveis
+            {t('settings.categories')}
             <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>
-              {categories.length} categoria{categories.length !== 1 ? 's' : ''}
+              {t('settings.categoryCount', { count: categories.length })}
             </span>
           </div>
 
@@ -234,7 +239,7 @@ export default function Settings() {
               onClick={handleAddCategory}
               disabled={!newCat.trim()}
             >
-              <i className="fi fi-rr-plus" /> Adicionar
+              <i className="fi fi-rr-plus" /> {t('settings.add')}
             </button>
           </div>
 
@@ -278,18 +283,15 @@ export default function Settings() {
         <Section icon={<i className="fi fi-rr-database" />} title={t('settings.data')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Dados sincronizados na nuvem via Firestore. Exporte como JSON (backup completo) ou CSV (só transações, abre no Excel).
-              Na importação, o JSON restaura um backup do próprio app. Para trazer gastos do banco, use
-              Importar extrato: fatura ou extrato em PDF, OFX, CSV e comprovante de Pix são lidos e
-              categorizados automaticamente, e você revisa antes de lançar.
+              {t('settings.dataIntro')}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={exportJSON}>
-                  <i className="fi fi-rr-cloud-download" /> Exportar JSON
+                  <i className="fi fi-rr-cloud-download" /> {t('settings.exportJson')}
                 </button>
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => exportCSV()}>
-                  <i className="fi fi-rr-file-spreadsheet" /> Exportar CSV
+                  <i className="fi fi-rr-file-spreadsheet" /> {t('export.csv')}
                 </button>
               </div>
               <input ref={importRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={handleImport} />
@@ -297,9 +299,7 @@ export default function Settings() {
               <div className="toggle-row" style={{ padding: '10px 0' }}>
                 <div className="toggle-info">
                   <div className="toggle-label">{t('settings.skipDuplicates')}</div>
-                  <div className="toggle-desc">
-                    Pula transações com a mesma data, valor, tipo e descrição das que já existem.
-                  </div>
+                  <div className="toggle-desc">{t('settings.skipDuplicatesDesc')}</div>
                 </div>
                 <Toggle on={skipDuplicates} onChange={setSkipDuplicates} />
               </div>
@@ -312,7 +312,7 @@ export default function Settings() {
                   onClick={() => { setImportStatus(null); importRef.current?.click() }}
                 >
                   <i className="fi fi-rr-upload" />
-                  {importStatus === 'loading' ? 'Importando...' : 'Importar JSON'}
+                  {t(importStatus === 'loading' ? 'settings.importing' : 'settings.importJson')}
                 </button>
                 <button
                   className="btn btn-secondary"
@@ -321,7 +321,7 @@ export default function Settings() {
                   onClick={() => { setImportStatus(null); setStatementOpen(true) }}
                 >
                   <i className="fi fi-rr-file-invoice-dollar" />
-                  Importar extrato
+                  {t('stmt.title')}
                 </button>
               </div>
               {importStatus && importStatus !== 'loading' && (
@@ -343,8 +343,8 @@ export default function Settings() {
         <Section icon={<i className="fi fi-rr-info" />} title={t('settings.about')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
             {[
-              { label: 'Aplicação', value: 'EazyFinance' },
-              { label: 'Versão', value: '1.0.0' },
+              { label: t('settings.app'), value: 'EazyFinance' },
+              { label: t('settings.version'), value: '1.0.0' },
               { label: 'Framework', value: 'React 19 + Vite 8' },
             ].map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>

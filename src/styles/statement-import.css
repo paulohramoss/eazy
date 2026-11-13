@@ -191,7 +191,6 @@
 .stmt-totals .expense { color: var(--accent-red); font-weight: 600; }
 .stmt-totals .income  { color: var(--accent-green); font-weight: 600; }
 
-
 /* Botão de importar ao lado do de nova transação: só o primeiro empurra para a direita. */
 .filter-bar-add + .filter-bar-add { margin-left: 0; }
 

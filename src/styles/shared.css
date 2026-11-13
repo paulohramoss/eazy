@@ -447,21 +447,6 @@
   margin-top: 1px;
 }
 
-/* Detail panel */
-.cal-detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.cal-detail-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-transform: capitalize;
-}
-
 .cal-detail-list {
   display: flex;
   flex-direction: column;

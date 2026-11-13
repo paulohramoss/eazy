@@ -157,7 +157,7 @@
   .metric-value { font-size: 20px; overflow-wrap: anywhere; }
   .metric-label { font-size: 12px; }
 
-  .charts-row, .bottom-row {
+  .charts-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -174,7 +174,6 @@
   .summary-stat-value { font-size: 16px; overflow-wrap: anywhere; }
 
   .wallets-grid,
-  .goals-grid,
   .settings-grid,
   .moovia-goals-grid,
   .form-row {

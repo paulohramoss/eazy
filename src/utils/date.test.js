@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, addMonths, addYears, advance, brDate, isoDate } from './date.js'
+import { addDays, addMonths, addYears, advance, brDate, isoDate, monthKey } from './date.js'
+
+describe('monthKey', () => {
+  it('devolve o prefixo YYYY-MM da data local', () => {
+    expect(monthKey(new Date(2026, 0, 5))).toBe('2026-01')
+    expect(monthKey(new Date(2026, 11, 31, 23, 30, 0))).toBe('2026-12')
+  })
+})
 
 describe('isoDate', () => {
   it('usa componentes locais, não UTC', () => {

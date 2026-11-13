@@ -249,9 +249,6 @@
 }
 
 /* Budget / Alert / Goal */
-[data-theme="dark"] .budget-item,
-[data-theme="dark"] .goal-card,
-[data-theme="dark"] .alert-item,
 [data-theme="dark"] .settings-section {
   background: var(--bg-secondary);
   border-color: var(--border);
@@ -276,14 +273,6 @@
   border-color: var(--border);
   color: var(--text-primary);
 }
-
-/* Period select */
-[data-theme="dark"] .period-select {
-  background: var(--bg-secondary);
-  border-color: var(--border);
-  color: var(--text-primary);
-}
-
 
 /* ─── Folha "Mais" (só existe no mobile) ─────────────────── */
 .nav-item--more { display: none; }

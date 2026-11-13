@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from './AuthContext'
-import { addMonths, advance, isoDate } from '../utils/date'
+import { addMonths, advance, isoDate, monthKey } from '../utils/date'
 import { splitInstallments } from '../utils/installments'
 import { cacheLanguage, createFormatters, createTranslator } from '../i18n'
 import { walletStats } from '../utils/balances'
@@ -14,9 +14,9 @@ import {
 } from 'firebase/firestore'
 import { notify } from '../notifications'
 import { bootLog } from '../utils/bootLog'
+import { loadBiometric, saveBiometric } from '../utils/biometric'
 import { buildBackup, parseBackup, planRestore } from '../utils/backup'
 import { csvFormat, downloadFile, exportFilename, transactionsCsv } from '../utils/exportCsv'
-import { WALLET_TYPE_ICONS } from '../utils/walletIcons'
 import { CATEGORIES, CATEGORY_ICONS, GOAL_CATEGORY } from '../utils/categories'
 
 export { CATEGORIES, CATEGORY_ICONS, GOAL_CATEGORY }
@@ -29,11 +29,6 @@ export function CatIcon({ category, style }) {
 }
 
 // ─── Firestore collection map ─────────────────────────────────────────────────
-// transactions → 'transactions'
-// wallets      → 'accounts'
-// budgets      → 'userRules'
-// goals        → 'goals'
-// investments  → 'challenges'
 
 const COL = {
   transactions: 'transactions',
@@ -76,19 +71,13 @@ const PREF_DEFAULTS = {
   notifications: true, weeklyReport: false,
 }
 
-// biometricEnabled stays device-local (credential registered per-device)
-const loadBiometric = (uid) => !!(JSON.parse(localStorage.getItem(`bio_${uid}`) || 'false'))
-const saveBiometric = (uid, val) => localStorage.setItem(`bio_${uid}`, JSON.stringify(!!val))
-
 // ─── Pure helpers (no closures over component state — safe to hoist) ─────────
 
-const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 const sumIncome   = (txs) => txs.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
 const sumExpenses = (txs) => txs.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
 // Pendente com data futura é agendamento: vira concluído sozinho no dia. Já
 // pendente numa data passada ou de hoje é escolha da pessoa e fica como está.
 const isScheduled = (status, date) => status === 'pending' && !!date && date > isoDate()
-
 const pctChange   = (curr, prev) => prev === 0 ? 0 : +(((curr - prev) / prev) * 100).toFixed(1)
 
 // Retorna a data de início do ciclo de faturamento atual do cartão
@@ -101,6 +90,37 @@ const getCardCycleStart = (closingDay) => {
   return day >= closingDay
     ? new Date(y, m, closingDay)
     : new Date(y, m - 1, closingDay)
+}
+
+// Despesas do cartão desde o último fechamento. Com `openInvoiceOnly`, para no
+// próximo fechamento: é a fatura aberta, sem as parcelas que ainda vão vencer.
+const sumCardCycle = (card, txs, { openInvoiceOnly = false } = {}) => {
+  const start = getCardCycleStart(card.closingDay || 1)
+  const end = openInvoiceOnly
+    ? new Date(start.getFullYear(), start.getMonth() + 1, start.getDate())
+    : null
+  return txs.reduce((sum, tx) => {
+    if (tx.cardId !== card.id || tx.type !== 'expense' || !tx.date) return sum
+    const d = new Date(tx.date + 'T00:00:00')
+    return d >= start && (!end || d < end) ? sum + (tx.amount || 0) : sum
+  }, 0)
+}
+
+const snapToList = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+// Dados da notificação de "nova transação", iguais nos três caminhos de criação.
+const transactionNotice = (data) =>
+  ({ name: data.name, amount: data.amount, txType: data.type, category: data.category })
+
+// writeBatch tem teto de 500 operações; históricos grandes vão em blocos.
+// Cada op recebe o batch do bloco em que caiu.
+const BATCH_LIMIT = 450
+async function commitInChunks(ops) {
+  for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
+    const batch = writeBatch(db)
+    ops.slice(i, i + BATCH_LIMIT).forEach(op => op(batch))
+    await batch.commit()
+  }
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -221,11 +241,11 @@ export function AppProvider({ children }) {
 
       onSnapshot(userQuery(COL.transactions), snap => {
         logSnap('transactions')(snap)
-        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        setTransactions(snapToList(snap))
       }, onSnapError('transactions')),
       onSnapshot(userQuery(COL.wallets), { includeMetadataChanges: true }, snap => {
         logSnap('wallets')(snap)
-        setWallets(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        setWallets(snapToList(snap))
         // Cache local vazio não prova que a conta não tem carteira (aparelho
         // novo, cache limpo): decidir com ele mandava quem já usa o app para o
         // onboarding. Online, espera o servidor; offline, o cache é o que há.
@@ -233,12 +253,12 @@ export function AppProvider({ children }) {
           walletsReady = true; readyCb()
         }
       }, err => { onSnapError('wallets')(err); walletsReady = true; readyCb() }),
-      onSnapshot(userQuery(COL.budgets),      snap => setBudgets(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('budgets')),
-      onSnapshot(userQuery(COL.goals),        snap => setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('goals')),
-      onSnapshot(userQuery(COL.investments),  snap => setInvestments(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('investments')),
-      onSnapshot(userQuery(COL.creditCards),  snap => setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('creditCards')),
-      onSnapshot(userQuery(COL.alerts),       snap => setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('alerts')),
-      onSnapshot(userQuery(COL.recurrences),  snap => setRecurrences(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onSnapError('recurrences')),
+      onSnapshot(userQuery(COL.budgets), snap => setBudgets(snapToList(snap)), onSnapError('budgets')),
+      onSnapshot(userQuery(COL.goals), snap => setGoals(snapToList(snap)), onSnapError('goals')),
+      onSnapshot(userQuery(COL.investments), snap => setInvestments(snapToList(snap)), onSnapError('investments')),
+      onSnapshot(userQuery(COL.creditCards), snap => setCreditCards(snapToList(snap)), onSnapError('creditCards')),
+      onSnapshot(userQuery(COL.alerts), snap => setAlerts(snapToList(snap)), onSnapError('alerts')),
+      onSnapshot(userQuery(COL.recurrences), snap => setRecurrences(snapToList(snap)), onSnapError('recurrences')),
     ]
 
     return () => { clearTimeout(stallTimer); unsubs.forEach(u => u()) }
@@ -252,8 +272,14 @@ export function AppProvider({ children }) {
     initials: (user?.displayName || user?.email || 'U').slice(0, 2).toUpperCase(),
   }), [user?.displayName, user?.email])
 
+  // Nome e e-mail sempre vêm do auth. As iniciais também, a menos que a pessoa
+  // tenha escolhido as suas no Perfil (prefs.customInitials).
   const settings = useMemo(
-    () => ({ ...rawSettings, ...authDisplay }),
+    () => ({
+      ...rawSettings,
+      ...authDisplay,
+      initials: rawSettings.customInitials || authDisplay.initials,
+    }),
     [rawSettings, authDisplay])
 
   // ── Auto-complete pending transactions ─────────────────────────────────────
@@ -350,23 +376,15 @@ export function AppProvider({ children }) {
 
   const now   = new Date()
   const today = isoDate(now)
-  const thisMonth = fmt(now)
-  const lastMonth = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+  const thisMonth = monthKey(now)
+  const lastMonth = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1))
 
   const validTx = useMemo(() => transactions.filter(tx => tx.status !== 'failed'), [transactions])
 
   // Retorna o total gasto no ciclo atual de um cartão
   const getCardCurrentUsed = useCallback((cardId) => {
     const card = creditCards.find(c => c.id === cardId)
-    if (!card) return 0
-    const cycleStart = getCardCycleStart(card.closingDay || 1)
-    return validTx
-      .filter(tx => tx.cardId === cardId && tx.type === 'expense')
-      .filter(tx => {
-        if (!tx.date) return false
-        return new Date(tx.date + 'T00:00:00') >= cycleStart
-      })
-      .reduce((s, tx) => s + (tx.amount || 0), 0)
+    return card ? sumCardCycle(card, validTx) : 0
   }, [creditCards, validTx])
 
   // Só o que cai na fatura aberta: do último fechamento até o próximo.
@@ -375,16 +393,7 @@ export function AppProvider({ children }) {
   // deste mês, e mostrá-las como "Fatura do Mês" triplicava uma compra em 3x.
   const getCardInvoice = useCallback((cardId) => {
     const card = creditCards.find(c => c.id === cardId)
-    if (!card) return 0
-    const start = getCardCycleStart(card.closingDay || 1)
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, start.getDate())
-    return validTx
-      .filter(tx => tx.cardId === cardId && tx.type === 'expense' && tx.date)
-      .filter(tx => {
-        const d = new Date(tx.date + 'T00:00:00')
-        return d >= start && d < end
-      })
-      .reduce((s, tx) => s + (tx.amount || 0), 0)
+    return card ? sumCardCycle(card, validTx, { openInvoiceOnly: true }) : 0
   }, [creditCards, validTx])
 
   const txThis = useMemo(() => validTx.filter(tx => tx.date?.startsWith(thisMonth)), [validTx, thisMonth])
@@ -413,14 +422,11 @@ export function AppProvider({ children }) {
     [walletBalances]
   )
 
-
   // Saldo no fim do mês anterior: só tx com data < 1º deste mês. Comparável
   // direto com totalBalance, que também para no dia de hoje.
   const lastBalance = useMemo(() => wallets.reduce((sum, w) => {
     const txsUpToLastMonth = validTx.filter(tx => tx.walletId === w.id && tx.date && tx.date < `${thisMonth}-01`)
-    const income   = txsUpToLastMonth.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0)
-    const expenses = txsUpToLastMonth.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0)
-    return sum + (w.balance || 0) + income - expenses
+    return sum + (w.balance || 0) + sumIncome(txsUpToLastMonth) - sumExpenses(txsUpToLastMonth)
   }, 0), [wallets, validTx, thisMonth])
 
   const spendingByCategory = useMemo(() => txThis
@@ -432,7 +438,7 @@ export function AppProvider({ children }) {
     const [y, m] = thisMonth.split('-').map(Number) // m é 1-based
     return Array.from({ length: 6 }, (_, i) => {
       const d   = new Date(y, (m - 1) - (5 - i), 1)
-      const key = fmt(d)
+      const key = monthKey(d)
       const txs = validTx.filter(tx => tx.date?.startsWith(key))
       return { key, label: i18n.formatMonthShort(d), income: sumIncome(txs), expenses: sumExpenses(txs) }
     })
@@ -518,7 +524,7 @@ export function AppProvider({ children }) {
 
     await batch.commit()
 
-    notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+    notify({ type: 'transaction', data: transactionNotice(data), settings })
 
     if (data.type === 'expense') {
       // Só o impacto da 1ª parcela conta para o mês atual.
@@ -531,7 +537,7 @@ export function AppProvider({ children }) {
     const ref = await addDoc(collection(db, COL.transactions), base({ ...data, scheduled: isScheduled(data.status, data.date) }))
 
     // Notificação: nova transação
-    notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+    notify({ type: 'transaction', data: transactionNotice(data), settings })
 
     // Notificação: transação pendente
     if (data.status === 'pending') {
@@ -666,26 +672,17 @@ export function AppProvider({ children }) {
   //   'orphan' — comportamento antigo, mantido como escolha consciente
   //   'move'   — reatribui para outra carteira (targetId)
   //   'delete' — apaga também as transações
-  //
-  // writeBatch tem teto de 500 operações; grandes históricos vão em blocos.
   const removeWallets = useCallback(async (ids, { mode = 'orphan', targetId = '' } = {}) => {
     const idSet = new Set(ids)
     const affected = mode === 'orphan' ? [] : transactions.filter(tx => idSet.has(tx.walletId))
 
-    const ops = [
+    await commitInChunks([
       ...affected.map(tx => (batch) => {
         if (mode === 'delete') batch.delete(doc(db, COL.transactions, tx.id))
         else batch.update(doc(db, COL.transactions, tx.id), { walletId: targetId })
       }),
       ...ids.map(id => (batch) => batch.delete(doc(db, COL.wallets, id))),
-    ]
-
-    const CHUNK = 450
-    for (let i = 0; i < ops.length; i += CHUNK) {
-      const batch = writeBatch(db)
-      ops.slice(i, i + CHUNK).forEach(op => op(batch))
-      await batch.commit()
-    }
+    ])
 
     return affected.length
   }, [transactions])
@@ -791,20 +788,13 @@ export function AppProvider({ children }) {
   const deleteCreditCard = useCallback(async (id, { mode = 'orphan', targetId = '' } = {}) => {
     const affected = mode === 'orphan' ? [] : transactions.filter(tx => tx.cardId === id)
 
-    const ops = [
+    await commitInChunks([
       ...affected.map(tx => (batch) => {
         if (mode === 'delete') batch.delete(doc(db, COL.transactions, tx.id))
         else batch.update(doc(db, COL.transactions, tx.id), { cardId: targetId })
       }),
       (batch) => batch.delete(doc(db, COL.creditCards, id)),
-    ]
-
-    const CHUNK = 450
-    for (let i = 0; i < ops.length; i += CHUNK) {
-      const batch = writeBatch(db)
-      ops.slice(i, i + CHUNK).forEach(op => op(batch))
-      await batch.commit()
-    }
+    ])
 
     return affected.length
   }, [transactions])
@@ -880,7 +870,7 @@ export function AppProvider({ children }) {
     await batch.commit()
 
     if (startsToday) {
-      notify({ type: 'transaction', data: { name: data.name, amount: data.amount, txType: data.type, category: data.category }, settings })
+      notify({ type: 'transaction', data: transactionNotice(data), settings })
       if (data.type === 'expense') {
         checkBudgetNotify(data.category, Number(data.amount), data.status)
         checkCardNotify(data.cardId, Number(data.amount), data.type, data.status)
@@ -952,15 +942,10 @@ export function AppProvider({ children }) {
       skipDuplicates,
     })
 
-    // writeBatch tem teto de 500 operações — quebra em chunks pra backups grandes.
     // Os ids já vêm decididos pelo plano: é assim que a transação aponta para
     // a carteira recriada no mesmo restore.
-    const CHUNK_SIZE = 450
-    for (let i = 0; i < writes.length; i += CHUNK_SIZE) {
-      const batch = writeBatch(db)
-      writes.slice(i, i + CHUNK_SIZE).forEach(({ col, id, data }) => batch.set(doc(db, COL[col], id), base(data)))
-      await batch.commit()
-    }
+    await commitInChunks(writes.map(({ col, id, data }) =>
+      (batch) => batch.set(doc(db, COL[col], id), base(data))))
     if (mergedCats) await updateDoc(doc(db, COL.users, uid), { categories: mergedCats })
 
     return stats
@@ -969,10 +954,8 @@ export function AppProvider({ children }) {
   // Lançamentos já lidos e revisados na tela de importação de extrato (PDF,
   // OFX, CSV). A leitura do arquivo mora em utils/statement; aqui só grava.
   const importTransactions = useCallback(async (list) => {
-    const CHUNK_SIZE = 450
-    for (let i = 0; i < list.length; i += CHUNK_SIZE) {
-      const batch = writeBatch(db)
-      list.slice(i, i + CHUNK_SIZE).forEach(tx => batch.set(doc(collection(db, COL.transactions)), base({
+    await commitInChunks(list.map(tx =>
+      (batch) => batch.set(doc(collection(db, COL.transactions)), base({
         date: tx.date,
         name: tx.name,
         amount: Number(tx.amount),
@@ -983,9 +966,7 @@ export function AppProvider({ children }) {
         scheduled: isScheduled(tx.status, tx.date),
         walletId: tx.walletId || '',
         cardId: tx.cardId || '',
-      })))
-      await batch.commit()
-    }
+      }))))
     return list.length
   }, [base])
 
@@ -1006,7 +987,8 @@ export function AppProvider({ children }) {
     // o updater duas vezes, e a versão anterior disparava dois writes no
     // Firestore a cada mudança de preferência.
     // name/email/initials vêm do auth e podem estar em prefs antigas — são
-    // removidos aqui para não congelar um nome desatualizado no banco.
+    // removidos aqui para não congelar um nome desatualizado no banco. As
+    // iniciais escolhidas à mão têm campo próprio (customInitials).
     const { name, email, initials, biometricEnabled, ...prefs } = next
     void name; void email; void initials
     // biometricEnabled is device-local — never written to Firestore

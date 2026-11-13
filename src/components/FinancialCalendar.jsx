@@ -9,12 +9,21 @@ const fmtShort = (n, symbol) => {
   return `${symbol} ${Math.round(n)}`
 }
 
-const MONTHS_PT = [
-  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
-]
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1)
 
-const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+// Nomes de mês e de dia da semana no idioma do usuário. O Intl devolve
+// "novembro" e "dom." em português; o cabeçalho usa "Novembro" e "Dom".
+const monthNames = (locale) => {
+  const fmt = new Intl.DateTimeFormat(locale, { month: 'long' })
+  return Array.from({ length: 12 }, (_, m) => capitalize(fmt.format(new Date(2023, m, 1))))
+}
+
+const weekdayNames = (locale) => {
+  const fmt = new Intl.DateTimeFormat(locale, { weekday: 'short' })
+  // 1º de janeiro de 2023 caiu num domingo.
+  return Array.from({ length: 7 }, (_, d) =>
+    capitalize(fmt.format(new Date(2023, 0, 1 + d)).replace(/\.$/, '')))
+}
 
 
 export default function FinancialCalendar() {
@@ -25,6 +34,9 @@ export default function FinancialCalendar() {
   const [year,  setYear]  = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [selectedDay, setSelectedDay] = useState(null)
+
+  const months = useMemo(() => monthNames(locale), [locale])
+  const weekdays = useMemo(() => weekdayNames(locale), [locale])
 
   const validTx = useMemo(
     () => transactions.filter(tx => tx.status !== 'failed' && tx.date), [transactions])
@@ -114,7 +126,7 @@ export default function FinancialCalendar() {
           <button className="cal-nav-btn" onClick={prevMonth}>
             <i className="fi fi-rr-angle-left" />
           </button>
-          <span className="cal-month-label">{MONTHS_PT[month]} {year}</span>
+          <span className="cal-month-label">{months[month]} {year}</span>
           <button className="cal-nav-btn" onClick={nextMonth}>
             <i className="fi fi-rr-angle-right" />
           </button>
@@ -158,7 +170,7 @@ export default function FinancialCalendar() {
       <div className="moovia-card cal-card">
         {/* Day-of-week headers */}
         <div className="cal-header-row">
-          {DAYS_PT.map(d => <div key={d} className="cal-dow-cell">{d}</div>)}
+          {weekdays.map(d => <div key={d} className="cal-dow-cell">{d}</div>)}
         </div>
 
         {/* Weeks */}
@@ -226,7 +238,7 @@ export default function FinancialCalendar() {
         >
           {selectedTxs.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>
-              Nenhuma transação neste dia.
+              {t('cal.noTxDay')}
             </p>
           ) : (
             <div className="cal-detail-list">

@@ -68,3 +68,13 @@ export function cardCycleStartISO(closingDay, todayIso) {
         return `${py}-${String(pm).padStart(2, '0')}-${String(clamp(py, pm)).padStart(2, '0')}`
       })()
 }
+
+// Período da última fatura fechada: do fechamento anterior (inclusive) até o
+// fechamento mais recente (exclusive — compra no dia do fechamento já é da
+// fatura seguinte). É a fatura que "fecha hoje" no dia do fechamento e a que
+// "vence hoje" no dia do vencimento.
+export function closedInvoiceRangeISO(closingDay, todayIso) {
+  const to = cardCycleStartISO(closingDay, todayIso)
+  const from = cardCycleStartISO(closingDay, addDaysISO(to, -1))
+  return { from, to }
+}

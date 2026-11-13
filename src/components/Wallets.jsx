@@ -19,13 +19,10 @@ const WALLET_TYPES = [
 ]
 const TYPE_KEYS = Object.fromEntries(WALLET_TYPES.map(wt => [wt.value, wt.labelKey]))
 
-// Paleta do SELETOR de cor — o usuário escolhe um acento decorativo para o
-// próprio item. Não é codificação de dados: os gráficos usam os tokens
-// validados em styles/charts.css. Preto, lima e cinza são escolhas legítimas
-// aqui e reprovariam lá; não unifique as duas listas.
+const STATUS_SYMBOL = { completed: '●', pending: '◌' }
+const STATUS_KEY = { completed: 'tx.completed', pending: 'tx.pending' }
 
 const EMPTY_FORM = { name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON }
-
 
 // ─── Wallet Modal ─────────────────────────────────────────────────────────────
 
@@ -74,7 +71,7 @@ function WalletModal({ initial, onSave, onClose }) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Saldo Inicial ({currencySymbol})</label>
+          <label className="form-label">{t('wallet.initialBalance', { symbol: currencySymbol })}</label>
           <CurrencyInput className="form-input" value={form.balance} onChange={v => set('balance', v)} />
         </div>
       </div>
@@ -257,7 +254,7 @@ export default function Wallets() {
                     <Checkbox
                       checked={isChecked}
                       onChange={() => toggleOne(w.id)}
-                      label={`Selecionar ${w.name}`}
+                      label={t('wallet.selectOne', { name: w.name })}
                     />
                   </span>
                   <button
@@ -331,7 +328,7 @@ export default function Wallets() {
                       </td>
                       <td className="tx-status">
                         <span className={`status-badge ${tx.status}`}>
-                          {{ completed: '● Concluído', pending: '◌ Pendente' }[tx.status]}
+                          {STATUS_KEY[tx.status] && `${STATUS_SYMBOL[tx.status]} ${t(STATUS_KEY[tx.status])}`}
                         </span>
                       </td>
                     </tr>

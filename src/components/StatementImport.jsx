@@ -15,8 +15,8 @@ import { ACCEPTED_FILES, PdfPasswordError, categorize, parseStatementFile } from
 // errado no saldo custa mais que um clique a mais.
 
 const FORMAT_LABEL = { pdf: 'PDF', ofx: 'OFX', csv: 'CSV' }
-const KIND_LABEL = { card: 'Fatura de cartão', account: 'Extrato de conta', pix: 'Comprovante de Pix' }
-const SKIP_LABEL = { payment: 'Pagamento da fatura', refunded: 'Estornado', duplicate: 'Já lançado' }
+const KIND_KEY = { card: 'stmt.kind.card', account: 'stmt.kind.account', pix: 'stmt.kind.pix' }
+const SKIP_KEY = { payment: 'stmt.skip.payment', refunded: 'stmt.skip.refunded', duplicate: 'stmt.skip.duplicate' }
 
 const collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true })
 // Os mesmos dois status do formulário de transação.
@@ -34,13 +34,13 @@ const SORTERS = {
 }
 
 const SORT_OPTIONS = [
-  ['date:asc', 'Mais antigas'],
-  ['date:desc', 'Mais recentes'],
-  ['amount:desc', 'Maior valor'],
-  ['amount:asc', 'Menor valor'],
-  ['name:asc', 'Nome (A–Z)'],
-  ['category:asc', 'Categoria'],
-  ['status:asc', 'Status'],
+  ['date:asc', 'stmt.sort.oldest'],
+  ['date:desc', 'stmt.sort.newest'],
+  ['amount:desc', 'stmt.sort.highest'],
+  ['amount:asc', 'stmt.sort.lowest'],
+  ['name:asc', 'stmt.sort.name'],
+  ['category:asc', 'tx.category'],
+  ['status:asc', 'tx.status'],
 ]
 
 const signature = (tx) =>
@@ -106,10 +106,10 @@ export default function StatementImport({ onClose }) {
     } catch (err) {
       if (err instanceof PdfPasswordError) {
         setStage('password')
-        setError(err.wrong ? 'Senha incorreta. Tente de novo.' : '')
+        setError(err.wrong ? t('stmt.wrongPassword') : '')
         return
       }
-      setError(err.message || 'Não consegui ler o arquivo.')
+      setError(err.message || t('stmt.readError'))
       setStage('pick')
     }
   }
@@ -153,10 +153,10 @@ export default function StatementImport({ onClose }) {
         cardId: dest.type === 'card' ? dest.id : '',
       }))
       const count = await importTransactions(list)
-      toast.success(`${count} lançamento${count > 1 ? 's' : ''} importado${count > 1 ? 's' : ''}.`)
+      toast.success(t('stmt.imported', { count }))
       onClose()
     } catch (err) {
-      setError(err.message || 'Falha ao gravar.')
+      setError(err.message || t('stmt.saveError'))
       setStage('review')
     }
   }
@@ -190,11 +190,11 @@ export default function StatementImport({ onClose }) {
     </button>
   )
   // Resumo das opções que aparece com a seção recolhida.
-  const destName = destList.find(item => item.id === dest.id)?.name || (dest.type === 'card' ? 'Sem cartão' : 'Sem conta')
+  const destName = destList.find(item => item.id === dest.id)?.name || t(dest.type === 'card' ? 'stmt.noCard' : 'stmt.noAccount')
   const settingsSummary = [
     destName,
-    dateMode === 'single' ? formatDate(singleDate) : 'data de cada compra',
-    bulkStatus ? t(STATUS_KEY[bulkStatus]) : 'status variados',
+    dateMode === 'single' ? formatDate(singleDate) : t('stmt.eachDateSummary'),
+    bulkStatus ? t(STATUS_KEY[bulkStatus]) : t('stmt.mixedStatus'),
   ].join(' · ')
 
   // Clicar em qualquer ponto da linha marca/desmarca — no celular o checkbox
@@ -209,22 +209,22 @@ export default function StatementImport({ onClose }) {
   const footer = stage === 'review' || stage === 'saving' ? (
     <>
       <div className="stmt-totals">
-        <span>{selected.length} de {rows.length} selecionados</span>
-        <span className="expense">Gastos {fmt(totals.expense)}</span>
-        {totals.income > 0 && <span className="income">Entradas {fmt(totals.income)}</span>}
+        <span>{t('stmt.selectedCount', { count: selected.length, total: rows.length })}</span>
+        <span className="expense">{t('stmt.expensesTotal', { amount: fmt(totals.expense) })}</span>
+        {totals.income > 0 && <span className="income">{t('stmt.incomeTotal', { amount: fmt(totals.income) })}</span>}
       </div>
       <button className="btn btn-secondary" onClick={() => { setStage('pick'); setResult(null); setRows([]) }}>
-        Outro arquivo
+        {t('stmt.otherFile')}
       </button>
       <button className="btn btn-primary" disabled={!selected.length || stage === 'saving'} onClick={save}>
         <i className="fi fi-rr-check" />
-        {stage === 'saving' ? 'Lançando...' : `Lançar ${selected.length}`}
+        {stage === 'saving' ? t('stmt.saving') : t('stmt.saveCount', { count: selected.length })}
       </button>
     </>
   ) : null
 
   return (
-    <Modal title="Importar extrato" onClose={onClose} footer={footer} size="xl">
+    <Modal title={t('stmt.title')} onClose={onClose} footer={footer} size="xl">
       <input
         ref={inputRef}
         type="file"
@@ -245,13 +245,10 @@ export default function StatementImport({ onClose }) {
             onDrop={e => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]) }}
           >
             <i className={`fi ${stage === 'loading' ? 'fi-rr-spinner stmt-spin' : 'fi-rr-cloud-upload'}`} />
-            <strong>{stage === 'loading' ? `Lendo ${file?.name}...` : 'Arraste o arquivo do banco ou clique para escolher'}</strong>
-            <span>Fatura do cartão ou extrato em PDF, OFX, CSV e comprovante de Pix em PDF</span>
+            <strong>{stage === 'loading' ? t('stmt.reading', { name: file?.name }) : t('stmt.drop')}</strong>
+            <span>{t('stmt.formats')}</span>
           </button>
-          <p className="stmt-hint">
-            Os gastos são lidos e categorizados automaticamente. Você confere tudo antes de lançar:
-            pagamento da fatura, estornos e lançamentos repetidos já vêm desmarcados.
-          </p>
+          <p className="stmt-hint">{t('stmt.intro')}</p>
         </>
       )}
 
@@ -262,8 +259,8 @@ export default function StatementImport({ onClose }) {
         >
           <i className="fi fi-rr-lock" />
           <div>
-            <strong>{file?.name} é protegido por senha</strong>
-            <span>Bancos costumam usar os primeiros dígitos do CPF do titular.</span>
+            <strong>{t('stmt.passwordTitle', { name: file?.name })}</strong>
+            <span>{t('stmt.passwordHint')}</span>
           </div>
           <input
             className="form-input"
@@ -271,10 +268,10 @@ export default function StatementImport({ onClose }) {
             autoFocus
             value={password}
             onChange={e => setPassword(e.target.value)}
-            placeholder="Senha do PDF"
-            aria-label="Senha do PDF"
+            placeholder={t('stmt.passwordPlaceholder')}
+            aria-label={t('stmt.passwordPlaceholder')}
           />
-          <button className="btn btn-primary" type="submit" disabled={!password}>Abrir</button>
+          <button className="btn btn-primary" type="submit" disabled={!password}>{t('stmt.open')}</button>
         </form>
       )}
 
@@ -289,7 +286,7 @@ export default function StatementImport({ onClose }) {
           <div className="stmt-summary">
             <div>
               <span className="stmt-pill">{FORMAT_LABEL[result.format]}</span>
-              <span className="stmt-pill">{KIND_LABEL[result.kind]}</span>
+              <span className="stmt-pill">{t(KIND_KEY[result.kind])}</span>
               {result.bank && <span className="stmt-pill">{result.bank}</span>}
               <span className="stmt-file">{file?.name}</span>
             </div>
@@ -297,13 +294,13 @@ export default function StatementImport({ onClose }) {
               <div className={`stmt-alert ${totalOk ? 'stmt-alert-ok' : 'stmt-alert-warn'}`}>
                 <i className={`fi ${totalOk ? 'fi-rr-check' : 'fi-rr-exclamation'}`} />
                 {totalOk
-                  ? `Conferido: a soma lida bate com o total da fatura (${fmt(result.total.expected)}).`
-                  : `Atenção: total da fatura ${fmt(result.total.expected)}, soma lida ${fmt(result.total.computed)}. Confira as linhas antes de lançar.`}
+                  ? t('stmt.totalOk', { amount: fmt(result.total.expected) })
+                  : t('stmt.totalMismatch', { expected: fmt(result.total.expected), computed: fmt(result.total.computed) })}
               </div>
             )}
             {result.invalid > 0 && (
               <div className="stmt-alert stmt-alert-warn">
-                <i className="fi fi-rr-exclamation" /> {result.invalid} linha(s) sem data ou valor foram ignoradas.
+                <i className="fi fi-rr-exclamation" /> {t('stmt.invalidRows', { count: result.invalid })}
               </div>
             )}
           </div>
@@ -316,15 +313,15 @@ export default function StatementImport({ onClose }) {
             <summary>
               <i className="fi fi-rr-settings-sliders" aria-hidden="true" />
               <span className="stmt-settings-text">
-                <strong>Como lançar</strong>
+                <strong>{t('stmt.howTo')}</strong>
                 <span>{settingsSummary}</span>
               </span>
               <i className="fi fi-rr-angle-small-down stmt-settings-chevron" aria-hidden="true" />
             </summary>
             <div className="stmt-settings-body">
               <div className="stmt-dest">
-                <div className="stmt-dest-toggle" role="radiogroup" aria-label="Destino">
-                  {[['wallet', 'Conta'], ['card', 'Cartão de crédito']].map(([type, label]) => (
+                <div className="stmt-dest-toggle" role="radiogroup" aria-label={t('stmt.destination')}>
+                  {[['wallet', 'stmt.destAccount'], ['card', 'stmt.destCard']].map(([type, labelKey]) => (
                     <button
                       key={type}
                       type="button"
@@ -333,7 +330,7 @@ export default function StatementImport({ onClose }) {
                       className={dest.type === type ? 'active' : ''}
                       onClick={() => setDest({ type, id: guessDestination(type === 'card' ? creditCards : wallets, result.bank) })}
                     >
-                      {label}
+                      {t(labelKey)}
                     </button>
                   ))}
                 </div>
@@ -341,19 +338,19 @@ export default function StatementImport({ onClose }) {
                   className="form-select"
                   value={dest.id}
                   onChange={e => setDest(d => ({ ...d, id: e.target.value }))}
-                  aria-label="Lançar em"
+                  aria-label={t('stmt.postTo')}
                 >
-                  {dest.type === 'wallet' && <option value="">Sem conta</option>}
+                  {dest.type === 'wallet' && <option value="">{t('stmt.noAccount')}</option>}
                   {destList.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
                 {dest.type === 'card' && !creditCards.length && (
-                  <span className="stmt-hint">Nenhum cartão cadastrado — os gastos entram sem cartão.</span>
+                  <span className="stmt-hint">{t('stmt.noCardsHint')}</span>
                 )}
               </div>
 
               <div className="stmt-dest">
-                <div className="stmt-dest-toggle" role="radiogroup" aria-label="Data dos lançamentos">
-                  {[['each', 'Data de cada compra'], ['single', 'Uma data para todos']].map(([mode, label]) => (
+                <div className="stmt-dest-toggle" role="radiogroup" aria-label={t('stmt.dateMode')}>
+                  {[['each', 'stmt.dateEach'], ['single', 'stmt.dateSingle']].map(([mode, labelKey]) => (
                     <button
                       key={mode}
                       type="button"
@@ -362,7 +359,7 @@ export default function StatementImport({ onClose }) {
                       className={dateMode === mode ? 'active' : ''}
                       onClick={() => setDateMode(mode)}
                     >
-                      {label}
+                      {t(labelKey)}
                     </button>
                   ))}
                 </div>
@@ -372,13 +369,13 @@ export default function StatementImport({ onClose }) {
                     className="form-input stmt-single-date"
                     value={singleDate}
                     onChange={e => e.target.value && setSingleDate(e.target.value)}
-                    aria-label="Data para todos os lançamentos"
+                    aria-label={t('stmt.dateAll')}
                   />
                 ) : (
-                  <span className="stmt-hint">Clique na data de uma linha para alterar só ela.</span>
+                  <span className="stmt-hint">{t('stmt.dateRowHint')}</span>
                 )}
                 {dateMode === 'single' && result.dueDate === singleDate && (
-                  <span className="stmt-hint">Vencimento da fatura</span>
+                  <span className="stmt-hint">{t('stmt.dueDate')}</span>
                 )}
               </div>
 
@@ -401,7 +398,7 @@ export default function StatementImport({ onClose }) {
                   ))}
                 </div>
                 <span className="stmt-hint">
-                  {bulkStatus ? 'Vale para todos; dá para mudar linha a linha.' : 'Status diferentes por linha.'}
+                  {t(bulkStatus ? 'stmt.statusAllHint' : 'stmt.statusMixedHint')}
                 </span>
               </div>
             </div>
@@ -409,29 +406,29 @@ export default function StatementImport({ onClose }) {
 
           <div className="stmt-table" role="table">
             <div className="stmt-row stmt-head" role="row">
-              <Checkbox checked={allSelected} onChange={toggleAll} label="Selecionar todos" indeterminate={!allSelected && selected.length > 0} />
-              {sortHeader('date', 'Data')}
-              {sortHeader('name', 'Descrição')}
-              {sortHeader('category', 'Categoria')}
+              <Checkbox checked={allSelected} onChange={toggleAll} label={t('stmt.selectAll')} indeterminate={!allSelected && selected.length > 0} />
+              {sortHeader('date', t('tx.date'))}
+              {sortHeader('name', t('tx.description'))}
+              {sortHeader('category', t('tx.category'))}
               {sortHeader('status', t('tx.status'))}
-              {sortHeader('amount', 'Valor', 'stmt-amount')}
+              {sortHeader('amount', t('tx.amount'), 'stmt-amount')}
               {/* No celular não há colunas: o cabeçalho vira "selecionar todos"
                   e um seletor de ordem. */}
               <div className="stmt-head-mobile">
-                <span>{allSelected ? 'Desmarcar todos' : 'Selecionar todos'}</span>
+                <span>{t(allSelected ? 'stmt.unselectAll' : 'stmt.selectAll')}</span>
                 <select
                   className="stmt-cat stmt-sort-select"
                   value={`${sort.key}:${sort.dir}`}
                   onChange={e => { const [key, dir] = e.target.value.split(':'); setSort({ key, dir }) }}
-                  aria-label="Ordenar por"
+                  aria-label={t('stmt.sortBy')}
                 >
-                  {SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  {SORT_OPTIONS.map(([value, labelKey]) => <option key={value} value={value}>{t(labelKey)}</option>)}
                 </select>
               </div>
             </div>
             {sorted.map(r => (
               <div key={r.id} className={`stmt-row${r.selected ? '' : ' off'}`} role="row" onClick={e => toggleRowFromClick(e, r)}>
-                <Checkbox checked={r.selected} onChange={() => setRow(r.id, { selected: !r.selected })} label={`Importar ${r.name}`} />
+                <Checkbox checked={r.selected} onChange={() => setRow(r.id, { selected: !r.selected })} label={t('stmt.importRow', { name: r.name })} />
                 {dateMode === 'single' ? (
                   <span className="stmt-date">{formatDate(singleDate)}</span>
                 ) : (
@@ -440,7 +437,7 @@ export default function StatementImport({ onClose }) {
                     className="stmt-date-input"
                     value={r.date}
                     onChange={e => e.target.value && setRow(r.id, { date: e.target.value })}
-                    aria-label={`Data de ${r.name}`}
+                    aria-label={t('stmt.dateOf', { name: r.name })}
                   />
                 )}
                 <span className="stmt-name">
@@ -448,11 +445,11 @@ export default function StatementImport({ onClose }) {
                     className="stmt-name-input"
                     value={r.name}
                     onChange={e => setRow(r.id, { name: e.target.value })}
-                    aria-label="Descrição"
+                    aria-label={t('tx.description')}
                   />
                   {(r.skip || r.notes) && (
                     <small>
-                      {r.skip && <span className={`stmt-badge stmt-badge-${r.skip}`}>{SKIP_LABEL[r.skip]}</span>}
+                      {r.skip && <span className={`stmt-badge stmt-badge-${r.skip}`}>{t(SKIP_KEY[r.skip])}</span>}
                       {r.notes}
                     </small>
                   )}
@@ -461,7 +458,7 @@ export default function StatementImport({ onClose }) {
                   className="stmt-cat"
                   value={r.category}
                   onChange={e => setRow(r.id, { category: e.target.value })}
-                  aria-label="Categoria"
+                  aria-label={t('tx.category')}
                 >
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>

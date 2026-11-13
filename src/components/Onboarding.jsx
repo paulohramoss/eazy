@@ -5,6 +5,7 @@ import { BrandLockup } from './BrandLogo'
 import ColorPicker from './ColorPicker'
 import { INCOME_CATEGORIES, suggestCategory } from '../utils/quickParse'
 import { GOAL_CATEGORY } from '../utils/categories'
+import { isoDate } from '../utils/date'
 import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
 
 const WALLET_TYPES = [
@@ -65,7 +66,7 @@ export default function Onboarding() {
           ...tx,
           amount: Number(tx.amount),
           walletId: ref.id,
-          date: new Date().toISOString().split('T')[0],
+          date: isoDate(),
           status: 'completed',
           notes: '', tags: [], cardId: '',
         })
@@ -170,7 +171,7 @@ export default function Onboarding() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Saldo inicial ({currencySymbol})</label>
+              <label className="form-label">{t('onb.initialBalance', { symbol: currencySymbol })}</label>
               <CurrencyInput
                 className="form-input" autoFocus
                 style={{ fontSize: 32, fontWeight: 800, textAlign: 'center', height: 72 }}

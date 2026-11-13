@@ -6,6 +6,7 @@
 // — é aqui que "1.200" vira 1,20 e o mês inteiro sai errado.
 
 import { CATEGORIES, GOAL_CATEGORY } from './categories'
+import { isoDate } from './date'
 
 const norm = (s) => String(s ?? '')
   .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -81,13 +82,6 @@ const DAY_OFFSETS = {
   ontem: -1,
   anteontem: -2,
   amanha: 1,
-}
-
-const isoDate = (d) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
 }
 
 const shiftDays = (iso, days) => {
@@ -238,7 +232,7 @@ const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s)
 export function parseQuickEntry(input, opts = {}) {
   const {
     categories = CATEGORIES,
-    today = isoDate(new Date()),
+    today = isoDate(),
     history = [],
   } = opts
 
@@ -384,7 +378,7 @@ export function suggestCategory(name, { categories = CATEGORIES, history = [] } 
  * Agrupa por nome normalizado: "Ifood" e "ifood" são o mesmo hábito.
  */
 export function frequentEntries(transactions = [], opts = {}) {
-  const { days = 60, limit = 3, today = isoDate(new Date()), minCount = 2 } = opts
+  const { days = 60, limit = 3, today = isoDate(), minCount = 2 } = opts
   const since = shiftDays(today, -days)
 
   const groups = new Map()

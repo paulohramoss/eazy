@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import Modal from './Modal'
 import DeleteWithTransactionsModal from './DeleteWithTransactionsModal'
@@ -6,6 +6,7 @@ import EmptyState from './EmptyState'
 import { useToast } from './Toast'
 import CurrencyInput from './CurrencyInput'
 import ColorPicker from './ColorPicker'
+import { monthKey } from '../utils/date'
 
 // Cartão costuma ser escuro ou da cor do banco: os tons de grafite vêm
 // primeiro, depois o espectro. Qualquer outra cor entra pelo hexadecimal.
@@ -125,8 +126,7 @@ function CardModal({ initial, onSave, onClose }) {
 
 function Invoice({ card, transactions, onClose }) {
   const { formatCurrency: fmt, t } = useApp()
-  const now = new Date()
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const thisMonth = monthKey()
   const cardTx = transactions.filter(tx => tx.cardId === card.id && tx.date?.startsWith(thisMonth))
   const total = cardTx.reduce((s, tx) => s + (tx.amount || 0), 0)
 
@@ -161,8 +161,6 @@ function Invoice({ card, transactions, onClose }) {
   )
 }
 
-// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function CreditCards() {
@@ -172,10 +170,8 @@ export default function CreditCards() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const toast = useToast()
   const [selectedId, setSelectedId] = useState(null)
-  const carouselRef = useRef(null)
 
-  const now = new Date()
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const thisMonth = monthKey()
 
   // usedByCard agora usa ciclo de faturamento (reseta no closingDay)
   const usedByCard = useMemo(() => {
@@ -213,10 +209,10 @@ export default function CreditCards() {
       {/* ── Summary KPIs ─────────────────────────────────────── */}
       <div className="metrics-grid" style={{ marginBottom: 28 }}>
         {[
-          { label: 'Limite Total', value: fmt(totalLimit), icon: 'fi-rr-credit-card', color: 'purple' },
-          { label: 'Fatura do Mês', value: fmt(totalInvoice), icon: 'fi-rr-receipt', color: 'red' },
-          { label: 'Disponível', value: fmt(totalLimit - totalUsed), icon: 'fi-rr-check-circle', color: 'green', negative: totalLimit - totalUsed < 0 },
-          { label: 'Cartões', value: creditCards.length, icon: 'fi-rr-layers', color: 'yellow' },
+          { label: t('card.kpiTotalLimit'), value: fmt(totalLimit), icon: 'fi-rr-credit-card', color: 'purple' },
+          { label: t('card.kpiInvoice'), value: fmt(totalInvoice), icon: 'fi-rr-receipt', color: 'red' },
+          { label: t('card.available'), value: fmt(totalLimit - totalUsed), icon: 'fi-rr-check-circle', color: 'green', negative: totalLimit - totalUsed < 0 },
+          { label: t('card.kpiCards'), value: creditCards.length, icon: 'fi-rr-layers', color: 'yellow' },
         ].map(k => (
           <div key={k.label} className={`metric-card metric-card--${k.color}`}>
             <div className="metric-header">
@@ -231,11 +227,11 @@ export default function CreditCards() {
       {/* ── Card Carousel ────────────────────────────────────── */}
       <div className="cc-section-label">
         <i className="fi fi-rr-credit-card" />
-        Meus Cartões
+        {t('card.myCards')}
       </div>
 
       <div className="cc-carousel-wrapper">
-        <div className="cc-carousel" ref={carouselRef}>
+        <div className="cc-carousel">
           {creditCards.map(card => (
             <div
               key={card.id}
@@ -314,10 +310,10 @@ export default function CreditCards() {
           <div className="cc-tx-section">
             <div className="cc-tx-header">
               <span className="cc-section-label" style={{ marginBottom: 0 }}>
-                <i className="fi fi-rr-list" /> Lançamentos do mês
+                <i className="fi fi-rr-list" /> {t('card.monthEntries')}
               </span>
               {cardTx.length > 0 && (
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{cardTx.length} {cardTx.length === 1 ? 'item' : 'itens'}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t(cardTx.length === 1 ? 'card.itemOne' : 'card.itemMany', { count: cardTx.length })}</span>
               )}
             </div>
 

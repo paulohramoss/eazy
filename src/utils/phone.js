@@ -54,22 +54,23 @@ export function formatBrazilMobile(value) {
   return formatted
 }
 
+// Devolve a chave de tradução do erro, ou '' quando o número é válido (ou vazio).
 export function getBrazilMobileError(value) {
   const digits = normalizeBrazilMobileDigits(value)
   if (!digits) return ''
 
   const local = digits.slice(BR_COUNTRY_CODE.length)
   if (local.length < MOBILE_LOCAL_DIGITS) {
-    return 'Informe DDD + celular com 9 dígitos.'
+    return 'phone.errLength'
   }
 
   const ddd = local.slice(0, 2)
   if (!VALID_BRAZIL_DDDS.has(ddd)) {
-    return 'Informe um DDD válido.'
+    return 'phone.errAreaCode'
   }
 
   if (local[2] !== '9') {
-    return 'O celular deve começar com 9 após o DDD.'
+    return 'phone.errFirstDigit'
   }
 
   return ''

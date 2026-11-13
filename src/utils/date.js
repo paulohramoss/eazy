@@ -6,6 +6,10 @@
 export const isoDate = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+// Chave do mês, 'YYYY-MM'. É o prefixo das datas ISO, então filtrar um mês é
+// um startsWith.
+export const monthKey = (d = new Date()) => isoDate(d).slice(0, 7)
+
 // Meio-dia evita que o fuso empurre a data para o dia anterior na exibição.
 export const brDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR')
 

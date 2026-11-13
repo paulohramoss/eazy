@@ -18,9 +18,15 @@ function Section({ icon, title, children, style }) {
 
 // Redimensiona e comprime a imagem antes do upload
 function resizeImage(file, maxSize = 400) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
+    // Arquivo com extensão de imagem mas conteúdo ilegível: sem isto a promise
+    // nunca resolvia e o botão ficava em "Enviando..." para sempre.
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('image-load-failed'))
+    }
     img.onload = () => {
       const canvas = document.createElement('canvas')
       let { width, height } = img
@@ -43,7 +49,9 @@ export default function Profile() {
   const [profile, setProfile] = useState({
     name:     settings.name     || '',
     email:    settings.email    || '',
-    initials: settings.initials || '',
+    // Só as iniciais escolhidas à mão. Vazio = derivadas do nome, e assim
+    // continuam acompanhando o nome se ele mudar.
+    initials: settings.customInitials || '',
     phone:    formatBrazilMobile(settings.phone || settings.smsPhone || ''),
   })
   const [saved,        setSaved]        = useState(false)
@@ -115,7 +123,7 @@ export default function Profile() {
       return
     }
 
-    updateSettings({ ...profile, phone, smsPhone: phone })
+    updateSettings({ phone, smsPhone: phone, customInitials: profile.initials.trim() })
     if (profile.name.trim() !== (user?.displayName || '')) {
       try {
         await updateDisplayName(profile.name.trim())
@@ -187,16 +195,16 @@ export default function Profile() {
                 background: 'rgba(var(--accent-rgb), 0.12)', color: 'var(--accent)',
                 padding: '3px 10px', borderRadius: 99,
               }}>
-                CONTA PESSOAL
+                {t('header.personalAccount').toUpperCase()}
               </span>
             </div>
 
             <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { icon: 'fi-rr-user',       label: 'Nome',     value: profile.name     || '—' },
-                { icon: 'fi-rr-envelope',   label: 'E-mail',   value: profile.email    || '—' },
-                { icon: 'fi-rr-smartphone', label: 'Celular',  value: profile.phone    || '—' },
-                { icon: 'fi-rr-text',       label: 'Iniciais', value: displayInitials  || '—' },
+                { icon: 'fi-rr-user',       label: t('profile.name'),          value: profile.name     || '—' },
+                { icon: 'fi-rr-envelope',   label: t('profile.email'),         value: profile.email    || '—' },
+                { icon: 'fi-rr-smartphone', label: t('profile.phone'),         value: profile.phone    || '—' },
+                { icon: 'fi-rr-text',       label: t('profile.initialsShort'), value: displayInitials  || '—' },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
                   <i className={`fi ${row.icon}`} style={{ color: 'var(--text-muted)', width: 16, textAlign: 'center' }} />
@@ -287,9 +295,15 @@ export default function Profile() {
                 className="form-input"
                 type="email"
                 value={profile.email}
-                onChange={e => set('email', e.target.value)}
-                placeholder="seu@email.com"
+                readOnly
+                disabled
               />
+              {/* O e-mail é o do login: trocá-lo exige reautenticar e confirmar
+                  o endereço novo, o que esta tela não faz. Antes o campo
+                  aceitava edição e o Salvar descartava em silêncio. */}
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
+                {t('profile.emailHint')}
+              </p>
             </div>
 
             {/* Celular */}
@@ -316,11 +330,11 @@ export default function Profile() {
               </div>
               {phoneTouched && phoneError && (
                 <p style={{ fontSize: 11, color: 'var(--accent-red)', marginTop: 5 }}>
-                  {phoneError}
+                  {t(phoneError)}
                 </p>
               )}
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
-                Usado para notificações por SMS quando ativadas
+                {t('profile.phoneHint')}
               </p>
             </div>
 
@@ -328,7 +342,7 @@ export default function Profile() {
             <div className="form-group">
               <label className="form-label">{t('profile.initials')}</label>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-                Exibidas quando não há foto de perfil — até 2 letras.
+                {t('profile.initialsHint')}
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <input
@@ -337,7 +351,7 @@ export default function Profile() {
                   value={profile.initials}
                   onChange={e => set('initials', e.target.value.toUpperCase())}
                   style={{ width: 72 }}
-                  placeholder="AB"
+                  placeholder={profile.name?.slice(0, 2).toUpperCase() || 'AB'}
                   disabled={hasPhoto}
                 />
                 <div style={{

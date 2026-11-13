@@ -7,6 +7,8 @@
 // A contagem usa a data da transação, não a de gravação: lançar o almoço de
 // ontem hoje de manhã é exatamente o comportamento que se quer premiar.
 
+import { isoDate } from './date.js'
+
 const MS_PER_DAY = 86400000
 
 const toUTC = (iso) => {
@@ -28,7 +30,7 @@ const diffDays = (a, b) => Math.round((a - b) / MS_PER_DAY)
  *   atRisk   — a sequência está viva mas hoje ainda não teve lançamento
  */
 export function computeStreak(transactions = [], opts = {}) {
-  const { today = new Date().toISOString().slice(0, 10), grace = 1 } = opts
+  const { today = isoDate(), grace = 1 } = opts
   const todayMs = toUTC(today)
   if (todayMs === null) return { current: 0, longest: 0, lastDate: null, atRisk: false }
 
