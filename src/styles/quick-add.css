@@ -385,13 +385,20 @@
    Tags eram gravadas e exibidas, mas não filtravam nada. Esta faixa é a
    leitura que faltava: um toque isola "#viagem-floripa" e o resumo do topo
    já responde quanto foi. */
-/* Ocupa o espaço que sobra da linha, com o botão "Nova Transação" fixo à
-   direita. Sem margin-bottom: o espaçamento agora é o gap da .filter-bar. */
+/* Ocupa o espaço que sobra da linha, com os botões encostados à direita.
+   Sem margin-bottom: o espaçamento agora é o gap da .filter-bar.
+   A base é o tamanho do conteúdo (auto), não um valor fixo: com 320px a
+   barra achava que o grupo cabia ao lado dos filtros, e os três botões, que
+   não encolhem, vazavam pela borda e cortavam o "Nova Transação". Agora, se
+   não cabe, o grupo desce inteiro para a linha de baixo; e se nem lá couber,
+   os botões quebram entre si em vez de sair da tela. */
 .filter-bar-end {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
-  flex: 1 1 320px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
