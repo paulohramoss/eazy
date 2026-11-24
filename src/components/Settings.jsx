@@ -4,6 +4,7 @@ import Toggle from './Toggle'
 import { useToast } from './Toast'
 import { LANGUAGES } from '../i18n'
 import StatementImport from './StatementImport'
+import { navigate } from '../utils/router'
 import { switchTheme } from '../utils/themeTransition'
 import { clearCredentialId, saveCredentialId } from '../utils/biometric'
 
@@ -122,6 +123,15 @@ export default function Settings() {
   return (
     <div className="screen">
       <div className="settings-grid">
+
+        {/* Atalho para o assistente de configuração, mesmo depois de concluído:
+            entrar num banco novo ou recomeçar o controle no meio do mês. */}
+        <Section icon={<i className="fi fi-rr-flag" />} title={t('setup.settings.title')}>
+          <p className="toggle-desc" style={{ marginBottom: 12 }}>{t('setup.settings.desc')}</p>
+          <button type="button" className="btn btn-secondary" onClick={() => navigate('setup')}>
+            <i className="fi fi-rr-arrow-right" aria-hidden="true" /> {t('setup.settings.open')}
+          </button>
+        </Section>
 
         {/* Preferences */}
         <Section icon={<i className="fi fi-rr-settings-sliders" />} title={t('settings.preferences')}>

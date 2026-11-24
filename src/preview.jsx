@@ -27,6 +27,9 @@ import Ask from './components/Ask'
 import SplitEditor from './components/SplitEditor'
 import StreakBadge from './components/StreakBadge'
 import StatementImport from './components/StatementImport'
+import Onboarding from './components/Onboarding'
+import SetupChecklist from './components/SetupChecklist'
+import SetupWizard from './components/SetupWizard'
 import ColorPicker from './components/ColorPicker'
 import TransactionModal from './components/TransactionModal'
 import { ToastProvider } from './components/Toast'
@@ -86,18 +89,30 @@ function makeCtx(language = 'pt-BR') {
   return {
     ...fmt,
     t: createTranslator(language),
-    settings: { language, currency: 'BRL' },
+    settings: { language, currency: 'BRL', profile: { onboardedAt: '2026-11-24', tracking: 'bank' } },
     // Campos que as peças novas leem. Valores fixos: aqui se confere o visual,
     // não a conta — a conta tem teste próprio em utils/.
     transactions: fakeTransactions,
     categories: CATEGORIES,
-    wallets: [{ id: 'w1', name: 'Nubank' }],
+    wallets: [{ id: 'w1', name: 'Nubank', type: 'checking', balance: 1000 }, { id: 'w2', name: 'Dinheiro', type: 'cash', balance: 80 }],
     daysLeft: 11,
     addTransaction: async () => {},
     addMultipleTransactions: async (data, mode, count) => { window.__lastMulti = { data, mode, count } },
-    creditCards: [{ id: 'c1', name: 'Mastercard Sicoob' }],
+    creditCards: [{ id: 'c1', name: 'Mastercard Sicoob', limit: 8000, closingDay: 25, dueDay: 2 }],
     getCardCurrentUsed: () => 0,
-    walletBalances: { w1: 1250 },
+    walletBalances: { w1: 1250, w2: 80 },
+    totalBalance: 1330,
+    thisMonth: daysAgo(0).slice(0, 7),
+    spendingByCategory: { Alimentação: 95, Transporte: 26 },
+    getCardInvoice: () => 412.9,
+    updateSettings: (d) => console.log('[preview] updateSettings', d),
+    addWallet: async (d) => { console.log('[preview] addWallet', d); return { id: 'new' } },
+    addGoal: async (d) => { window.__lastGoal = d },
+    updateWallet: async () => {},
+    addCreditCard: async () => {},
+    addBudget: async () => {},
+    updateBudget: async () => {},
+    createRecurringSeries: async () => {},
     budgets: [{ category: 'Alimentação', limit: 800 }],
     goals: [],
     importTransactions: async (list) => { console.log('[preview] importTransactions', list); return list.length },
@@ -337,6 +352,20 @@ function TxModalPreview() {
   )
 }
 
+// Onboarding de conta nova (tela cheia, abre por botão) e a configuração
+// inicial com o cartão de primeiros passos. Gravações só vão para o console.
+function SetupPreview() {
+  const [onb, setOnb] = useState(false)
+  return (
+    <Section title="Onboarding e configuração inicial" cols={1}>
+      <div><button className="btn btn-secondary" onClick={() => setOnb(true)}>Abrir onboarding</button></div>
+      {onb && <Onboarding />}
+      <SetupChecklist />
+      <SetupWizard />
+    </Section>
+  )
+}
+
 function ImportPreview() {
   const [open, setOpen] = useState(false)
   return (
@@ -373,6 +402,7 @@ function Preview() {
         <TxModalPreview />
         <ColorPreview />
         <ImportPreview />
+        <SetupPreview />
         <Gallery />
       </div>
     </AppContext.Provider>

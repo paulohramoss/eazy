@@ -2,271 +2,414 @@ import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
 import { BrandLockup } from './BrandLogo'
-import ColorPicker from './ColorPicker'
-import { INCOME_CATEGORIES, suggestCategory } from '../utils/quickParse'
-import { GOAL_CATEGORY } from '../utils/categories'
-import { isoDate } from '../utils/date'
-import { DEFAULT_WALLET_ICON, WALLET_ICON_OPTIONS, resolveWalletIcon } from '../utils/walletIcons'
+import { SummitArt, WalletPlantArt } from './OnboardingArt'
+import { addMonths, isoDate, monthKey } from '../utils/date'
+import { endOfMonth, monthlyNeeded } from '../utils/setup'
+import { DEFAULT_WALLET_ICON, resolveWalletIcon } from '../utils/walletIcons'
 
-const WALLET_TYPES = [
-  { value: 'checking',   labelKey: 'wallet.type.checking',   icon: 'fi-rr-bank' },
-  { value: 'savings',    labelKey: 'wallet.type.savings',    icon: 'fi-rr-piggy-bank' },
-  { value: 'investment', labelKey: 'wallet.type.investment', icon: 'fi-rr-chart-line-up' },
-  { value: 'cash',       labelKey: 'wallet.type.cash',       icon: 'fi-rr-money-bill-wave' },
+// Onboarding de quem acabou de criar a conta.
+//
+// Começa pelo porquê (o que a pessoa quer fazer com o dinheiro) e devolve algo
+// concreto antes de pedir dado chato: no passo 4 a meta já sai com "guarde
+// R$ X por mês". A primeira conta fica por último porque é ela que libera o
+// app — o gate em App.jsx troca esta tela pela visão geral assim que existe
+// uma carteira, e lá o cartão "Seus primeiros passos" continua o caminho.
+//
+// Faixa etária ficou de fora de propósito: o app não usa, e dado pessoal sem
+// uso é só uma pergunta a mais antes do valor aparecer.
+
+const TOTAL_STEPS = 5
+
+const OBJECTIVES = [
+  { id: 'control', icon: 'fi-rr-chart-histogram' },
+  { id: 'reserve', icon: 'fi-rr-piggy-bank', goal: true },
+  { id: 'travel', icon: 'fi-rr-plane', goal: true, editableName: true },
+  { id: 'debts', icon: 'fi-rr-credit-card', goal: true },
+  { id: 'invest', icon: 'fi-rr-chart-line-up', goal: true },
+  { id: 'dream', icon: 'fi-rr-star', goal: true, editableName: true },
 ]
 
+const INCOME_TYPES = ['fixed', 'variable', 'multiple']
+const TRACKING = ['none', 'bank', 'sheet', 'otherApp']
+
+const WALLET_TYPES = [
+  { value: 'checking', icon: 'fi-rr-bank' },
+  { value: 'savings', icon: 'fi-rr-piggy-bank' },
+  { value: 'investment', icon: 'fi-rr-chart-line-up' },
+  { value: 'cash', icon: 'fi-rr-money-bill-wave' },
+]
+
+// Valor sugerido da meta: a reserva de emergência clássica é 6 meses de renda.
+const defaultTarget = (id, income) => ({
+  reserve: income > 0 ? income * 6 : 10000,
+  travel: 5000,
+  debts: 0,
+  invest: 2000,
+  dream: 8000,
+}[id] ?? 0)
+
+function Choice({ selected, onClick, title, sub, role = 'radio' }) {
+  return (
+    <button
+      type="button"
+      role={role}
+      aria-checked={selected}
+      className={`onb-choice${selected ? ' selected' : ''}`}
+      onClick={onClick}
+    >
+      <span className={`onb-choice-mark onb-choice-mark--${role}`} aria-hidden="true">
+        {selected && <i className="fi fi-rr-check" />}
+      </span>
+      <span className="onb-choice-text">
+        <strong>{title}</strong>
+        {sub && <small>{sub}</small>}
+      </span>
+    </button>
+  )
+}
 
 export default function Onboarding() {
-  const { addWallet, addTransaction, categories, currencySymbol, wallets, dbError, t } = useApp()
+  const { addWallet, addGoal, updateSettings, settings, wallets, dbError, formatCurrency: fmt, t } = useApp()
+  const today = isoDate()
+
   const [step, setStep] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [skipTx, setSkipTx] = useState(false)
+  const [objectives, setObjectives] = useState([])
+  const [profile, setProfile] = useState({ incomeType: '', monthlyIncome: 0, incomeLater: false, tracking: '' })
+  const [goal, setGoal] = useState(null) // { id, name, target, month } ou null = sem meta
+  const [goalTouched, setGoalTouched] = useState(false)
+  const [account, setAccount] = useState({ type: 'checking', name: '', balance: 0 })
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  // Cada clique em Pular/Concluir chamava addWallet de novo. Se a tela não
-  // desmontasse (listener negado), cada clique criava uma carteira órfã.
-  const walletRef = useRef(null)
 
-  const [wallet, setWallet] = useState({
-    name: '', type: 'checking', balance: 0, color: '#0053EF', icon: DEFAULT_WALLET_ICON,
-  })
-  const [tx, setTx] = useState({
-    name: '', type: 'income', category: 'Salário', amount: 0,
-  })
+  // Um clique repetido em Concluir (ou nova tentativa depois de erro) não
+  // pode criar uma segunda meta.
+  const goalSaved = useRef(false)
 
-  const setW = (k, v) => setWallet(w => ({ ...w, [k]: v }))
-  const setT = (k, v) => setTx(prev => ({ ...prev, [k]: v }))
+  const setP = (k, v) => setProfile(p => ({ ...p, [k]: v }))
+  const setG = (k, v) => { setGoalTouched(true); setGoal(g => ({ ...g, [k]: v })) }
+  const setA = (k, v) => setAccount(a => ({ ...a, [k]: v }))
 
-  // Tipo e categoria acompanham a descrição até a pessoa escolher à mão:
-  // "Mercado do mês" entrava como receita de Salário, que era o padrão fixo.
-  const [txTouched, setTxTouched] = useState(false)
-  const pickT = (k, v) => { setTxTouched(true); setT(k, v) }
-  const setTxName = (name) => {
-    if (txTouched) return setT('name', name)
-    const guess = suggestCategory(name, { categories })
-    setTx(prev => guess && guess.category !== GOAL_CATEGORY
-      ? { ...prev, name, category: guess.category, type: INCOME_CATEGORIES.has(guess.category) ? 'income' : 'expense' }
-      : { ...prev, name })
+  // A meta detalhada é a do primeiro objetivo que vira meta, na ordem da lista.
+  const goalObjective = OBJECTIVES.find(o => o.goal && objectives.includes(o.id))
+  const income = profile.incomeLater ? 0 : Number(profile.monthlyIncome) || 0
+
+  const toggleObjective = (id) => setObjectives(list =>
+    list.includes(id) ? list.filter(x => x !== id) : [...list, id])
+
+  // Ao entrar no passo da meta, sugere valor e prazo — a menos que a pessoa
+  // já tenha mexido nela e só voltou um passo.
+  const goToGoal = () => {
+    if (!goalObjective) return setStep(5)
+    if (!goalTouched || goal?.id !== goalObjective.id) {
+      setGoal({
+        id: goalObjective.id,
+        name: t(`onb.goal.${goalObjective.id}.name`),
+        target: defaultTarget(goalObjective.id, income),
+        // Reserva de 6 rendas em 12 meses pediria metade da renda por mês;
+        // 24 meses dá uma sugestão que a pessoa consegue cumprir.
+        month: monthKey(new Date(`${addMonths(today, goalObjective.id === 'reserve' ? 24 : 12)}T12:00:00`)),
+      })
+      setGoalTouched(false)
+    }
+    setStep(4)
   }
 
-  const txFilled = tx.name.trim() && Number(tx.amount) > 0
-  const txEmpty  = !tx.name.trim() && !Number(tx.amount)
-  // Concluir aceita: transação completa OU nenhum campo preenchido (vira skip).
-  // Só bloqueia no meio-termo (só descrição, ou só valor).
-  const canFinish = !loading && (skipTx || txFilled || txEmpty)
+  const next = () => {
+    if (step === 3) return goToGoal()
+    setStep(s => Math.min(TOTAL_STEPS, s + 1))
+  }
+  const back = () => {
+    if (step === 5 && !goalObjective) return setStep(3)
+    setStep(s => Math.max(1, s - 1))
+  }
 
-  const handleFinish = async (skip = skipTx) => {
-    setLoading(true)
+  const skipGoal = () => { setGoal(null); setStep(5) }
+
+  const goalValid = goal && goal.name.trim() && Number(goal.target) > 0 && goal.month
+  const perMonth = goalValid ? monthlyNeeded(goal.target, today, goal.month) : 0
+
+  const finish = async ({ skipAccount = false } = {}) => {
+    setSaving(true)
     setError('')
     try {
-      const ref = walletRef.current
-        || await addWallet({ ...wallet, icon: resolveWalletIcon(wallet.icon, wallet.type) })
-      walletRef.current = ref
-      if (!skip && tx.name.trim() && Number(tx.amount) > 0) {
-        await addTransaction({
-          ...tx,
-          amount: Number(tx.amount),
-          walletId: ref.id,
-          date: isoDate(),
-          status: 'completed',
-          notes: '', tags: [], cardId: '',
+      if (goal && goalValid && !goalSaved.current) {
+        await addGoal({
+          name: goal.name.trim(),
+          target: Number(goal.target),
+          current: 0,
+          deadline: endOfMonth(goal.month),
         })
+        goalSaved.current = true
       }
-      // wallets.length > 0 now — Dashboard unmounts this automatically
+
+      updateSettings({
+        profile: {
+          ...(settings.profile || {}),
+          objectives,
+          incomeType: profile.incomeType,
+          monthlyIncome: income,
+          tracking: profile.tracking,
+          onboardedAt: today,
+        },
+      })
+
+      // Por último: a carteira desmonta esta tela (ver App.jsx).
+      const name = account.name.trim() || t('onb.account.defaultName')
+      await addWallet({
+        name,
+        type: account.type,
+        balance: skipAccount ? 0 : Number(account.balance) || 0,
+        color: '#0053EF',
+        icon: resolveWalletIcon(DEFAULT_WALLET_ICON, account.type),
+      })
     } catch (err) {
       console.error('[Onboarding]', err)
       setError(t('onb.saveFailed', { error: err?.code || err?.message || String(err) }))
-    } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
-  const bar = (n) => (
-    <div key={n} style={{ height: 4, flex: 1, borderRadius: 2,
-      background: n <= step ? 'var(--accent)' : 'var(--border)', transition: 'background .3s' }} />
-  )
-
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-primary)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-    }}>
-      <div style={{ width: '100%', maxWidth: 480 }}>
+    <div className="onb">
+      <div className="onb-card">
+        <div className="onb-top">
+          <BrandLockup className="onboarding-logo" />
+        </div>
 
-        {/* Primeira tela depois do cadastro e a única sem menu: sem isto o
-            app não mostra a marca entre o login e a visão geral. */}
-        <BrandLockup className="onboarding-logo" />
-
-        {/* Progress bar */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 36 }}>
-          {[1, 2, 3].map(bar)}
+        <div className="onb-progress" aria-label={t('onb.progress', { step, total: TOTAL_STEPS })}>
+          <div className="onb-progress-bars">
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <span key={i} className={i < step ? 'on' : ''} />
+            ))}
+          </div>
+          {step > 1 && <span className="onb-progress-label">{t('onb.progress', { step, total: TOTAL_STEPS })}</span>}
         </div>
 
         {dbError && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 20,
-            background: 'rgba(232,56,42,.12)', color: '#E8382A', wordBreak: 'break-word',
-          }}>
-            {t('onb.dbError', { error: dbError, count: wallets.length })}
-          </div>
+          <div className="onb-alert">{t('onb.dbError', { error: dbError, count: wallets.length })}</div>
         )}
 
-        {/* ── Step 1: Wallet type + name + color ─────────────────────────────── */}
+        {/* ── 1. Boas-vindas ───────────────────────────────────────────── */}
         {step === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>{t('onb.welcome')}</h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-                {t('onb.welcomeSub')}
-              </p>
+          <section className="onb-step onb-step--welcome">
+            <h1 className="onb-title onb-title--hero">
+              {t('onb.welcome.title1')} <span className="onb-underline">{t('onb.welcome.title2')}</span>
+            </h1>
+            <p className="onb-sub">{t('onb.welcome.sub')}</p>
+            <WalletPlantArt className="onb-art" />
+            <div className="onb-actions">
+              <button className="btn btn-primary onb-cta" onClick={next} autoFocus>
+                {t('onb.start')} <i className="fi fi-rr-arrow-right" aria-hidden="true" />
+              </button>
             </div>
-
-            <div className="form-group">
-              <label className="form-label">{t('onb.walletName')}</label>
-              <input
-                className="form-input" autoFocus
-                placeholder={t('onb.walletNamePlaceholder')}
-                value={wallet.name}
-                onChange={e => setW('name', e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && wallet.name.trim() && setStep(2)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">{t('wallet.type')}</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {WALLET_TYPES.map(wt => (
-                  <button key={wt.value} type="button" onClick={() => setW('type', wt.value)} style={{
-                    padding: '12px 14px', borderRadius: 10, cursor: 'pointer', fontWeight: 500, fontSize: 14,
-                    display: 'flex', alignItems: 'center', gap: 10, transition: 'all .15s',
-                    border: wallet.type === wt.value ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                    background: wallet.type === wt.value ? 'rgba(var(--accent-rgb),.08)' : 'var(--bg-card)',
-                    color: wallet.type === wt.value ? 'var(--accent)' : 'var(--text-primary)',
-                  }}>
-                    <i className={`fi ${wt.icon}`} />
-                    {t(wt.labelKey)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <ColorPicker label={t('wallet.color')} value={wallet.color} onChange={c => setW('color', c)} />
-            </div>
-
-            <button className="btn btn-primary" style={{ padding: 16, fontSize: 16 }}
-              disabled={!wallet.name.trim()} onClick={() => setStep(2)}>
-              {t('onb.next')}
-            </button>
-          </div>
+          </section>
         )}
 
-        {/* ── Step 2: Initial balance ─────────────────────────────────────────── */}
+        {/* ── 2. Objetivos ─────────────────────────────────────────────── */}
         {step === 2 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>{t('onb.balanceTitle')}</h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-                {t('onb.balanceSub', { name: wallet.name })}
-              </p>
+          <section className="onb-step">
+            <h1 className="onb-title">{t('onb.objectives.title')}</h1>
+            <p className="onb-sub">{t('onb.objectives.sub')}</p>
+            <div className="onb-objectives" role="group" aria-label={t('onb.objectives.title')}>
+              {OBJECTIVES.map(o => {
+                const on = objectives.includes(o.id)
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={on}
+                    className={`onb-objective${on ? ' selected' : ''}`}
+                    onClick={() => toggleObjective(o.id)}
+                  >
+                    {on && <i className="fi fi-rr-check onb-objective-check" aria-hidden="true" />}
+                    <i className={`fi ${o.icon} onb-objective-icon`} aria-hidden="true" />
+                    <strong>{t(`onb.objective.${o.id}`)}</strong>
+                    <small>{t(`onb.objective.${o.id}.sub`)}</small>
+                  </button>
+                )
+              })}
             </div>
-
-            <div className="form-group">
-              <label className="form-label">{t('onb.initialBalance', { symbol: currencySymbol })}</label>
-              <CurrencyInput
-                className="form-input" autoFocus
-                style={{ fontSize: 32, fontWeight: 800, textAlign: 'center', height: 72 }}
-                value={wallet.balance}
-                onChange={v => setW('balance', v)}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary" style={{ flex: 1, padding: 14 }} onClick={() => setStep(1)}>
-                {t('onb.back')}
+            <div className="onb-actions">
+              <button className="btn btn-primary onb-cta" onClick={next} disabled={!objectives.length}>
+                {t('onb.continue')} <i className="fi fi-rr-arrow-right" aria-hidden="true" />
               </button>
-              <button className="btn btn-primary" style={{ flex: 2, padding: 14, fontSize: 16 }} onClick={() => setStep(3)}>
-                {t('onb.next')}
-              </button>
+              <button className="onb-later" onClick={() => { setObjectives([]); next() }}>{t('onb.later')}</button>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* ── Step 3: Optional first transaction ─────────────────────────────── */}
+        {/* ── 3. Renda e hábitos ───────────────────────────────────────── */}
         {step === 3 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>{t('onb.firstTxTitle')}</h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-                {t('onb.firstTxSub')}
-              </p>
+          <section className="onb-step">
+            <div className="onb-heading-art">
+              <span className="onb-heading-icon"><i className="fi fi-rr-wallet" aria-hidden="true" /></span>
+              <div>
+                <h1 className="onb-title">{t('onb.money.title')}</h1>
+                <p className="onb-sub">{t('onb.money.sub')}</p>
+              </div>
             </div>
 
-            {!skipTx ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">{t('wallet.type')}</label>
-                    <select className="form-select" value={tx.type} onChange={e => pickT('type', e.target.value)}>
-                      <option value="income">{t('txModal.income')}</option>
-                      <option value="expense">{t('txModal.expense')}</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{t('tx.category')}</label>
-                    <select className="form-select" value={tx.category} onChange={e => pickT('category', e.target.value)}>
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('tx.description')}</label>
-                  <input className="form-input" autoFocus
-                    placeholder={t('onb.txNamePlaceholder')}
-                    value={tx.name} onChange={e => setTxName(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('txModal.value', { symbol: currencySymbol })}</label>
-                  <CurrencyInput className="form-input" value={tx.amount} onChange={v => setT('amount', v)} />
-                </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
-                <i className="fi fi-rr-check-circle" style={{
-                  fontSize: 52, color: 'var(--accent-green)', display: 'block', marginBottom: 12,
-                }} />
-                {t('onb.skipped')}
-              </div>
-            )}
-
-            {error && (
-              <div style={{
-                padding: '10px 14px', borderRadius: 8, fontSize: 14,
-                background: 'rgba(232,56,42,.12)', color: 'var(--accent-red, #E8382A)',
-              }}>
-                {error}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100 }}
-                disabled={loading} onClick={() => setStep(2)}>
-                {t('onb.back')}
-              </button>
-              <button className="btn btn-secondary" style={{ flex: 1, padding: 14, minWidth: 100, opacity: loading ? .5 : 1 }}
-                disabled={loading}
-                onClick={() => { setSkipTx(true); handleFinish(true) }}>
-                {t('onb.skip')}
-              </button>
-              <button className="btn btn-primary"
-                style={{ flex: 2, padding: 14, fontSize: 16, minWidth: 140, opacity: canFinish ? 1 : .45, cursor: canFinish ? 'pointer' : 'not-allowed' }}
-                disabled={!canFinish}
-                onClick={() => handleFinish()}>
-                {t(loading ? 'onb.saving' : 'onb.finish')}
-              </button>
+            <h2 className="onb-question">{t('onb.money.incomeType')}</h2>
+            <div className="onb-choices" role="radiogroup" aria-label={t('onb.money.incomeType')}>
+              {INCOME_TYPES.map(v => (
+                <Choice key={v} selected={profile.incomeType === v} onClick={() => setP('incomeType', v)}
+                  title={t(`onb.income.${v}`)} sub={t(`onb.income.${v}.sub`)} />
+              ))}
             </div>
-          </div>
+
+            <h2 className="onb-question">
+              {t('onb.money.incomeAmount')} <span className="onb-optional">{t('onb.optional')}</span>
+            </h2>
+            <div className="onb-income-row">
+              <CurrencyInput
+                className="form-input onb-money-input"
+                value={profile.incomeLater ? 0 : profile.monthlyIncome}
+                onChange={v => setProfile(p => ({ ...p, monthlyIncome: v, incomeLater: false }))}
+                disabled={profile.incomeLater}
+                aria-label={t('onb.money.incomeAmount')}
+              />
+              <label className="onb-check">
+                <input type="checkbox" checked={profile.incomeLater} onChange={e => setP('incomeLater', e.target.checked)} />
+                {t('onb.money.incomeLater')}
+              </label>
+            </div>
+
+            <h2 className="onb-question">{t('onb.money.tracking')}</h2>
+            <div className="onb-choices" role="radiogroup" aria-label={t('onb.money.tracking')}>
+              {TRACKING.map(v => (
+                <Choice key={v} selected={profile.tracking === v} onClick={() => setP('tracking', v)}
+                  title={t(`onb.tracking.${v}`)} sub={t(`onb.tracking.${v}.sub`)} />
+              ))}
+            </div>
+
+            <div className="onb-tip">
+              <i className="fi fi-rr-bulb" aria-hidden="true" />
+              <div><strong>{t('onb.money.tipTitle')}</strong><span>{t('onb.money.tip')}</span></div>
+            </div>
+
+            <div className="onb-actions">
+              <button className="btn btn-primary onb-cta" onClick={next}>
+                {t('onb.continue')} <i className="fi fi-rr-arrow-right" aria-hidden="true" />
+              </button>
+              <div className="onb-actions-row">
+                <button className="onb-later" onClick={back}>{t('onb.back')}</button>
+                <button className="onb-later" onClick={() => { setProfile({ incomeType: '', monthlyIncome: 0, incomeLater: false, tracking: '' }); next() }}>
+                  {t('onb.later')}
+                </button>
+              </div>
+            </div>
+          </section>
         )}
 
+        {/* ── 4. A meta ────────────────────────────────────────────────── */}
+        {step === 4 && goal && (
+          <section className="onb-step">
+            <h1 className="onb-title">{t('onb.goal.title')}</h1>
+            <p className="onb-sub">{t(objectives.filter(id => OBJECTIVES.find(o => o.id === id)?.goal).length > 1 ? 'onb.goal.subMany' : 'onb.goal.sub')}</p>
+
+            <div className="onb-goal">
+              <div className="onb-goal-head">
+                <i className={`fi ${goalObjective.icon}`} aria-hidden="true" />
+                <strong>{goal.name || t(`onb.goal.${goal.id}.name`)}</strong>
+              </div>
+              <div className="onb-goal-body">
+                {goalObjective.editableName && (
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="onb-goal-name">{t(`onb.goal.${goal.id}.nameLabel`)}</label>
+                    <input id="onb-goal-name" className="form-input" value={goal.name} maxLength={80}
+                      onChange={e => setG('name', e.target.value)} />
+                  </div>
+                )}
+                <div className="form-group">
+                  <label className="form-label">{t(`onb.goal.${goal.id}.amount`)}</label>
+                  <CurrencyInput className="form-input onb-money-input" value={goal.target}
+                    onChange={v => setG('target', v)} aria-label={t(`onb.goal.${goal.id}.amount`)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="onb-goal-month">{t(`onb.goal.${goal.id}.when`)}</label>
+                  <input id="onb-goal-month" className="form-input" type="month" value={goal.month}
+                    min={today.slice(0, 7)} onChange={e => e.target.value && setG('month', e.target.value)} />
+                </div>
+
+                <div className="onb-plan">
+                  <SummitArt className="onb-plan-art" />
+                  <p>
+                    {perMonth > 0
+                      ? t(goal.id === 'debts' ? 'onb.goal.planDebts' : 'onb.goal.plan', { amount: fmt(perMonth) })
+                      : t('onb.goal.planEmpty')}
+                    {perMonth > 0 && income > 0 && (
+                      <small>{t('onb.goal.planShare', { pct: Math.round((perMonth / income) * 100) })}</small>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="onb-actions">
+              <button className="btn btn-primary onb-cta" onClick={() => setStep(5)} disabled={!goalValid}>
+                {t('onb.continue')} <i className="fi fi-rr-arrow-right" aria-hidden="true" />
+              </button>
+              <div className="onb-actions-row">
+                <button className="onb-later" onClick={back}>{t('onb.back')}</button>
+                <button className="onb-later" onClick={skipGoal}>{t('onb.later')}</button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── 5. Primeira conta ────────────────────────────────────────── */}
+        {step === 5 && (
+          <section className="onb-step">
+            <h1 className="onb-title">{t('onb.account.title')}</h1>
+            <p className="onb-sub">{t('onb.account.sub')}</p>
+
+            <div className="onb-account-types" role="radiogroup" aria-label={t('wallet.type')}>
+              {WALLET_TYPES.map(w => (
+                <button key={w.value} type="button" role="radio" aria-checked={account.type === w.value}
+                  className={`onb-account-type${account.type === w.value ? ' selected' : ''}`}
+                  onClick={() => setA('type', w.value)}>
+                  {account.type === w.value && <i className="fi fi-rr-check onb-objective-check" aria-hidden="true" />}
+                  <i className={`fi ${w.icon}`} aria-hidden="true" />
+                  <span>{t(`wallet.type.${w.value}`)}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="onb-account-fields">
+              <div className="form-group">
+                <label className="form-label" htmlFor="onb-account-name">{t('onb.account.name')}</label>
+                <input id="onb-account-name" className="form-input" value={account.name} maxLength={60}
+                  placeholder={t('onb.account.namePlaceholder')} onChange={e => setA('name', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{t('onb.account.balance')}</label>
+                <CurrencyInput className="form-input" value={account.balance}
+                  onChange={v => setA('balance', v)} aria-label={t('onb.account.balance')} />
+              </div>
+            </div>
+
+            <div className="onb-tip">
+              <i className="fi fi-rr-info" aria-hidden="true" />
+              <div><strong>{t('onb.account.midMonthTitle')}</strong><span>{t('onb.account.midMonth')}</span></div>
+            </div>
+
+            {error && <div className="onb-alert">{error}</div>}
+
+            <div className="onb-actions">
+              <button className="btn btn-primary onb-cta" onClick={() => finish()} disabled={saving || !account.name.trim()}>
+                {saving ? t('onb.saving') : t('onb.finish')}
+                {!saving && <i className="fi fi-rr-arrow-right" aria-hidden="true" />}
+              </button>
+              <div className="onb-actions-row">
+                <button className="onb-later" onClick={back} disabled={saving}>{t('onb.back')}</button>
+                <button className="onb-later" onClick={() => finish({ skipAccount: true })} disabled={saving}>
+                  {t('onb.account.skip')}
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )

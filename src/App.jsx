@@ -35,6 +35,7 @@ const Alerts            = lazyWithReload(() => import('./components/Alerts'))
 const FinancialCalendar = lazyWithReload(() => import('./components/FinancialCalendar'))
 const Recurrences       = lazyWithReload(() => import('./components/Recurrences'))
 const Ask               = lazyWithReload(() => import('./components/Ask'))
+const SetupWizard       = lazyWithReload(() => import('./components/SetupWizard'))
 
 // ─── Navigation Config ────────────────────────────────────────────────────────
 
@@ -109,6 +110,7 @@ const SCREENS = {
   profile: () => <Profile />,
   settings: () => <Settings />,
   ask: () => <Ask />,
+  setup: () => <SetupWizard />,
 }
 
 // Título e subtítulo de cada tela vêm do dicionário (screen.<tela>.title/sub).

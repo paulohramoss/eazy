@@ -4,6 +4,7 @@ import CurrencyInput from './CurrencyInput'
 import BarChart from './charts/BarChart'
 import DonutChart from './charts/DonutChart'
 import EmptyState from './EmptyState'
+import SetupChecklist from './SetupChecklist'
 
 // ─── Can I Spend Widget ───────────────────────────────────────────────────────
 
@@ -169,6 +170,7 @@ export default function Overview({ onNavigate }) {
   if (!dbLoading && transactions.length === 0) {
     return (
       <div className="screen">
+        <SetupChecklist />
         <div className="card overview-first-run">
           <div className="overview-first-run-icon">
             <i className="fi fi-rr-plus" aria-hidden="true" />
@@ -211,6 +213,8 @@ export default function Overview({ onNavigate }) {
           ))}
         </div>
       )}
+
+      <SetupChecklist />
 
       {/* Metrics */}
       <div className="metrics-grid">
