@@ -993,6 +993,8 @@ export const pt = {
   'onb.goal.dream.when': 'Até quando quer realizar?',
   'onb.goal.travel.nameLabel': 'Para onde?',
   'onb.goal.dream.nameLabel': 'Qual é o seu sonho?',
+  'onb.goal.month': 'Mês',
+  'onb.goal.year': 'Ano',
   'onb.goal.plan': 'Para chegar lá, você pode guardar cerca de {amount} por mês.',
   'onb.goal.planDebts': 'É possível! Com {amount} por mês, você fica livre das dívidas no prazo.',
   'onb.goal.planEmpty': 'Informe valor e prazo e a gente calcula um caminho possível.',

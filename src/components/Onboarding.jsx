@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import CurrencyInput from './CurrencyInput'
+import MonthPicker from './MonthPicker'
 import { BrandLockup } from './BrandLogo'
 import { SummitArt, WalletPlantArt } from './OnboardingArt'
 import { addMonths, isoDate, monthKey } from '../utils/date'
@@ -328,8 +329,9 @@ export default function Onboarding() {
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="onb-goal-month">{t(`onb.goal.${goal.id}.when`)}</label>
-                  <input id="onb-goal-month" className="form-input" type="month" value={goal.month}
-                    min={today.slice(0, 7)} onChange={e => e.target.value && setG('month', e.target.value)} />
+                  <MonthPicker id="onb-goal-month" value={goal.month} min={today.slice(0, 7)}
+                    language={settings.language} onChange={v => setG('month', v)}
+                    labelMonth={t('onb.goal.month')} labelYear={t('onb.goal.year')} />
                 </div>
 
                 <div className="onb-plan">
